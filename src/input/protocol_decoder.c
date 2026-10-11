@@ -14,9 +14,20 @@
 #include <dev/usb/usb_endian.h>
 #endif
 
+/* Adapter 2 exposes this non-gamepad identity while no controller is connected.
+ * See https://joypad.ai/controllers/8bitdo-wireless-usb-adapter. */
+int usb_receiver_is_idle(uint16_t vid, uint16_t pid)
+{
+    return vid == 0x2dc8 && pid == 0x3107;
+}
+
 /* Exact protocol IDs. Other known vendors require a real HID gamepad descriptor. */
 usb_controller_type_t usb_identify_controller(uint16_t vid, uint16_t pid, const char **name_out)
 {
+    if (usb_receiver_is_idle(vid, pid)) {
+        if (name_out) *name_out = "8BitDo Adapter 2 waiting for controller";
+        return CTRL_UNKNOWN;
+    }
     static const struct { uint16_t vid, pid; usb_controller_type_t type; const char *name; } devices[] = {
         {0x0e6f,0x0184,CTRL_PDP_FACEOFF,"8-byte wired gamepad"},
         {0x057e,0x2009,CTRL_NINTENDO_SWITCH_PRO,"Switch Pro"},

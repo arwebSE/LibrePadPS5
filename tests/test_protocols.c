@@ -46,6 +46,12 @@ static void adapter_interfaces(void)
     for (size_t i=0; i<sizeof(ids)/sizeof(ids[0]); i++)
         assert(usb_identify_controller(0x2dc8,ids[i],NULL)==CTRL_8BITDO_ADAPTER);
     assert(usb_identify_controller(0x045e,0x028e,NULL)==CTRL_XBOX_XINPUT);
+    const char *name = NULL;
+    assert(usb_receiver_is_idle(0x2dc8,0x3107));
+    assert(usb_identify_controller(0x2dc8,0x3107,&name)==CTRL_UNKNOWN);
+    assert(strstr(name,"waiting"));
+    assert(!usb_receiver_is_idle(0x2dc8,0x3106));
+    assert(!usb_receiver_is_idle(0x1234,0x3107));
     assert(usb_identify_controller(0x2dc8,0x7777,NULL)==CTRL_GENERIC_HID);
     uint8_t xinput[20]={0,0x14,1,0x10,70,200};
     pad_state_t state;

@@ -40,7 +40,7 @@ function updateOptions(id, options, selected) {
 }
 let nativeProfilesSignature = "";
 function supportIssueUrl(state) {
-  const url = new URL("https://github.com/arwebSE/freepad-usb-ps5/issues/new");
+  const url = new URL("https://github.com/arwebSE/LibrePadPS5/issues/new");
   url.searchParams.set("template", "controller_problem.yml");
   if (state.version) url.searchParams.set("version", state.version);
   if (state.firmware) url.searchParams.set("firmware", state.firmware);

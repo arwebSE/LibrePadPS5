@@ -188,12 +188,23 @@ static int setup_generic(usb_slot_device_t *dev)
     USETW(request.ucr_request.wLength,sizeof(descriptor));
     request.ucr_data=descriptor;
     request.ucr_flags=USB_SHORT_XFER_OK;
-    if (ioctl(dev->fd,USB_DO_REQUEST,&request)) return 0;
+    if (ioctl(dev->fd,USB_DO_REQUEST,&request)) {
+        log_line("usb_hotplug: %04x:%04x report descriptor read failed (interface=%u, errno=%d: %s)",
+                 dev->vid, dev->pid, dev->interface, errno, strerror(errno));
+        return 0;
+    }
     if (request.ucr_actlen>sizeof(descriptor) ||
-        !generic_descriptor_is_gamepad(descriptor,(int)request.ucr_actlen)) return 0;
+        !generic_descriptor_is_gamepad(descriptor,(int)request.ucr_actlen)) {
+        log_line("usb_hotplug: %04x:%04x report descriptor is not a gamepad (interface=%u, bytes=%u)",
+                 dev->vid, dev->pid, dev->interface, (unsigned)request.ucr_actlen);
+        return 0;
+    }
     pad_state_reset(&dev->generic_state);
-    return generic_setup(dev->generic.bytes,descriptor,(int)request.ucr_actlen,
+    int ready = generic_setup(dev->generic.bytes,descriptor,(int)request.ucr_actlen,
         dev->vid,dev->pid,FREEPAD_STATE_DIR "/maps");
+    if (!ready) log_line("usb_hotplug: %04x:%04x gamepad descriptor could not be parsed (bytes=%u)",
+                         dev->vid, dev->pid, (unsigned)request.ucr_actlen);
+    return ready;
 }
 
 static int wake_device(usb_slot_device_t *dev)
@@ -409,7 +420,10 @@ static void probe_usb_devices(void)
             if (is_device_claimed(path)) continue;
 
             int fd = open(path, O_RDWR | O_NONBLOCK);
-            if (fd < 0) continue;
+            if (fd < 0) {
+                if (errno == ENOENT || errno == ENXIO) s_last_seen[bus][dev] = 0;
+                continue;
+            }
 
             uint16_t vid = 0, pid = 0;
 #ifdef __PROSPERO__
@@ -431,6 +445,17 @@ static void probe_usb_devices(void)
             if (vid == 0 && pid == 0) {
                 close(fd);
                 continue;
+            }
+
+            /* Do not claim the idle receiver, even if a saved profile overrides
+             * its ID. Keep polling so re-enumeration as a gamepad is detected. */
+            if (usb_receiver_is_idle(vid, pid)) {
+                uint32_t packed = ((uint32_t)vid << 16) | pid;
+                if (s_last_seen[bus][dev] != packed) {
+                    s_last_seen[bus][dev] = packed;
+                    log_line("usb_hotplug: %04x:%04x on %s is an idle 8BitDo Adapter 2; waiting for a paired controller. Check adapter LED is solid, then hold View+Up (Xbox) or Share+Up (PS4) for 3 seconds for XInput mode", vid, pid, path);
+                }
+                close(fd); continue;
             }
 
             /* Never claim or send USB transfers to any other device. */
@@ -485,6 +510,8 @@ static void probe_usb_devices(void)
                 log_line("usb_hotplug: %04x:%04x has no supported HID/XInput interface (driver=%d); for 8BitDo Adapter 2 select XInput mode, then replug", vid, pid, sdev->driver);
                 close(fd); memset(sdev,0,sizeof(*sdev)); continue;
             }
+            log_line("usb_hotplug: %04x:%04x selected driver=%d interface=%u IN=0x%02x OUT=0x%02x GIP=%d",
+                     vid, pid, sdev->driver, sdev->interface, sdev->in_address, sdev->out_address, sdev->gip);
             if (sdev->driver==CTRL_GENERIC_HID && !setup_generic(sdev)) {
                 log_line("usb_hotplug: %04x:%04x HID descriptor rejected; for 8BitDo Adapter 2 select XInput mode, then replug", vid, pid);
                 close(fd); memset(sdev,0,sizeof(*sdev)); continue;

@@ -2,7 +2,7 @@
 
 Use your gamepad on PS5.
 
-[Download v0.5.2](https://github.com/arwebSE/freepad-usb-ps5/releases/download/v0.5.2-preview/LibrePadPS5.elf) · [Releases](https://github.com/arwebSE/freepad-usb-ps5/releases) · [Issues](https://github.com/arwebSE/freepad-usb-ps5/issues)
+[Download v0.5.3](https://github.com/arwebSE/LibrePadPS5/releases/download/v0.5.3-preview/LibrePadPS5.elf) · [Releases](https://github.com/arwebSE/LibrePadPS5/releases) · [Issues](https://github.com/arwebSE/LibrePadPS5/issues)
 
 ## What it does
 
