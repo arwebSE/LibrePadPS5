@@ -20,6 +20,22 @@
 #include <sys/time.h>
 
 #ifdef __PROSPERO__
+/* Report the protocol actually selected, not the mode requested on an adapter
+ * or the controller paired behind it. Those can share the same USB identity. */
+static const char *usb_protocol_label(usb_controller_type_t driver, int gip)
+{
+    switch (driver) {
+    case CTRL_XBOX_XINPUT:
+    case CTRL_8BITDO_ADAPTER: return gip ? "Xbox GIP" : "XInput";
+    case CTRL_NINTENDO_SWITCH_PRO: return "Switch Pro";
+    case CTRL_SONY_DS4: return "DualShock 4";
+    case CTRL_SONY_DS3: return "DualShock 3";
+    case CTRL_GENERIC_HID: return "Generic HID";
+    case CTRL_PDP_FACEOFF: return "Configured HID";
+    default: return "Custom USB layout";
+    }
+}
+
 #include <dev/usb/usb.h>
 #include <dev/usb/usb_ioctl.h>
 #include <dev/usb/usb_endian.h>
@@ -572,8 +588,9 @@ static void probe_usb_devices(void)
                 log_line("usb_hotplug: %04x:%04x has no supported HID/XInput interface (driver=%d); for 8BitDo Adapter 2 select XInput mode, then replug", vid, pid, sdev->driver);
                 close(fd); memset(sdev,0,sizeof(*sdev)); continue;
             }
-            log_line("usb_hotplug: %04x:%04x selected driver=%d interface=%u IN=0x%02x OUT=0x%02x GIP=%d",
-                     vid, pid, sdev->driver, sdev->interface, sdev->in_address, sdev->out_address, sdev->gip);
+            log_line("usb_hotplug: %04x:%04x selected protocol=%s driver=%d interface=%u IN=0x%02x OUT=0x%02x GIP=%d",
+                     vid, pid, usb_protocol_label(sdev->driver, sdev->gip), sdev->driver,
+                     sdev->interface, sdev->in_address, sdev->out_address, sdev->gip);
             if (sdev->driver==CTRL_GENERIC_HID && !setup_generic(sdev)) {
                 log_line("usb_hotplug: %04x:%04x HID descriptor rejected; for 8BitDo Adapter 2 select XInput mode, then replug", vid, pid);
                 close(fd); memset(sdev,0,sizeof(*sdev)); continue;
@@ -616,6 +633,10 @@ static void probe_usb_devices(void)
                 controller_detach(sdev);
                 close(fd); memset(sdev,0,sizeof(*sdev)); continue;
             }
+#ifdef __PROSPERO__
+            notify_ps5("LibrePadPS5 USB: %s (%04x:%04x)",
+                       usb_protocol_label(sdev->driver, sdev->gip), vid, pid);
+#endif
         }
     }
 }

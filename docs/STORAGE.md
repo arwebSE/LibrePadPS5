@@ -1,7 +1,7 @@
 # Console storage
 
-Current source builds use **`/data/LibrePadPS5`**. This change is for the next
-build; published v1.1.1-preview and earlier releases still use `/data/pdp-pad`.
+**v1.1.1 and newer** use **`/data/LibrePadPS5`**.
+v1.1.1-preview and earlier releases use `/data/pdp-pad`.
 Stop the previous payload before loading a new build. No manual file moves are needed.
 
 | File or folder | Purpose |

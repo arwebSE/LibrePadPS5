@@ -86,9 +86,13 @@ async function refresh() {
     let u = s.users.find((u) => u.id === s.user);
     el("profile").textContent = s.live
       ? s.user === "ffffffff"
-        ? "Unassigned: press Home and choose the separate controller profile."
-        : "Assigned to " + (u ? u.name : s.user)
-      : "Select Reconnect to create the virtual pad.";
+          ? "Unassigned: press Home and choose a profile on the PS5 or assign a signed-in profile below."
+          : u
+            ? "Assigned to " + u.name
+            : "Assigned profile is signed out or unavailable. Choose a profile on the PS5 or assign a signed-in profile below."
+        : s.status === 1 || s.status === 2
+          ? "Registering controller. Wait for it to become active."
+          : "Select Reconnect to create the virtual pad.";
     el("input").textContent =
       "L stick " +
       s.axes[0] +

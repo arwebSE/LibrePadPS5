@@ -63,6 +63,7 @@ typedef struct {
     int             ps_pending_on_ready;
     long            ps_until;
     uint32_t        previous_buttons;
+    int             restart_after_logout;
 } internal_slot_t;
 
 static internal_slot_t g_slots[MAX_SLOTS];
@@ -75,6 +76,8 @@ static int32_t g_active_user = -1;
 static int32_t g_protected_user;
 static int32_t g_controller_user;
 static int32_t g_reserved_users[4];
+static long g_last_profile_check = -1;
+static int g_had_logged_users, g_empty_login_checks;
 
 /* Log reader state */
 static int g_pending = -1;
@@ -364,7 +367,71 @@ int vpad_init(void)
     g_active_user = get_user_id_for_slot(0);
     log_line("vpad: initialized successfully, default user 0x%08x", (unsigned)g_active_user);
     g_ready = 1;
+    g_last_profile_check = -1;
+    g_had_logged_users = g_empty_login_checks = 0;
     return 1;
+}
+
+/* Called with g_vpad_mutex held. Failed login-list reads are not logouts.
+ * Wait for two empty snapshots after a nonempty one, so a transient profile
+ * switch does not recreate controllers while another player is signed in. */
+static void check_logout_locked(void)
+{
+#ifdef __PROSPERO__
+    int32_t users[4] = {-1, -1, -1, -1};
+    if (sceUserServiceGetLoginUserIdList(users) != 0) {
+        g_empty_login_checks = 0;
+        return;
+    }
+    for (int i = 0; i < 4; i++) if (users[i] > 0) {
+        g_had_logged_users = 1;
+        g_empty_login_checks = 0;
+        return;
+    }
+    if (!g_had_logged_users || ++g_empty_login_checks < 2) return;
+    g_had_logged_users = g_empty_login_checks = 0;
+    for (int i = 0; i < MAX_SLOTS; i++) {
+        internal_slot_t *s = &g_slots[i];
+        if (s->status == VP_PENDING ||
+            ((s->status == VP_READY || s->status == VP_FAILED) && s->device_id))
+            s->restart_after_logout = 1;
+    }
+    log_line("LibrePadPS5: all accounts logged out; renewing owned virtual controller registrations");
+#endif
+}
+
+/* Recreate only a uniquely identified device. Physical USB/radio connections
+ * and router ownership stay intact. Released pads remain free; pending device
+ * identification must complete before its old handle can be removed. */
+static void recover_logout_locked(int slot)
+{
+    internal_slot_t *s = &g_slots[slot];
+    if (!s->restart_after_logout ||
+        (s->status != VP_READY && s->status != VP_FAILED) ||
+        !s->device_id || s->handle <= 0) return;
+    s->restart_after_logout = 0;
+    mbus_disconnect_device(s->device_id, s->user_id);
+    int32_t result = 0;
+#ifdef __PROSPERO__
+    result = scePadVirtualDeviceDeleteDevice(s->handle);
+#endif
+    if (result != 0) {
+        s->status = VP_FAILED;
+        log_line("vpad: slot %d logout recovery could not delete owned handle %d -> 0x%08x",
+                 slot, s->handle, (unsigned)result);
+        return;
+    }
+    char name[64];
+    snprintf(name, sizeof(name), "%s", s->name);
+    pad_conn_type_t type = s->conn_type;
+    memset(s, 0, sizeof(*s));
+    s->status = VP_QUEUED;
+    s->handle = s->alt_handle = -1;
+    s->conn_type = type;
+    snprintf(s->name, sizeof(s->name), "%s", name);
+    s->connected_time = now_ms();
+    pad_state_neutral(&s->pad_state);
+    log_line("vpad: slot %d re-registering after logout; physical controller remains connected", slot);
 }
 
 int vpad_add(int slot, pad_conn_type_t type, const char *name)
@@ -505,12 +572,12 @@ static void finish_identification(long now)
     }
     s->user_id = get_user_id_for_slot(slot);
     if (s->user_id <= 0) {
-        /* Keep only our uniquely identified device unbound. The native
-         * profile picker can sign in the separate controller user; never bind
-         * to the protected DualSense user just to get input working. */
+        /* Keep only our uniquely identified device unbound. The console's
+         * profile picker can assign it; explicit MBus binding needs a signed-in
+         * user. Never bind to a protected DualSense user. */
         s->status = VP_READY;
         if (s->ps_pending_on_ready) s->ps_until = now + 150;
-        log_line("LibrePadPS5: virtual pad waiting unbound; press Home and choose the separate controller profile");
+        log_line("LibrePadPS5: virtual pad waiting unbound; press Home and choose a profile on the PS5 or assign a signed-in profile in the dashboard");
         return;
     }
     int32_t bind_result = -1;
@@ -550,10 +617,10 @@ void vpad_poll(long now)
     }
 
 
-    static long last_binding_check;
-    if (now - last_binding_check > 500) {
-        last_binding_check = now;
+    if (g_last_profile_check < 0 || now - g_last_profile_check >= 500) {
+        g_last_profile_check = now;
         pthread_mutex_lock(&g_vpad_mutex);
+        check_logout_locked();
         for (int slot = 0; slot < MAX_SLOTS; slot++) {
             internal_slot_t *s = &g_slots[slot];
             if (s->status == VP_READY && s->user_id <= 0 && s->device_id && g_bind) {
@@ -568,6 +635,10 @@ void vpad_poll(long now)
         }
         pthread_mutex_unlock(&g_vpad_mutex);
     }
+
+    pthread_mutex_lock(&g_vpad_mutex);
+    for (int slot = 0; slot < MAX_SLOTS; slot++) recover_logout_locked(slot);
+    pthread_mutex_unlock(&g_vpad_mutex);
 
     /* Continuous 250Hz injection of the last known state for all READY pads */
     for (int i = 0; i < MAX_SLOTS; i++) {

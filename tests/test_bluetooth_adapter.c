@@ -38,6 +38,14 @@ int main(void)
     unlink(LIBREPAD_STATE_DIR "/bluetooth.db"); unlink(LIBREPAD_STATE_DIR "/pause");
     assert(librepad_profiles_init(LIBREPAD_STATE_DIR "/adapter-test.conf"));
     assert(!bluetooth_enabled());
+    /* USB operation and idle polling must not open the internal radio, even
+     * when a saved bond file exists. Pairing requires an explicit command. */
+    int bond=open(LIBREPAD_STATE_DIR "/bluetooth.db",O_CREAT|O_WRONLY,0600);
+    assert(bond>=0); close(bond);
+    usb_present=1;
+    for (int i=0; i<100; i++) bluetooth_poll();
+    assert(!opened && !host && !bluetooth_enabled() && !added && !updates);
+    usb_present=0;
     assert(!bluetooth_pair_address("00:00:00:00:00:00"));
     assert(!bluetooth_pair_address("FF:FF:FF:FF:FF:FF"));
     assert(!bluetooth_pair_address("01:02:03:04:05:06junk"));
@@ -64,6 +72,9 @@ int main(void)
     assert(added==1 && updates>0 && owns_pad);
     assert(bluetooth_disable()); bluetooth_poll();
     assert(!bluetooth_enabled() && removed==1);
+    int opens_after_disable=opened;
+    for (int i=0; i<100; i++) bluetooth_poll();
+    assert(opened==opens_after_disable && !host && !bluetooth_enabled());
     sim_free(simulator);
     /* No owned Bluetooth pad means shutdown must not remove a native/USB pad. */
     virtual_pad.status=VP_READY; bluetooth_cleanup(); assert(removed==1);

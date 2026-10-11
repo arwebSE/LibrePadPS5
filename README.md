@@ -2,7 +2,7 @@
 
 Use your favorite gamepad on a jailbroken PS5.
 
-[Download v1.1.0](https://github.com/arwebSE/LibrePadPS5/releases/download/v1.1.0/LibrePadPS5.elf) · [Releases](https://github.com/arwebSE/LibrePadPS5/releases) · [Issues](https://github.com/arwebSE/LibrePadPS5/issues)
+[Download v1.1.1](https://github.com/arwebSE/LibrePadPS5/releases/download/v1.1.1/LibrePadPS5.elf) · [Releases](https://github.com/arwebSE/LibrePadPS5/releases) · [Issues](https://github.com/arwebSE/LibrePadPS5/issues)
 
 ## Features
 
@@ -11,9 +11,11 @@ Use your favorite gamepad on a jailbroken PS5.
 - Support for PlayStation, Xbox, Switch and 8BitDo gamepads.
 - A dashboard to connect controllers, change button mappings and download logs.
 
+Bluetooth starts disabled. USB adapters such as 8BitDo handle their own pairing.
+
 **Tested on PS5 12.60** with a PDP wired controller and an Xbox One controller using Microsoft's wireless adapter. Other setups, including Bluetooth and four-player games, still need testing. See [controller compatibility](docs/CONTROLLERS.md) for details.
 
-Using an **8BitDo USB Wireless Adapter 2**? Try [v1.1.1-preview](https://github.com/arwebSE/LibrePadPS5/releases/tag/v1.1.1-preview), reported working by a tester on PS5 13.60. The fix is not included in v1.1.0.
+**8BitDo USB Wireless Adapter 2** input is reported working on PS5 13.60 with Xbox Series and PS4 controllers, including games, emulators and homebrew. v1.1.1 includes the working preview's USB fixes and adds automatic controller recovery after logging out of every account. See [setup](docs/SETUP.md#8bitdo-usb-wireless-adapter-2).
 
 ## Get started
 

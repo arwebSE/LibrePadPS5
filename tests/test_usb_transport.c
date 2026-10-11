@@ -82,6 +82,9 @@ static void reset(usb_slot_device_t *d)
 }
 int main(void)
 {
+    assert(!strcmp(usb_protocol_label(CTRL_8BITDO_ADAPTER,0),"XInput"));
+    assert(!strcmp(usb_protocol_label(CTRL_XBOX_XINPUT,1),"Xbox GIP"));
+    assert(!strcmp(usb_protocol_label(CTRL_GENERIC_HID,0),"Generic HID"));
     usb_slot_device_t d; uint8_t buffer[64]; pad_state_t state;
     reset(&d);
     queue(0); /* Report arrives during the LED write; it must be preserved. */
