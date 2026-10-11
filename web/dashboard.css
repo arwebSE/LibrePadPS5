@@ -71,6 +71,8 @@ textarea {
 input {
   width: 100px;
 }
+input[type="checkbox"] { width: auto; }
+#bt-address { width: 190px; }
 .maps {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));

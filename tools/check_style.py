@@ -3,9 +3,9 @@ from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
 extensions = {".c", ".h", ".md", ".py", ".js", ".html", ".css", ".json",
-              ".mk", ".sh", ".bat", ".yml", ".yaml", ".toml", ".txt"}
+              ".mk", ".sh", ".bat", ".yml", ".yaml", ".toml", ".txt", ".map"}
 files = [root / name for name in ("README.md", "Makefile", "freepad.mk", "Dockerfile")]
-for folder in ("src", "web", "docs", "tests", "tools", "payload"):
+for folder in ("src", "web", "docs", "tests", "tools", "payload", "vendor", "maps"):
     files.extend(path for path in (root / folder).rglob("*")
                  if path.is_file() and path.suffix in extensions)
 failures = []

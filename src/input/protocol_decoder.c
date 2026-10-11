@@ -1,4 +1,4 @@
-#include "legacy/report_decoder.h"
+#include "input/protocol_decoder.h"
 #include "core/controller_state.h"
 #include "core/logging.h"
 #include "core/time_utils.h"
@@ -14,84 +14,50 @@
 #include <dev/usb/usb_endian.h>
 #endif
 
+/* Exact protocol IDs. Other known vendors require a real HID gamepad descriptor. */
 usb_controller_type_t usb_identify_controller(uint16_t vid, uint16_t pid, const char **name_out)
 {
-    if (vid == 0x0e6f && pid == 0x0184) {
-        if (name_out) *name_out = "PDP Faceoff Deluxe+ Wired";
-        return CTRL_PDP_FACEOFF;
-    }
-    /* Nintendo Switch controllers */
-    if (vid == 0x057e) {
-        if (pid == 0x2009) {
-            if (name_out) *name_out = "Nintendo Switch Pro (USB)";
-            return CTRL_NINTENDO_SWITCH_PRO;
+    static const struct { uint16_t vid, pid; usb_controller_type_t type; const char *name; } devices[] = {
+        {0x0e6f,0x0184,CTRL_PDP_FACEOFF,"8-byte wired gamepad"},
+        {0x057e,0x2009,CTRL_NINTENDO_SWITCH_PRO,"Switch Pro"},
+        {0x057e,0x2017,CTRL_NINTENDO_SWITCH_PRO,"Nintendo NSO"},
+        {0x057e,0x2019,CTRL_NINTENDO_SWITCH_PRO,"Nintendo NSO"},
+        {0x057e,0x201a,CTRL_NINTENDO_SWITCH_PRO,"Nintendo NSO"},
+        {0x054c,0x05c4,CTRL_SONY_DS4,"DualShock 4"},
+        {0x054c,0x09cc,CTRL_SONY_DS4,"DualShock 4"},
+        {0x054c,0x0ba0,CTRL_SONY_DS4,"DualShock 4 adapter"},
+        {0x054c,0x0268,CTRL_SONY_DS3,"DualShock 3"},
+        {0x045e,0x028e,CTRL_XBOX_XINPUT,"Xbox 360"},
+        {0x045e,0x02d1,CTRL_XBOX_XINPUT,"Xbox One"},
+        {0x045e,0x02dd,CTRL_XBOX_XINPUT,"Xbox One"},
+        {0x045e,0x02e3,CTRL_XBOX_XINPUT,"Xbox Elite"},
+        {0x045e,0x02ea,CTRL_XBOX_XINPUT,"Xbox One S"},
+        {0x045e,0x0b00,CTRL_XBOX_XINPUT,"Xbox Elite Series 2"},
+        {0x045e,0x0b05,CTRL_XBOX_XINPUT,"Xbox controller"},
+        {0x045e,0x0b12,CTRL_XBOX_XINPUT,"Xbox Series"},
+        {0x045e,0x0b13,CTRL_XBOX_XINPUT,"Xbox Series"},
+        {0x1a34,0xf517,CTRL_XBOX_XINPUT,"2.4 GHz XInput receiver"},
+        {0x2dc8,0x310a,CTRL_8BITDO_ADAPTER,"8BitDo adapter"},
+        {0x2dc8,0x310b,CTRL_8BITDO_ADAPTER,"8BitDo adapter"},
+        {0x2dc8,0x2100,CTRL_8BITDO_ADAPTER,"8BitDo gamepad"},
+        {0x2dc8,0x3012,CTRL_8BITDO_ADAPTER,"8BitDo gamepad"}
+    };
+    static const uint16_t generic_vendors[] = {
+        0x2345,0x2563,0x2f24,0x20bc,0x3537,0x0e8f,0x1a34,
+        0x0079,0x0810,0x11ff,0x12bd,0x20d6,0x24c6,0x146b,
+        0x0738,0x1038,0x1532,0x2dc8
+    };
+    for (size_t i=0; i<sizeof(devices)/sizeof(devices[0]); i++)
+        if (devices[i].vid==vid && devices[i].pid==pid) {
+            if (name_out) *name_out=devices[i].name;
+            return devices[i].type;
         }
-        if (pid == 0x2017 || pid == 0x2019 || pid == 0x201a) {
-            if (name_out) *name_out = "Nintendo NSO Controller (USB)";
-            return CTRL_NINTENDO_SWITCH_PRO;
+    for (size_t i=0; i<sizeof(generic_vendors)/sizeof(generic_vendors[0]); i++)
+        if (generic_vendors[i]==vid) {
+            if (name_out) *name_out="Descriptor-validated HID gamepad";
+            return CTRL_GENERIC_HID;
         }
-    }
-
-    /* Sony DualShock 4 */
-    if (vid == 0x054c) {
-        if (pid == 0x05c4 || pid == 0x09cc || pid == 0x0ba0) {
-            if (name_out) *name_out = "Sony DualShock 4 (USB)";
-            return CTRL_SONY_DS4;
-        }
-        if (pid == 0x0268) {
-            if (name_out) *name_out = "Sony DualShock 3 (USB)";
-            return CTRL_SONY_DS3;
-        }
-    }
-
-    /* Xbox / XInput controllers */
-    if (vid == 0x045e) {
-        if (pid == 0x028e) {
-            if (name_out) *name_out = "Xbox 360 / Machenike (XInput)";
-            return CTRL_XBOX_XINPUT;
-        }
-        if (pid == 0x02d1 || pid == 0x02dd ||
-            pid == 0x02e3 || pid == 0x02ea || pid == 0x0b00 ||
-            pid == 0x0b05 || pid == 0x0b12 || pid == 0x0b13) {
-            if (name_out) *name_out = "Xbox Controller (USB/XInput)";
-            return CTRL_XBOX_XINPUT;
-        }
-    }
-
-    /* Machenike, ShanWan & Thunderobot native VIDs (Wired USB-C, Dongle & PC modes) */
-    if (vid == 0x2345 || vid == 0x2563 || vid == 0x2f24 || vid == 0x20bc || vid == 0x3537 || vid == 0x0e8f) {
-        if (name_out) *name_out = "MACHENIKE G5 Pro / ShanWan Pad";
-        return CTRL_XBOX_XINPUT;
-    }
-
-    /* ShanWan / Machenike 2.4G wireless dongle receiver */
-    if (vid == 0x1a34 && pid == 0xf517) {
-        if (name_out) *name_out = "Machenike 2.4G Wireless Dongle";
-        return CTRL_XBOX_XINPUT;
-    }
-    if (vid == 0x1a34) {
-        if (name_out) *name_out = "ShanWan Gamepad";
-        return CTRL_XBOX_XINPUT;
-    }
-
-    /* 8BitDo adapters & controllers */
-    if (vid == 0x2dc8) {
-        if (pid == 0x310a || pid == 0x310b || pid == 0x2100 || pid == 0x3012) {
-            if (name_out) *name_out = "8BitDo Adapter/Pad (USB)";
-            return CTRL_8BITDO_ADAPTER;
-        }
-    }
-
-    /* Generic PC/HID Gamepad known VIDs (DragonRise, Betop, Retro-Bit, Mayflash, etc.) */
-    if (vid == 0x0079 || vid == 0x0810 || vid == 0x11ff || vid == 0x12bd ||
-        vid == 0x20d6 || vid == 0x24c6 || vid == 0x146b || vid == 0x0738 ||
-        vid == 0x1038 || vid == 0x1532) {
-        if (name_out) *name_out = "Generic USB HID Gamepad";
-        return CTRL_GENERIC_HID;
-    }
-
-    /* Isolate non-gamepad devices (USB flash drives, SSDs, keyboards, webcams) */
-    if (name_out) *name_out = "Unknown / Non-Gamepad USB Device";
+    if (name_out) *name_out="Unknown USB device";
     return CTRL_UNKNOWN;
 }
 
@@ -184,6 +150,21 @@ uint8_t axis16_to_u8(int16_t val, int invert_y)
     return (uint8_t)(invert_y ? (255 - v) : v);
 }
 
+int usb_parse_stateful_report(usb_controller_type_t type, const uint8_t *data, size_t len,
+                             pad_state_t *previous, pad_state_t *state)
+{
+    if (!data || !previous || !state || !len) return 0;
+    if ((type==CTRL_XBOX_XINPUT || type==CTRL_8BITDO_ADAPTER) && data[0]==7 && len>=5) {
+        *state=*previous; state->buttons &= ~PAD_BTN_PS;
+        if (data[4]&3) state->buttons |= PAD_BTN_PS;
+    } else {
+        if (!usb_parse_input_report(type,data,len,state)) return 0;
+        if ((type==CTRL_XBOX_XINPUT || type==CTRL_8BITDO_ADAPTER) && data[0]==0x20)
+            state->buttons |= previous->buttons & PAD_BTN_PS;
+    }
+    *previous=*state; return 1;
+}
+
 int usb_parse_input_report(usb_controller_type_t type, const uint8_t *data, size_t len, pad_state_t *st)
 {
     if (!data || len == 0 || !st) return 0;
@@ -230,27 +211,27 @@ int usb_parse_input_report(usb_controller_type_t type, const uint8_t *data, size
     }
     case CTRL_NINTENDO_SWITCH_PRO: {
         /* 64-byte or standard Switch Pro input report */
-        if (len < 12) return 0;
+        if (len < 12 || data[0]!=0x30) return 0;
         uint8_t b1 = data[3];
         uint8_t b2 = data[4];
         uint8_t b3 = data[5];
 
         /* Face buttons */
-        if (b1 & 0x01) st->buttons |= PAD_BTN_CROSS;    /* Switch B -> Cross */
-        if (b1 & 0x02) st->buttons |= PAD_BTN_CIRCLE;   /* Switch A -> Circle */
-        if (b1 & 0x04) st->buttons |= PAD_BTN_SQUARE;   /* Switch Y -> Square */
-        if (b1 & 0x08) st->buttons |= PAD_BTN_TRIANGLE; /* Switch X -> Triangle */
-        if (b1 & 0x40) st->buttons |= PAD_BTN_L1;
-        if (b1 & 0x80) { st->buttons |= PAD_BTN_L2; st->l2 = 255; }
+        if (b1 & 0x01) st->buttons |= PAD_BTN_SQUARE;
+        if (b1 & 0x02) st->buttons |= PAD_BTN_TRIANGLE;
+        if (b1 & 0x04) st->buttons |= PAD_BTN_CROSS;
+        if (b1 & 0x08) st->buttons |= PAD_BTN_CIRCLE;
+        if (b1 & 0x40) st->buttons |= PAD_BTN_R1;
+        if (b1 & 0x80) { st->buttons |= PAD_BTN_R2; st->r2 = 255; }
 
-        if (b2 & 0x01) st->buttons |= PAD_BTN_OPTIONS;  /* Plus -> Options */
-        if (b2 & 0x02) st->buttons |= PAD_BTN_SHARE;    /* Minus -> Share */
+        if (b2 & 0x01) st->buttons |= PAD_BTN_SHARE;
+        if (b2 & 0x02) st->buttons |= PAD_BTN_OPTIONS;
         if (b2 & 0x04) st->buttons |= PAD_BTN_R3;
         if (b2 & 0x08) st->buttons |= PAD_BTN_L3;
         if (b2 & 0x10) st->buttons |= PAD_BTN_PS;       /* Home -> PS */
         if (b2 & 0x20) st->buttons |= PAD_BTN_TOUCHPAD; /* Capture -> Touchpad */
-        if (b2 & 0x40) st->buttons |= PAD_BTN_R1;
-        if (b2 & 0x80) { st->buttons |= PAD_BTN_R2; st->r2 = 255; }
+        if (b3 & 0x40) st->buttons |= PAD_BTN_L1;
+        if (b3 & 0x80) { st->buttons |= PAD_BTN_L2; st->l2 = 255; }
 
         /* D-Pad */
         if (b3 & 0x01) st->buttons |= PAD_DPAD_DOWN;
@@ -384,8 +365,7 @@ int usb_parse_input_report(usb_controller_type_t type, const uint8_t *data, size
         }
 
         if (off < 0 || len < (size_t)(off + 12)) {
-            /* Fallback to generic HID parser if XInput header did not match */
-            return usb_parse_input_report(CTRL_GENERIC_HID, data, len, st);
+            return 0; /* Unknown packets are never guessed as another protocol. */
         }
 
         uint16_t btn = (uint16_t)(data[off + 0] | ((uint16_t)data[off + 1] << 8));

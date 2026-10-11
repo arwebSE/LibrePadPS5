@@ -1,0 +1,11 @@
+# Rename to your hexadecimal VID_PID.map, for example 1234_5678.map.
+# Upload under /data/pdp-pad/maps/; applies only to generic HID drivers.
+button1 = cross
+button2 = circle
+button3 = square
+button4 = triangle
+lx = x
+ly = y
+rx = z
+ry = rz
+# Optional: invert ry

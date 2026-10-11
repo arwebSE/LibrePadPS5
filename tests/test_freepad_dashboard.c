@@ -77,6 +77,10 @@ int main(void)
     assert(!control_header("POST /api/home HTTP/1.1\r\nX-FreePad-Control: 10\r\n\r\n"));
     assert(!control_header("POST /api/home HTTP/1.1\r\nX-FreePad-Control: 0\r\n\r\n"));
     request("GET /api/state HTTP/1.1\r\n\r\n", 200, "\"user\":\"00001234\"", 0);
+    request("GET /api/bluetooth HTTP/1.1\r\n\r\n",200,"Host-only preview",0);
+    request("POST /api/bluetooth/pair?address=AA:BB:CC:DD:EE:FF HTTP/1.1\r\n\r\n",403,"Missing control header",0);
+    request("POST /api/bluetooth/pair?address=bad HTTP/1.1\r\nX-FreePad-Control: 1\r\n\r\n",409,"Invalid address",0);
+    request("POST /api/bluetooth/disable HTTP/1.1\r\nX-FreePad-Control: 1\r\n\r\n",200,"shutdown queued",0);
     request("GET /api/profiles HTTP/1.1\r\n\r\n", 200, "0e6f:0184 switch8 triangle,circle,cross", 1);
     request("GET /api/report HTTP/1.1\r\n\r\n", 200, "No reports yet", 0);
     request("POST /api/profiles?data=bad HTTP/1.1\r\n\r\n", 403, "Missing control header", 0);

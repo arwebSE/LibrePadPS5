@@ -5,11 +5,14 @@ async function refresh() {
   try {
     let r = await fetch("/api/state", { cache: "no-store" }),
       s = await r.json();
+    const bt = await (await fetch("/api/bluetooth", { cache: "no-store" })).json();
+    el("bt-status").textContent = bt.message + (bt.pairing ? " · " + bt.pairing + " seconds remaining" : "") +
+      (bt.connected ? " · USB ID " + bt.vid.toString(16).padStart(4,"0") + ":" + bt.pid.toString(16).padStart(4,"0") : "");
     el("fw").textContent = "· FW " + s.firmware;
-    el("status").textContent = s.usb_connected
+    el("status").textContent = (s.usb_connected || bt.connected)
       ? s.live
         ? "Controller active"
-        : "USB connected · virtual pad released or unavailable"
+        : "Controller connected · virtual pad released or unavailable"
       : "Controller unplugged";
     el("status").className = s.live ? "ok" : "";
     let u = s.users.find((u) => u.id === s.user);
@@ -50,7 +53,7 @@ async function refresh() {
     el("bind").disabled =
       !s.live || !target || target.protected || target.native_connected;
     el("reconnect").disabled =
-      !s.usb_connected || s.status === 1 || s.status === 2 || s.live;
+      !(s.usb_connected || bt.connected) || s.status === 1 || s.status === 2 || s.live;
     let native = s.users.filter((u) => u.native_connected === true),
       unknown = s.users.some((u) => u.native_connected === null);
     el("native").textContent =
@@ -91,6 +94,16 @@ async function logs() {
   } catch (e) {
     el("message").textContent = e.message;
   }
+}
+function pairBluetooth() {
+  if (!el("bt-risk").checked) {
+    el("message").textContent = "Read and acknowledge the Bluetooth warning first."; return;
+  }
+  const address=el("bt-address").value.trim();
+  if (!/^(?:[0-9a-f]{2}:){5}[0-9a-f]{2}$/i.test(address)) {
+    el("message").textContent = "Use an address like AA:BB:CC:DD:EE:FF."; return;
+  }
+  act("bluetooth/pair?address=" + address);
 }
 const sources = Array.from({ length: 14 }, (_, i) => "Input " + (i + 1));
 const targets = [
@@ -150,6 +163,7 @@ for (const [id, label, value, min, max] of layoutFields) {
 }
 sources.forEach((name, i) => {
   const label = document.createElement("label");
+  label.id="source" + i;
   label.textContent = name + " · source bit ";
   const bit = document.createElement("input");
   Object.assign(bit, {
@@ -172,20 +186,35 @@ function defaults() {
   });
   layoutFields.forEach(([id, , value]) => (el("layout-" + id).value = value));
   el("layout").value = "switch8";
+  selectDriver("switch8");
+}
+function selectDriver(value) {
+  if (value==="custom") {
+    value="hid:" + layoutFields.map(([id]) => el("layout-" + id).value).join(":");
+  }
+  el("driver").value=value.startsWith("hid:") ? "custom" : value;
+  el("layout").value=value;
+  const named=value.startsWith("driver:");
+  sources.forEach((name,i)=>{
+    el("source"+i).firstChild.nodeValue=(named ? defaultMap[i] : name) + (named ? " input " : " · source bit ");
+    el("bit"+i).disabled=named;
+  });
 }
 function customLayout() {
   el("layout").value =
     "hid:" + layoutFields.map(([id]) => el("layout-" + id).value).join(":");
+  selectDriver(el("layout").value);
 }
 function editProfile() {
   const [ids, layout, map] = el("controllers").value.split(" ");
   if (!map) return;
   [el("vid").value, el("pid").value] = ids.split(":");
   el("layout").value = layout;
+  selectDriver(layout);
   const fields =
     layout === "switch8"
       ? layoutFields.map(([, , value]) => value)
-      : layout.split(":").slice(1);
+      : layout.startsWith("hid:") ? layout.split(":").slice(1) : layoutFields.map(([, , value])=>value);
   layoutFields.forEach(([id], i) => (el("layout-" + id).value = fields[i]));
   map.split(",").forEach((entry, i) => {
     const [target, bit] = entry.split("@");
@@ -210,7 +239,7 @@ async function loadProfiles() {
           new Option(
             ids +
               " · " +
-              (layout === "switch8" ? "8-byte preset" : "Custom HID"),
+              (layout === "switch8" ? "8-byte preset" : layout.startsWith("driver:") ? layout.slice(7) : "Custom HID"),
             row,
           ),
         );

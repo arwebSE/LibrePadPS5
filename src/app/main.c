@@ -4,6 +4,7 @@
 #include "core/time_utils.h"
 #include "dashboard/http_server.h"
 #include "input/controller_profiles.h"
+#include "bluetooth/controller_host.h"
 
 #include <signal.h>
 #include <stdatomic.h>
@@ -50,7 +51,7 @@ int main(void)
         return 1;
     }
     log_init(FREEPAD_LOG_PATH);
-    log_line("LibrePadPS5 development build; configurable USB report layouts; no Bluetooth or autoload");
+    log_line("LibrePadPS5 development build; USB and opt-in Bluetooth; no autoload");
     if (!freepad_profiles_init(FREEPAD_PROFILES_PATH)) {
         log_line("Invalid/unreadable controller profiles; refusing startup");
         log_close();
@@ -79,6 +80,7 @@ int main(void)
     while (running && !atomic_load(&stop_requested)) {
         long now = now_ms();
         vpad_poll(now);
+        bluetooth_poll();
         usb_hotplug_poll(now);
         if (access(STOP_FLAG, F_OK) == 0) {
             unlink(STOP_FLAG);
@@ -87,6 +89,7 @@ int main(void)
         usleep(4000);
     }
     freepad_web_cleanup();
+    bluetooth_cleanup();
     usb_hotplug_cleanup();
     vpad_cleanup_all();
     log_line("LibrePadPS5 stopped cleanly");

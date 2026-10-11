@@ -16,7 +16,7 @@
         <button onclick='act("release")'>Release virtual pad</button>
         <button id="reconnect" onclick='act("reconnect")'>Reconnect</button>
       </div>
-      <label for="users">Assign USB controller to console user</label>
+      <label for="users">Assign gamepad to console user</label>
       <div class="row">
         <select id="users"></select>
         <button
@@ -38,9 +38,9 @@
     <div class="card">
       <h2>Controller profiles</h2>
       <p>
-        Add your controller’s USB IDs and report layout, then map inputs to PS5
-        buttons. Supports button bits, a hat and unsigned 8-bit axes. Sony USB
-        IDs are blocked.
+        Choose a USB driver or Bluetooth mapping, then map inputs to PS5 buttons.
+        For other USB gamepads, try the generic HID driver or define a raw report
+        layout. Native DualSense USB devices are protected from capture.
       </p>
       <label for="controllers">Saved controller</label>
       <select id="controllers" onchange="editProfile()"></select>
@@ -48,12 +48,25 @@
         <label>VID <input id="vid" maxlength="4" value="0e6f" /> </label>
         <label>PID <input id="pid" maxlength="4" value="0184" /> </label>
       </div>
+      <label for="driver">Controller driver / layout</label>
+      <select id="driver" onchange="selectDriver(this.value)">
+        <option value="switch8">8-byte wired preset</option>
+        <option value="driver:ds4">DualShock 4 USB</option>
+        <option value="driver:ds3">DualShock 3 USB</option>
+        <option value="driver:xinput">Xbox / XInput USB</option>
+        <option value="driver:switchpro">Switch Pro USB</option>
+        <option value="driver:8bitdo">8BitDo USB adapter</option>
+        <option value="driver:generic">Generic USB HID (descriptor-based)</option>
+        <option value="driver:bluetooth">Bluetooth button mapping</option>
+        <option value="custom">Custom raw USB report</option>
+      </select>
       <label for="layout">Report layout</label>
       <input id="layout" value="switch8" style="width: 95%" />
       <div class="maps" id="layoutfields"></div>
       <p>
         Byte offsets include the report ID. Use -1 for absent ID, hat or axes.
-        Buttons use absolute bit numbers, least-significant bit first.
+        Custom raw buttons use absolute bit numbers, least-significant bit first.
+        Built-in driver mappings use named PS5 inputs; source bits are ignored.
       </p>
       <button onclick="customLayout()">Use custom layout</button>
       <div class="maps" id="maps"></div>
@@ -85,6 +98,22 @@
       </p>
       <button onclick="rawReport()">View latest raw report</button>
       <pre id="rawreport"></pre>
+    </div>
+    <div class="card">
+      <h2>Bluetooth (experimental)</h2>
+      <p>Disabled at startup. Only the selected address can pair or reconnect.
+        Unplug USB controllers first. Native DualSense isolation is not guaranteed:
+        stop immediately if it stops working. Keep a USB data cable available.</p>
+      <label><input id="bt-risk" type="checkbox" /> I understand this uses shared Bluetooth services.</label>
+      <div class="row">
+        <label>Controller address <input id="bt-address" maxlength="17" placeholder="AA:BB:CC:DD:EE:FF" /></label>
+        <button onclick="pairBluetooth()">Enable &amp; pair selected controller</button>
+        <button onclick='act("bluetooth/disable")'>Disable Bluetooth</button>
+        <button onclick='act("bluetooth/forget")'>Forget selected controller</button>
+      </div>
+      <p id="bt-status" role="status">Bluetooth disabled</p>
+      <p>Put the controller in pairing mode. Address is available from a PC's Bluetooth device details.
+        Pairing lasts 120 seconds. Use Reconnect after releasing an already connected pad.</p>
     </div>
     <div class="card">
       <div class="row">

@@ -4,6 +4,8 @@
 #include "core/time_utils.h"
 #include "core/legacy_paths.h"
 #include "input/controller_profiles.h"
+#include "bluetooth/controller_host.h"
+#include "profiles.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,10 +35,19 @@ typedef struct {
     pad_conn_type_t       conn_type;
     pthread_t             thread;
     volatile int          stop_thread;
+    usb_controller_type_t driver;
+    union { max_align_t alignment; unsigned char bytes[PROFILE_CTX_MAX]; } generic;
+    pad_state generic_state;
+    pad_state_t protocol_state;
 
 #ifdef __PROSPERO__
     struct usb_fs_endpoint endpoints[4];
     uint8_t               in_index;
+    uint8_t               out_address;
+    uint8_t               tx_buf[64];
+    int                   has_output;
+    int                   gip;
+    uint8_t               interface, in_address;
     int                   use_fs;
     int                   in_pending;
     void                 *fs_frame[4];
@@ -58,25 +69,37 @@ static uint32_t s_last_seen[6][21] = {{0}};
 
 #ifdef __PROSPERO__
 
-/* Prefer endpoint 0x81, otherwise use the first advertised input endpoint.
- * No controller-specific output or wake-up commands are issued. */
-static uint8_t find_usb_input_endpoint(int fd)
+/* Select input and output endpoints from one non-boot HID or XInput interface.
+ * Dedicated drivers issue their bounded wake-up commands after setup. */
+static uint8_t find_usb_input_endpoint(usb_slot_device_t *dev)
 {
     struct usb_gen_descriptor desc = {0};
     uint8_t raw[512] = {0}, first = 0;
     desc.ugd_data = raw; desc.ugd_maxlen = sizeof(raw);
-    if (ioctl(fd,USB_GET_FULL_DESC,&desc) != 0) return 0;
+    if (ioctl(dev->fd,USB_GET_FULL_DESC,&desc) != 0) return 0;
     int length = desc.ugd_actlen;
     if (length <= 0 || length > (int)sizeof(raw)) return 0;
+    int suitable=0, chosen=-1;
     for (int offset = 0; offset+2 <= length;) {
         int entry = raw[offset];
         if (entry < 2 || offset+entry > length) break;
-        if (raw[offset+1] == 5 && entry >= 7) {
+        if (raw[offset+1]==4 && entry>=9) {
+            if (chosen>=0 && first) break;
+            int hid=raw[offset+5]==3 && raw[offset+6]==0 && raw[offset+7]==0;
+            int gip=raw[offset+5]==0xff && raw[offset+6]==0x47 && raw[offset+7]==0xd0;
+            int xinput=raw[offset+5]==0xff && raw[offset+6]==0x5d && raw[offset+7]==1;
+            suitable=raw[offset+3]==0 && (hid || ((gip || xinput) && dev->driver==CTRL_XBOX_XINPUT));
+            if (suitable) {
+                chosen=raw[offset+2]; dev->interface=(uint8_t)chosen; dev->gip=gip;
+                dev->out_address=0;
+            }
+        }
+        if (suitable && raw[offset+1] == 5 && entry >= 7) {
             uint8_t address = raw[offset+2], type = raw[offset+3] & 3;
             if ((address & 0x80) && (type == 3 || type == 2)) {
-                if (address == 0x81) return address;
-                if (!first) first = address;
+                if (address == 0x81 || !first) first = address;
             }
+            if (!(address & 0x80) && (type == 3 || type == 2) && !dev->out_address) dev->out_address=address;
         }
         offset += entry;
     }
@@ -85,7 +108,7 @@ static uint8_t find_usb_input_endpoint(int fd)
 
 static int usb_fs_setup_device(usb_slot_device_t *sdev)
 {
-    int iface = 0;
+    int iface = sdev->interface;
     ioctl(sdev->fd, USB_CLAIM_INTERFACE, &iface);
 
     int config = 0;
@@ -94,14 +117,14 @@ static int usb_fs_setup_device(usb_slot_device_t *sdev)
         ioctl(sdev->fd, USB_SET_CONFIG, &config);
     }
 
-    uint8_t in_addr = find_usb_input_endpoint(sdev->fd);
+    uint8_t in_addr = sdev->in_address;
     if (!in_addr) return 0;
 
     struct usb_fs_init init;
     memset(sdev->endpoints, 0, sizeof(sdev->endpoints));
     memset(&init, 0, sizeof(init));
     init.pEndpoints = sdev->endpoints;
-    init.ep_index_max = 1;
+    init.ep_index_max = 2;
 
     if (ioctl(sdev->fd, USB_FS_INIT, &init) != 0) {
         if (errno != ENOTTY && errno != ENXIO && errno != EIO && errno != EBADF) {
@@ -140,9 +163,81 @@ static int usb_fs_setup_device(usb_slot_device_t *sdev)
     sdev->endpoints[0].flags = USB_FS_FLAG_SINGLE_SHORT_OK;
 
     sdev->use_fs = 1;
+    if (sdev->out_address && (sdev->driver==CTRL_XBOX_XINPUT || sdev->driver==CTRL_NINTENDO_SWITCH_PRO)) {
+        struct usb_fs_open output={0};
+        output.max_bufsize=64; output.max_frames=1; output.ep_index=1; output.ep_no=sdev->out_address;
+        sdev->has_output=ioctl(sdev->fd,USB_FS_OPEN,&output)==0;
+        sdev->fs_frame[1]=sdev->tx_buf;
+        sdev->endpoints[1].ppBuffer=&sdev->fs_frame[1];
+        sdev->endpoints[1].pLength=&sdev->fs_len[1];
+        sdev->endpoints[1].nFrames=1;
+        sdev->endpoints[1].flags=USB_FS_FLAG_FORCE_SHORT;
+    }
     log_line("usb_hotplug: %s claimed via USB_FS (IN=0x%02x)",
              sdev->name, in_addr);
     return 1;
+}
+
+static int usb_output(usb_slot_device_t *dev, const uint8_t *data, size_t length)
+{
+    if (!dev->has_output || !length || length>sizeof(dev->tx_buf)) return 0;
+    memcpy(dev->tx_buf,data,length); dev->fs_len[1]=(uint32_t)length;
+    dev->endpoints[1].nFrames=1; dev->endpoints[1].timeout=250;
+    struct usb_fs_start start={0}; start.ep_index=1;
+    if (ioctl(dev->fd,USB_FS_START,&start)) return 0;
+    long deadline=now_ms()+300;
+    while (now_ms()<deadline) {
+        struct usb_fs_complete complete={0};
+        if (ioctl(dev->fd,USB_FS_COMPLETE,&complete)==0)
+            return complete.ep_index==1 && dev->endpoints[1].status==USB_ERR_NORMAL_COMPLETION;
+        if (errno!=EBUSY && errno!=EAGAIN && errno!=EWOULDBLOCK && errno!=ETIMEDOUT) return 0;
+        usleep(1000);
+    }
+    return 0;
+}
+
+static int setup_generic(usb_slot_device_t *dev)
+{
+    uint8_t descriptor[1024]; struct usb_ctl_request request={0};
+    request.ucr_request.bmRequestType=0x81;
+    request.ucr_request.bRequest=6;
+    USETW(request.ucr_request.wValue,0x2200);
+    USETW(request.ucr_request.wIndex,dev->interface);
+    USETW(request.ucr_request.wLength,sizeof(descriptor));
+    request.ucr_data=descriptor;
+    request.ucr_flags=USB_SHORT_XFER_OK;
+    if (ioctl(dev->fd,USB_DO_REQUEST,&request)) return 0;
+    if (request.ucr_actlen>sizeof(descriptor) ||
+        !generic_descriptor_is_gamepad(descriptor,(int)request.ucr_actlen)) return 0;
+    pad_state_reset(&dev->generic_state);
+    return generic_setup(dev->generic.bytes,descriptor,(int)request.ucr_actlen,
+        dev->vid,dev->pid,FREEPAD_STATE_DIR "/maps");
+}
+
+static int wake_device(usb_slot_device_t *dev)
+{
+    if (dev->driver==CTRL_NINTENDO_SWITCH_PRO) {
+        static const uint8_t usb_commands[]={2,3,2,4};
+        for (size_t i=0; i<sizeof(usb_commands); i++) {
+            const uint8_t command[]={0x80,usb_commands[i]};
+            if (!usb_output(dev,command,sizeof(command))) return 0;
+            usleep(20000);
+        }
+        const uint8_t mode[]={1,0,0,1,0x40,0x40,0,1,0x40,0x40,3,0x30};
+        return usb_output(dev,mode,sizeof(mode));
+    }
+    if (dev->driver==CTRL_XBOX_XINPUT && dev->gip) {
+        const uint8_t power[]={0x05,0x20,0x00,0x01,0x00};
+        if (!usb_output(dev,power,sizeof(power))) return 0;
+        if (dev->vid==0x045e && (dev->pid==0x02ea || dev->pid==0x0b00)) {
+            const uint8_t initialize[]={5,0x20,1,0x0f,6};
+            if (!usb_output(dev,initialize,sizeof(initialize))) return 0;
+        }
+        const uint8_t light[]={0x0a,0x20,2,3,0,1,0x14};
+        const uint8_t authenticate[]={6,0x20,3,2,1,0};
+        return usb_output(dev,light,sizeof(light)) && usb_output(dev,authenticate,sizeof(authenticate));
+    }
+    return usb_init_controller_handshake(dev->fd,dev->driver)==0;
 }
 
 static int usb_fs_recv_packet(usb_slot_device_t *dev, uint8_t *buffer, uint32_t length, int timeout_ms)
@@ -222,6 +317,25 @@ static void *usb_reader_worker(void *arg)
         if (n > 0) {
             consecutive_errors = 0;
             int parsed = freepad_profiles_parse(dev->vid, dev->pid, report, (size_t)n, &st);
+            if (dev->driver==CTRL_XBOX_XINPUT || dev->driver==CTRL_8BITDO_ADAPTER) {
+                parsed=usb_parse_stateful_report(dev->driver,report,(size_t)n,&dev->protocol_state,&st);
+                if (parsed) freepad_profiles_remap(dev->vid,dev->pid,&st);
+            }
+            if (dev->driver==CTRL_GENERIC_HID &&
+                generic_profile.parse(dev->generic.bytes,report,n,&dev->generic_state)!=PARSE_NONE) {
+                pad_state_neutral(&st);
+                st.buttons=dev->generic_state.buttons;
+                st.lx=dev->generic_state.lx; st.ly=dev->generic_state.ly;
+                st.rx=dev->generic_state.rx; st.ry=dev->generic_state.ry;
+                st.l2=dev->generic_state.l2; st.r2=dev->generic_state.r2;
+                freepad_profiles_remap(dev->vid,dev->pid,&st); parsed=1;
+            }
+#ifdef __PROSPERO__
+            if (dev->driver==CTRL_XBOX_XINPUT && report[0]==7 && n>=5 && (report[1]&0x10)) {
+                uint8_t ack[]={1,0x20,report[2],9,0,7,0x20,2,0,0,0,0,0};
+                if (!usb_output(dev,ack,sizeof(ack))) { dev->stop_thread=1; break; }
+            }
+#endif
             if (parsed) {
                 st.conn_type = dev->conn_type;
                 st.vid = dev->vid;
@@ -377,13 +491,24 @@ static void probe_usb_devices(void)
             sdev->pid = pid;
             sdev->name = ctrl_name;
             sdev->stop_thread = 0;
+            sdev->driver=freepad_profiles_driver(vid,pid);
+            pad_state_neutral(&sdev->protocol_state);
 
 #ifdef __PROSPERO__
+            sdev->in_address=find_usb_input_endpoint(sdev);
+            if (!sdev->in_address) { close(fd); memset(sdev,0,sizeof(*sdev)); continue; }
+            if (sdev->driver==CTRL_GENERIC_HID && !setup_generic(sdev)) {
+                close(fd); memset(sdev,0,sizeof(*sdev)); continue;
+            }
             if (!usb_fs_setup_device(sdev)) {
                 log_line("usb_hotplug: Failed to setup usb_fs for %s, closing", path);
                 close(fd);
                 memset(sdev, 0, sizeof(usb_slot_device_t));
                 continue;
+            }
+            if (!wake_device(sdev)) {
+                struct usb_fs_uninit uninit={0}; ioctl(fd,USB_FS_UNINIT,&uninit);
+                close(fd); memset(sdev,0,sizeof(*sdev)); continue;
             }
 #else
             for (int ep = 1; ep <= 6; ep++) {
@@ -394,9 +519,18 @@ static void probe_usb_devices(void)
 #endif
             sdev->conn_type = CONN_USB_WIRED;
 
+            int thread_error=pthread_create(&sdev->thread, NULL, usb_reader_worker, sdev);
+            if (thread_error) {
+                log_line("usb_hotplug: Reader creation failed (%d), closing %s", thread_error, path);
+#ifdef __PROSPERO__
+                struct usb_fs_uninit uninit={0}; ioctl(fd,USB_FS_UNINIT,&uninit);
+#else
+                for (int e=0; e<6; e++) if (sdev->ep_fd[e]>=0) close(sdev->ep_fd[e]);
+#endif
+                close(fd); memset(sdev,0,sizeof(*sdev)); continue;
+            }
             if (access(FREEPAD_STATE_DIR "/pause", F_OK) != 0)
                 vpad_add(slot, sdev->conn_type, ctrl_name);
-            pthread_create(&sdev->thread, NULL, usb_reader_worker, sdev);
         }
     }
 }
@@ -424,6 +558,7 @@ int usb_hotplug_freepad_connected(void)
 
 void usb_hotplug_poll(long now)
 {
+    if (bluetooth_enabled()) return;
     /* Scan every 1500 ms */
     if (now - g_usb_hotplug.last_scan_time < 1500) return;
     g_usb_hotplug.last_scan_time = now;

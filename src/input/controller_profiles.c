@@ -1,4 +1,6 @@
+#ifndef _DEFAULT_SOURCE
 #define _DEFAULT_SOURCE
+#endif
 #include "input/controller_profiles.h"
 #include <errno.h>
 #include <fcntl.h>
@@ -11,7 +13,7 @@
 typedef struct {
     uint16_t vid, pid, bits[14];
     uint8_t map[14];
-    int length, report_id, hat, neutral, axes[4], custom;
+    int length, report_id, hat, neutral, axes[4], custom, driver;
 } controller_profile;
 static const uint32_t hats[8] = {
     PAD_DPAD_UP, PAD_DPAD_UP|PAD_DPAD_RIGHT, PAD_DPAD_RIGHT,
@@ -73,6 +75,14 @@ static int layout(char *text, controller_profile *p)
 {
     preset(p);
     if (!strcmp(text, "switch8")) return 1;
+    static const struct { const char *name; int driver; } drivers[] = {
+        {"driver:ds4",CTRL_SONY_DS4}, {"driver:ds3",CTRL_SONY_DS3},
+        {"driver:xinput",CTRL_XBOX_XINPUT}, {"driver:switchpro",CTRL_NINTENDO_SWITCH_PRO},
+        {"driver:8bitdo",CTRL_8BITDO_ADAPTER}, {"driver:generic",CTRL_GENERIC_HID},
+        {"driver:bluetooth",CTRL_BLUETOOTH_MAPPING}
+    };
+    for (size_t i=0; i<sizeof(drivers)/sizeof(drivers[0]); i++)
+        if (!strcmp(text,drivers[i].name)) { p->driver=drivers[i].driver; p->length=64; return 1; }
     if (strncmp(text, "hid:", 4)) return 0;
     int *fields[] = {&p->length,&p->report_id,&p->hat,&p->neutral,
                     &p->axes[0],&p->axes[1],&p->axes[2],&p->axes[3]};
@@ -110,7 +120,11 @@ static int parse_text(const char *text, controller_profile *out, size_t *count)
         if (!mapping) return 0;
         *mapping++ = 0;
         if (!layout(line+10, p)) return 0;
-        if (!hex4(line, &p->vid) || !hex4(line+5, &p->pid) || p->vid == 0x054c) return 0;
+        if (!hex4(line, &p->vid) || !hex4(line+5, &p->pid)) return 0;
+        /* Native DualSense remains excluded from USB, even with custom IDs. */
+        if (p->vid == 0x054c && p->driver != CTRL_BLUETOOTH_MAPPING &&
+            !((p->driver == CTRL_SONY_DS4 && (p->pid == 0x05c4 || p->pid == 0x09cc || p->pid == 0x0ba0)) ||
+              (p->driver == CTRL_SONY_DS3 && p->pid == 0x0268))) return 0;
         for (size_t i = 0; i < used; i++)
             if (out[i].vid == p->vid && out[i].pid == p->pid) return 0;
         /* Deliberately no strtok for fields: empty/trailing fields are invalid. */
@@ -167,10 +181,10 @@ int freepad_profiles_init(const char *path)
 
 int freepad_profiles_allowed(uint16_t vid, uint16_t pid)
 {
-    int allowed = 0;
+    int allowed = usb_identify_controller(vid,pid,NULL) != CTRL_UNKNOWN;
     pthread_mutex_lock(&lock);
     for (size_t i = 0; i < profile_count; i++)
-        if (profiles[i].vid == vid && profiles[i].pid == pid) allowed = 1;
+        if (profiles[i].vid == vid && profiles[i].pid == pid) allowed = profiles[i].driver != CTRL_BLUETOOTH_MAPPING;
     pthread_mutex_unlock(&lock);
     return allowed;
 }
@@ -184,6 +198,10 @@ int freepad_profiles_export(char *out, size_t size)
     for (size_t i = 0; i < profile_count && ok; i++) {
         controller_profile *p = &profiles[i];
         char format[100] = "switch8";
+        if (p->driver) {
+            static const char *names[] = {"", "switchpro", "ds4", "ds3", "xinput", "8bitdo", "generic"};
+            snprintf(format,sizeof(format),"driver:%s",p->driver == CTRL_BLUETOOTH_MAPPING ? "bluetooth" : names[p->driver]);
+        }
         if (p->custom) snprintf(format,sizeof(format),"hid:%d:%d:%d:%d:%d:%d:%d:%d",
             p->length,p->report_id,p->hat,p->neutral,p->axes[0],p->axes[1],p->axes[2],p->axes[3]);
         int n = snprintf(out+used, size-used, "%04x:%04x %s ", p->vid, p->pid, format);
@@ -238,14 +256,20 @@ int freepad_profiles_parse(uint16_t vid, uint16_t pid, const uint8_t *data,
         if (profiles[i].vid == vid && profiles[i].pid == pid) {
             selected = profiles[i]; found = 1; break;
         }
-    if (found) {
+    if (found || usb_identify_controller(vid,pid,NULL) != CTRL_UNKNOWN) {
         size_t pos = (size_t)snprintf(last_report, sizeof(last_report), "%04x:%04x bytes=%zu report=", vid, pid, len);
         for (size_t i = 0; i < len && i < 64 && pos+3 < sizeof(last_report); i++)
             pos += (size_t)snprintf(last_report+pos, sizeof(last_report)-pos, "%02x", data[i]);
         snprintf(last_report+pos, sizeof(last_report)-pos, "%s\n", len > 64 ? "..." : "");
     }
     pthread_mutex_unlock(&lock);
-    if (!found) return 0;
+    if (!found || selected.driver) {
+        usb_controller_type_t driver=found ? (usb_controller_type_t)selected.driver : usb_identify_controller(vid,pid,NULL);
+        if (driver == CTRL_UNKNOWN || driver == CTRL_GENERIC_HID || driver == CTRL_BLUETOOTH_MAPPING) return 0;
+        int ok=usb_parse_input_report(driver,data,len,state);
+        if (ok) freepad_profiles_remap(vid,pid,state);
+        return ok;
+    }
     const uint8_t *report = data;
     if (!selected.custom && len == 9 && data[0] == 0) { report++; len--; }
     if (len != (size_t)selected.length ||
@@ -275,10 +299,42 @@ void freepad_profiles_report(char *out, size_t size)
 }
 size_t freepad_profiles_report_size(uint16_t vid, uint16_t pid)
 {
-    size_t size = 0;
+    usb_controller_type_t builtin=usb_identify_controller(vid,pid,NULL);
+    size_t size = builtin==CTRL_PDP_FACEOFF ? 8 : builtin!=CTRL_UNKNOWN ? 64 : 0;
     pthread_mutex_lock(&lock);
     for (size_t i = 0; i < profile_count; i++)
         if (profiles[i].vid == vid && profiles[i].pid == pid) size = (size_t)profiles[i].length;
     pthread_mutex_unlock(&lock);
     return size;
+}
+
+usb_controller_type_t freepad_profiles_driver(uint16_t vid, uint16_t pid)
+{
+    usb_controller_type_t driver=usb_identify_controller(vid,pid,NULL);
+    pthread_mutex_lock(&lock);
+    for (size_t i=0; i<profile_count; i++)
+        if (profiles[i].vid==vid && profiles[i].pid==pid)
+            driver=profiles[i].driver ? (usb_controller_type_t)profiles[i].driver : CTRL_UNKNOWN;
+    pthread_mutex_unlock(&lock);
+    return driver;
+}
+void freepad_profiles_remap(uint16_t vid, uint16_t pid, pad_state_t *state)
+{
+    pthread_mutex_lock(&lock);
+    for (size_t i=0; i<profile_count; i++) {
+        controller_profile *p=&profiles[i];
+        if (p->vid!=vid || p->pid!=pid || !p->driver) continue;
+        uint32_t source=state->buttons, result=source;
+        uint8_t l2=state->l2, r2=state->r2, mapped_l2=0, mapped_r2=0;
+        for (int j=0; j<14; j++) result &= ~masks[defaults[j]];
+        for (int j=0; j<14; j++) {
+            uint8_t pressure = j==6 ? l2 : j==7 ? r2 : (source&masks[defaults[j]]) ? 255 : 0;
+            if (source&masks[defaults[j]]) result |= masks[p->map[j]];
+            if (p->map[j]==7 && pressure>mapped_l2) mapped_l2=pressure;
+            if (p->map[j]==8 && pressure>mapped_r2) mapped_r2=pressure;
+        }
+        state->buttons=result; state->l2=mapped_l2; state->r2=mapped_r2;
+        break;
+    }
+    pthread_mutex_unlock(&lock);
 }

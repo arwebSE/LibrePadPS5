@@ -1,10 +1,13 @@
+#ifndef _DEFAULT_SOURCE
 #define _DEFAULT_SOURCE
+#endif
 #include "core/legacy_paths.h"
 #include "dashboard/http_server.h"
 #include "ps5/virtual_controller.h"
 #include "input/usb_device.h"
 #include "core/logging.h"
 #include "input/controller_profiles.h"
+#include "bluetooth/controller_host.h"
 
 #include <arpa/inet.h>
 #include <ctype.h>
@@ -158,6 +161,11 @@ static void report_reply(int fd)
     freepad_profiles_report(text,sizeof(text));
     reply(fd,200,"text/plain; charset=utf-8",text);
 }
+static void bluetooth_reply(int fd)
+{
+    char body[512]; bluetooth_status(body,sizeof(body));
+    reply(fd,200,"application/json",body);
+}
 static void log_reply(int fd)
 {
         char log[12001] = {0};
@@ -182,7 +190,7 @@ static int get_route(int fd, const char *path)
     };
     static const struct { const char *path; void (*handle)(int); } routes[] = {
         {"/api/state",state}, {"/api/profiles",profiles_reply},
-        {"/api/report",report_reply}, {"/api/log",log_reply}
+        {"/api/report",report_reply}, {"/api/log",log_reply}, {"/api/bluetooth",bluetooth_reply}
     };
     for (size_t i = 0; i < sizeof(assets)/sizeof(assets[0]); i++)
         if (!strcmp(path,assets[i].path)) {
@@ -221,7 +229,14 @@ static void handle(int fd)
         }
         int ok = 1;
         const char *message = "Action completed";
-        if (!strncmp(path, "/api/profiles?data=", 19)) {
+        if (!strncmp(path,"/api/bluetooth/pair?address=",28)) {
+            ok=bluetooth_pair_address(path+28);
+            message=ok ? "Pairing queued for the selected address; check Bluetooth status" : "Invalid address or command pending";
+        } else if (!strcmp(path,"/api/bluetooth/disable")) {
+            ok=bluetooth_disable(); message=ok ? "Bluetooth shutdown queued" : "Command pending";
+        } else if (!strcmp(path,"/api/bluetooth/forget")) {
+            ok=bluetooth_forget(); message=ok ? "Forget selected controller and shutdown queued" : "Command pending";
+        } else if (!strncmp(path, "/api/profiles?data=", 19)) {
             char text[FREEPAD_PROFILE_TEXT_MAX];
             vpad_slot_info_t pad = {0}; vpad_get_slot_info(0, &pad);
             if (pad.status != VP_FREE || access(FREEPAD_STATE_DIR "/pause", F_OK) != 0) {
@@ -245,7 +260,9 @@ static void handle(int fd)
         } else if (!strcmp(path, "/api/reconnect")) {
             vpad_slot_info_t pad = {0};
             vpad_get_slot_info(0, &pad);
-            if (usb_hotplug_freepad_connected() && (pad.status == VP_FREE || pad.status == VP_FAILED)) {
+            if (bluetooth_enabled() && pad.status==VP_FREE) {
+                ok=bluetooth_reconnect();
+            } else if (usb_hotplug_freepad_connected() && (pad.status == VP_FREE || pad.status == VP_FAILED)) {
                 /* A failed insertion can still own a device. Release it
                  * before queuing a replacement rather than leaking it. */
                 if (pad.status == VP_FAILED) vpad_remove(0);

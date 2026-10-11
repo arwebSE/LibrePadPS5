@@ -1,5 +1,5 @@
 # ====================================================================
-# ANYPAD PS5 UNIVERSAL — .gitignore DE SEGURANÇA E BASTIDORES
+# LibrePadPS5 build artifacts, private files and temporary work
 # ====================================================================
 
 # 1. Compilação, Binários e Artefatos ELF

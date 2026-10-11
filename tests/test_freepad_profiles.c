@@ -1,7 +1,7 @@
 /* Host-only profile tests: disposable container, no console access. */
 #define _DEFAULT_SOURCE
 #include "input/controller_profiles.h"
-#include "legacy/report_decoder.h"
+#include "input/protocol_decoder.h"
 #include <assert.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -78,7 +78,7 @@ int main(void)
     const char custom[] = "1234:5678 hid:12:7:-1:15:4:5:6:7 cross@64,up@65,right@66,down@67,left@68,none@69,none@70,none@71,none@72,none@73,none@74,none@75,none@76,none@77\n";
     assert(freepad_profiles_save(custom));
     assert(freepad_profiles_report_size(0x1234,0x5678) == 12);
-    assert(freepad_profiles_report_size(0x0e6f,0x0184) == 0);
+    assert(freepad_profiles_report_size(0x0e6f,0x0184) == 8); /* Built-ins survive custom profile edits. */
     uint8_t generic[12] = {7,0,0,0,10,20,30,40,3,0,0,0};
     assert(freepad_profiles_parse(0x1234,0x5678,generic,12,&st));
     assert(st.buttons == (PAD_BTN_CROSS|PAD_DPAD_UP) && st.lx == 10 && st.ry == 40);
@@ -94,6 +94,20 @@ int main(void)
     assert(!freepad_profiles_save("1234:5678 hid:12:7:-1:15:4:5:6:7 cross@96,up@65,right@66,down@67,left@68,none@69,none@70,none@71,none@72,none@73,none@74,none@75,none@76,none@77"));
     assert(freepad_profiles_export(text,sizeof(text)) && !strcmp(text,custom));
     /* Invalid file must fail closed, rather than silently re-enabling IDs. */
+    assert(freepad_profiles_allowed(0x054c,0x05c4));
+    assert(freepad_profiles_allowed(0x054c,0x0268));
+    assert(!freepad_profiles_allowed(0x054c,0x0ce6));
+    assert(freepad_profiles_allowed(0x045e,0x028e));
+    const char drivers[]="054c:05c4 driver:ds4 square,circle,cross,triangle,l1,r1,r2,l2,create,options,l3,r3,ps,touchpad\n054c:0ce6 driver:bluetooth triangle,circle,cross,square,l1,r1,l2,r2,create,options,l3,r3,ps,touchpad\n";
+    assert(freepad_profiles_save(drivers));
+    assert(!freepad_profiles_allowed(0x054c,0x0ce6));
+    assert(freepad_profiles_export(text,sizeof(text)) && !strcmp(text,drivers));
+    pad_state_neutral(&st); st.buttons=PAD_BTN_TRIANGLE|PAD_BTN_L2|PAD_DPAD_LEFT;
+    st.l2=70; st.r2=20;
+    freepad_profiles_remap(0x054c,0x05c4,&st);
+    assert(st.buttons==(PAD_BTN_SQUARE|PAD_BTN_R2|PAD_DPAD_LEFT) && st.r2==70 && st.l2==20);
+    assert(!freepad_profiles_save("054c:0ce6 driver:ds4 triangle,circle,cross,square,l1,r1,l2,r2,create,options,l3,r3,ps,touchpad"));
+    assert(!freepad_profiles_save("1234:5678 driver:unknown triangle,circle,cross,square,l1,r1,l2,r2,create,options,l3,r3,ps,touchpad"));
     FILE *file = fopen(path,"wb"); assert(file); fputs("bad",file); fclose(file);
     assert(!freepad_profiles_init(path));
     unlink(path);

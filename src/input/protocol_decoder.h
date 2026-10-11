@@ -1,5 +1,5 @@
-#ifndef LEGACY_REPORT_DECODER_H
-#define LEGACY_REPORT_DECODER_H
+#ifndef LIBREPAD_PROTOCOL_DECODER_H
+#define LIBREPAD_PROTOCOL_DECODER_H
 
 #include "core/controller_state.h"
 #include <stdint.h>
@@ -16,9 +16,13 @@ typedef enum {
     CTRL_PDP_FACEOFF
 } usb_controller_type_t;
 
+#define CTRL_BLUETOOTH_MAPPING 100
+
 usb_controller_type_t usb_identify_controller(uint16_t vid, uint16_t pid, const char **name_out);
 int usb_init_controller_handshake(int fd, usb_controller_type_t type);
 int usb_parse_input_report(usb_controller_type_t type, const uint8_t *data, size_t len, pad_state_t *st);
+int usb_parse_stateful_report(usb_controller_type_t type, const uint8_t *data, size_t len,
+                             pad_state_t *previous, pad_state_t *state);
 uint8_t axis16_to_u8(int16_t val, int invert_y);
 
 #endif /* USB_CONTROLLERS_H */

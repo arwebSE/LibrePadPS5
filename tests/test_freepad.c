@@ -1,4 +1,4 @@
-#include "legacy/report_decoder.h"
+#include "input/protocol_decoder.h"
 #include <assert.h>
 #include <stdio.h>
 
