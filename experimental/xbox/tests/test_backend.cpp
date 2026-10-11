@@ -1,7 +1,7 @@
 #include "../port/sink.h"
 extern "C" {
 #include "../librepad_xbox.h"
-#include "ps5_vpad.h"
+#include "ps5/virtual_controller.h"
 }
 #include <cassert>
 #include <cstring>

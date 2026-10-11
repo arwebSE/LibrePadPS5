@@ -2,8 +2,9 @@
 
 Native PS5 port experiment for Xbox One controller model **1697** and the original
 Xbox Wireless Adapter **045e:02e6**. The slim **045e:02fe** is also allowlisted;
-it has not been tested here. This is a separate payload: the released Switch USB
-payload and the other agent's checkout are unchanged.
+it has not been tested here. This optional module and separate test payload are
+rebased onto LibrePadPS5 main `914cbf6`, including its reorganized source tree and
+current dashboard. Work remains isolated from the other agent's checkout.
 
 **Status: builds and host tests pass; PS5 pairing/input is not yet verified.**
 Do not describe this as hardware-supported until console testing passes.
@@ -21,7 +22,9 @@ Do not describe this as hardware-supported until console testing passes.
 - One controller in virtual slot zero. The existing protected-user lifecycle,
   process lock and persisted Release/paused state are reused. Additional
   controllers are ignored; they cannot replace the first controller.
-- An Xbox-specific dashboard on port **8096**. No Bluetooth, Linux kernel module,
+- The current LibrePadPS5 dashboard on port **8096**. The standalone Xbox payload
+  disables Bluetooth commands to keep slot zero exclusive to the Xbox radio;
+  the module archive exports no Bluetooth symbols. No Linux kernel module,
   PC relay, driver replacement on Windows, or generic HID parsing is used.
 
 Rumble, audio, touchpad, motion, custom Xbox remapping, Series-specific features
@@ -60,8 +63,9 @@ python experimental/xbox/build.py --sdk /path/to/ps5-payload-sdk --clang /path/t
 ```
 
 `port/standalone.cpp` is only the test payload's USB-manager adapter; exclude it
-when linking the module into the main application. The standalone dashboard
-guards are likewise not required for module integration.
+when linking the module into the main application. Also exclude
+`port/standalone_bluetooth.c`: normal builds retain their existing Bluetooth
+implementation. The startup/reconnect guards are only for the standalone build.
 
 ## Standalone test build
 

@@ -2,7 +2,7 @@
 // liblibrepad_xbox.a into the main project: it keeps the public module API separate.
 #include "../librepad_xbox.h"
 extern "C" {
-#include "../../../src/usb_hotplug.h"
+#include "input/usb_device.h"
 }
 extern "C" int usb_hotplug_init() { return librepad_xbox_start(); }
 extern "C" void usb_hotplug_poll(long now) { librepad_xbox_poll(now); }

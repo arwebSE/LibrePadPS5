@@ -3,9 +3,12 @@ import argparse
 import pathlib
 import subprocess
 import shutil
+import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-C_SOURCES = ["util", "log", "usb_controllers", "freepad_profiles", "shellui_inject", "ps5_vpad", "web_freepad", "main_freepad"]
+C_SOURCES = ["src/core/time_utils.c", "src/core/logging.c", "src/input/protocol_decoder.c",
+             "src/input/controller_profiles.c", "src/ps5/system_bridge.c", "src/ps5/virtual_controller.c",
+             "src/dashboard/http_server.c", "src/app/main.c", "experimental/xbox/port/standalone_bluetooth.c"]
 CPP_SOURCES = ["port/backend.cpp", "port/usb.cpp", "port/controller.cpp", "port/log.cpp", "vendor/xow/dongle/mt76.cpp", "vendor/xow/dongle/dongle.cpp", "vendor/xow/controller/gip.cpp"]
 
 
@@ -28,9 +31,12 @@ def main():
     common = ["-target", "x86_64-sie-ps5", "-isysroot", str(sdk), "-isystem", str(sdk / "target/include"),
               "-fno-stack-protector", "-fno-plt", "-femulated-tls", "-fvisibility-nodllstorageclass=default",
               "-O2", "-Wall", "-Wextra", "-ffunction-sections", "-fdata-sections", "-DFREEPAD_ONLY",
-              "-DLIBREPAD_XBOX_EXPERIMENT", "-I", str(ROOT / "src")]
+              "-DLIBREPAD_XBOX_EXPERIMENT", "-D_DEFAULT_SOURCE", "-I", str(ROOT / "src"),
+              "-I", str(ROOT / "build/generated")]
     objects = []
-    sources = [] if args.module_only else [(ROOT / "src" / (name + ".c"), False) for name in C_SOURCES]
+    if not args.module_only:
+        subprocess.run([sys.executable, str(ROOT / "tools/embed_dashboard.py")], check=True)
+    sources = [] if args.module_only else [(ROOT / name, False) for name in C_SOURCES]
     sources += [(ROOT / "experimental/xbox" / name, True) for name in CPP_SOURCES]
     for source, cpp in sources:
         obj = build / (source.stem + ("_cpp" if cpp else "_c") + ".o")
@@ -43,6 +49,7 @@ def main():
     archive.parent.mkdir(exist_ok=True)
     ar = compiler.with_name("llvm-ar.exe" if compiler.suffix == ".exe" else "llvm-ar")
     subprocess.run([str(ar), "rcs", str(archive), *[obj for obj in objects if obj.endswith("_cpp.o")]], check=True)
+    shutil.copyfile(ROOT / "experimental/xbox/librepad_xbox.h", ROOT / "dist/librepad_xbox.h")
     print("Built optional module", archive)
     if args.module_only:
         return

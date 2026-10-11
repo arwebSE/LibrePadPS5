@@ -4,9 +4,9 @@
 #include "../vendor/xow/dongle/dongle.h"
 #endif
 extern "C" {
-#include "ps5_vpad.h"
-#include "freepad_compat.h"
-#include "../../../src/log.h"
+#include "ps5/virtual_controller.h"
+#include "core/legacy_paths.h"
+#include "core/logging.h"
 }
 #include <atomic>
 #include <mutex>

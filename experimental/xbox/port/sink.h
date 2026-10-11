@@ -1,5 +1,5 @@
 #pragma once
-#include "pad_types.h"
+#include "core/controller_state.h"
 #ifdef __cplusplus
 extern "C" {
 #endif

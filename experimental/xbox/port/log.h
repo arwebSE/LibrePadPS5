@@ -2,7 +2,7 @@
 #include <string>
 #include <cstdio>
 extern "C" {
-#include "../../../src/log.h"
+#include "core/logging.h"
 }
 class Bytes;
 namespace Log {
