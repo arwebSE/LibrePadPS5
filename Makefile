@@ -6,7 +6,7 @@ PS5_PORT ?= 9021
 
 BUILD := build
 
-.PHONY: all freepad ps5 send clean test host-test
+.PHONY: all freepad ps5 send clean test freepad-test host-test
 
 all: freepad
 
@@ -29,7 +29,18 @@ endif
 	@echo "[*] Sending payload to PS5 $(PS5_HOST):$(PS5_PORT)..."
 	python3 -c "import socket; f=open('dist/FreePad-USB.elf','rb').read(); s=socket.create_connection(('$(PS5_HOST)', $(PS5_PORT)), timeout=5); s.sendall(f); s.close(); print('Payload sent')"
 
-test: host-test
+test: freepad-test
+
+freepad-test:
+	@mkdir -p $(BUILD)
+	clang -std=c11 -Wall -Wextra -Werror -pthread -fsanitize=address,undefined -g -Isrc tests/test_freepad.c src/usb_controllers.c -o $(BUILD)/test_freepad
+	./$(BUILD)/test_freepad
+	clang -std=c11 -Wall -Wextra -Werror -pthread -fsanitize=address,undefined -g -Isrc tests/test_freepad_profiles.c src/freepad_profiles.c src/usb_controllers.c -o $(BUILD)/test_freepad_profiles
+	./$(BUILD)/test_freepad_profiles
+	clang -std=c11 -Wall -Wextra -Werror -pthread -fsanitize=address,undefined -g -Isrc tests/test_freepad_dashboard.c src/freepad_profiles.c src/usb_controllers.c -o $(BUILD)/test_freepad_dashboard
+	./$(BUILD)/test_freepad_dashboard
+	clang -std=c11 -Wall -Wextra -Werror -pthread -fsanitize=address,undefined -g -Isrc tests/test_freepad_lifecycle.c src/util.c -ldl -o $(BUILD)/test_freepad_lifecycle
+	./$(BUILD)/test_freepad_lifecycle
 
 host-test:
 	@mkdir -p $(BUILD)

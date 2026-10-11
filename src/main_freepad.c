@@ -3,6 +3,7 @@
 #include "log.h"
 #include "util.h"
 #include "web_freepad.h"
+#include "freepad_profiles.h"
 
 #include <signal.h>
 #include <stdatomic.h>
@@ -49,7 +50,13 @@ int main(void)
         return 1;
     }
     log_init(FREEPAD_LOG_PATH);
-    log_line("FreePad USB v0.3.2; wired Switch controller for PS5; no Bluetooth or autoload");
+    log_line("FreePad USB v0.4.0-preview; controller profiles and remapping; no Bluetooth or autoload");
+    if (!freepad_profiles_init(FREEPAD_PROFILES_PATH)) {
+        log_line("Invalid/unreadable controller profiles; refusing startup");
+        log_close();
+        close(lock_fd);
+        return 1;
+    }
 
 #ifdef __PROSPERO__
     uint32_t fw = kernel_get_fw_version();

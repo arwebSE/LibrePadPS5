@@ -4,9 +4,11 @@ Wired Switch controller support for jailbroken PS5. No Bluetooth.
 
 **[Download FreePad-USB.elf](https://github.com/arwebSE/freepad-usb-ps5/releases/latest/download/FreePad-USB.elf)** · [Releases](https://github.com/arwebSE/freepad-usb-ps5/releases) · [Issues](https://github.com/arwebSE/freepad-usb-ps5/issues)
 
+[Controller profiles & remapping preview](https://github.com/arwebSE/freepad-usb-ps5/releases/tag/v0.4.0-preview): custom USB IDs for the existing `switch8` format, 14 button dropdowns, defaults, import/export and raw reports. Host/UI tested; not yet tested on PS5. [Usage](docs/FREEPAD.md#controller-profiles--remapping-preview).
+
 ## Compatibility
 
-- **Supported:** PDP Faceoff Deluxe+ Audio Wired Switch controller, USB ID **`0e6f:0184`**, only.
+- **Hardware verified:** PDP Faceoff Deluxe+ Audio Wired Switch controller, USB ID **`0e6f:0184`**. Preview custom profiles only support the same `switch8` report format; changing IDs does not add a decoder for other layouts.
 - **Tested:** PS5 **12.60**, buttons, sticks, D-pad and profile assignment. Individual games/emulators and other firmware are not explicitly verified.
 - No rumble, motion, audio or touchpad movement. Digital triggers only.
 
@@ -17,7 +19,7 @@ Wired Switch controller support for jailbroken PS5. No Bluetooth.
 3. Load **`FreePad-USB.elf`** and plug in the controller.
 4. Open **`http://<PS5_IP>:8096/`**, click **Reconnect**, press **Home / PS**, then select the separate user.
 
-Already using the previous build? **Keep your existing state directory and profile files.** Stop the old instance before loading this one. See [upgrade compatibility](docs/FREEPAD.md#troubleshooting--upgrades). Input handling is unchanged.
+Already using the previous build? **Keep your existing state directory and profile files.** Stop the old instance before loading this one. See [upgrade compatibility](docs/FREEPAD.md#troubleshooting--upgrades).
 
 ## Dashboard & buttons
 

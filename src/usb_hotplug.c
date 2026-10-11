@@ -4,6 +4,9 @@
 #include "log.h"
 #include "util.h"
 #include "freepad_compat.h"
+#ifdef FREEPAD_ONLY
+#include "freepad_profiles.h"
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -424,10 +427,14 @@ static void *usb_reader_worker(void *arg)
 
         if (n > 0) {
             consecutive_errors = 0;
+#ifdef FREEPAD_ONLY
+            int parsed = freepad_profiles_parse(dev->vid, dev->pid, report, (size_t)n, &st);
+#else
             int parsed = usb_parse_input_report(dev->type, report, (size_t)n, &st);
             if (!parsed) {
                 parsed = usb_parse_input_report(CTRL_GENERIC_HID, report, (size_t)n, &st);
             }
+#endif
             if (parsed) {
                 st.conn_type = dev->conn_type;
                 st.vid = dev->vid;
@@ -459,6 +466,14 @@ static void *usb_reader_worker(void *arg)
                 log_line("usb_hotplug: slot %d unparsed %d bytes: %02x %02x %02x %02x %02x %02x",
                          dev->slot, n, report[0], report[1], report[2], report[3], report[4], report[5]);
             }
+#ifdef FREEPAD_ONLY
+            if (!parsed) {
+                /* Reject guessed layouts and release any previously held input. */
+                pad_state_neutral(&st);
+                st.conn_type = dev->conn_type;
+                vpad_update(dev->slot, &st);
+            }
+#endif
         } else if (n < 0) {
             consecutive_errors++;
             if (consecutive_errors >= 50) {
@@ -520,6 +535,7 @@ static int find_free_slot(void)
     return -1;
 }
 
+#ifndef FREEPAD_ONLY
 static usb_controller_type_t usb_inspect_descriptors(int fd, const char **name_out)
 {
 #ifdef __PROSPERO__
@@ -555,6 +571,7 @@ static usb_controller_type_t usb_inspect_descriptors(int fd, const char **name_o
 #endif
     return CTRL_UNKNOWN;
 }
+#endif
 
 static void probe_usb_devices(void)
 {
@@ -593,19 +610,24 @@ static void probe_usb_devices(void)
 
 #ifdef FREEPAD_ONLY
             /* Never claim or send USB transfers to any other device. */
-            if (vid != 0x0e6f || pid != 0x0184) {
+            if (!freepad_profiles_allowed(vid, pid)) {
                 close(fd);
                 continue;
             }
 #endif
 
             const char *ctrl_name = NULL;
+#ifdef FREEPAD_ONLY
+            usb_controller_type_t ctype = CTRL_PDP_FACEOFF;
+            ctrl_name = "FreePad USB switch8";
+#else
             usb_controller_type_t ctype = usb_identify_controller(vid, pid, &ctrl_name);
 
             /* If not found by VID/PID, inspect raw USB descriptors for XInput or HID classes */
             if (ctype == CTRL_UNKNOWN) {
                 ctype = usb_inspect_descriptors(fd, &ctrl_name);
             }
+#endif
 
             if (vid != 0 || pid != 0) {
                 uint32_t packed = ((uint32_t)vid << 16) | pid;
@@ -623,6 +645,10 @@ static void probe_usb_devices(void)
             }
 
             int slot = find_free_slot();
+#ifdef FREEPAD_ONLY
+            /* The dashboard and protected-profile lifecycle manage slot zero only. */
+            if (slot > 0) { close(fd); continue; }
+#endif
             if (slot < 0) {
                 log_line("usb_hotplug: No free vpad slot for %s (%04x:%04x)", ctrl_name, vid, pid);
                 close(fd);
@@ -668,7 +694,12 @@ static void probe_usb_devices(void)
                             (ctrl_name && (strstr(ctrl_name, "Dongle") != NULL ||
                                            strstr(ctrl_name, "Adapter") != NULL ||
                                            strstr(ctrl_name, "Receiver") != NULL));
+#ifdef FREEPAD_ONLY
+            (void)is_dongle;
+            sdev->conn_type = CONN_USB_WIRED;
+#else
             sdev->conn_type = is_dongle ? CONN_USB_DONGLE_24G : CONN_USB_WIRED;
+#endif
 
 #ifdef FREEPAD_ONLY
             if (access(FREEPAD_STATE_DIR "/pause", F_OK) != 0)
@@ -693,7 +724,11 @@ int usb_hotplug_freepad_connected(void)
     pthread_mutex_lock(&g_usb_hotplug.lock);
     for (int i = 0; i < MAX_SLOTS; i++) {
         if (g_usb_hotplug.devices[i].active && !g_usb_hotplug.devices[i].stop_thread &&
+#ifdef FREEPAD_ONLY
+            freepad_profiles_allowed(g_usb_hotplug.devices[i].vid, g_usb_hotplug.devices[i].pid))
+#else
             g_usb_hotplug.devices[i].vid == 0x0e6f && g_usb_hotplug.devices[i].pid == 0x0184)
+#endif
             connected = 1;
     }
     pthread_mutex_unlock(&g_usb_hotplug.lock);

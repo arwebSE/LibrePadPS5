@@ -8,5 +8,6 @@
 #define FREEPAD_LOG_PATH FREEPAD_STATE_DIR "/pdp-pad.log"
 #define FREEPAD_NATIVE_USER_PATH FREEPAD_STATE_DIR "/native-user"
 #define FREEPAD_CONTROLLER_USER_PATH FREEPAD_STATE_DIR "/pdp-user"
+#define FREEPAD_PROFILES_PATH FREEPAD_STATE_DIR "/controllers.conf"
 
 #endif

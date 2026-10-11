@@ -59,6 +59,8 @@ int main(void)
 {
     signal(SIGPIPE, SIG_IGN);
     mkdir("/data", 0700); mkdir(FREEPAD_STATE_DIR, 0700);
+    unlink(FREEPAD_PROFILES_PATH);
+    assert(freepad_profiles_init(FREEPAD_PROFILES_PATH));
     unlink(FREEPAD_STATE_DIR "/pause");
     mock_pad.status = VP_READY;
     mock_pad.user_id = 0x1234;
@@ -72,6 +74,10 @@ int main(void)
     assert(!control_header("POST /api/home HTTP/1.1\r\nX-FreePad-Control: 10\r\n\r\n"));
     assert(!control_header("POST /api/home HTTP/1.1\r\nX-FreePad-Control: 0\r\n\r\n"));
     request("GET /api/state HTTP/1.1\r\n\r\n", 200, "\"user\":\"00001234\"", 0);
+    request("GET /api/profiles HTTP/1.1\r\n\r\n", 200, "0e6f:0184 switch8 triangle,circle,cross", 1);
+    request("GET /api/report HTTP/1.1\r\n\r\n", 200, "No reports yet", 0);
+    request("POST /api/profiles?data=bad HTTP/1.1\r\n\r\n", 403, "Missing control header", 0);
+    request("POST /api/profiles?data=bad HTTP/1.1\r\nX-FreePad-Control: 1\r\n\r\n", 409, "Release the virtual pad", 0);
     request("POST /api/release HTTP/1.1\r\n\r\n", 403, "Missing control header", 0);
     assert(!removed);
     request("POST /api/release HTTP/1.1\r\nX-PDP-Control: 10\r\n\r\n", 403, "Missing control header", 0);
@@ -84,6 +90,11 @@ int main(void)
     assert(rebound == 1);
     request("POST /api/release HTTP/1.1\r\nX-PDP-Control: 1\r\n\r\n", 200, "Virtual pad released", 0);
     assert(removed == 1 && access(FREEPAD_STATE_DIR "/pause", F_OK) == 0);
+    request("POST /api/profiles?data=%00 HTTP/1.1\r\nX-FreePad-Control: 1\r\n\r\n", 409, "existing settings unchanged", 1);
+    request("POST /api/profiles?data=%z0 HTTP/1.1\r\nX-FreePad-Control: 1\r\n\r\n", 409, "existing settings unchanged", 0);
+    request("POST /api/profiles?data=% HTTP/1.1\r\nX-FreePad-Control: 1\r\n\r\n", 409, "existing settings unchanged", 0);
+    request("POST /api/profiles?data=0e6f%3A0184%20switch8%20triangle%2Ccircle%2Ccross%2Csquare%2Cl1%2Cr1%2Cl2%2Cr2%2Ccreate%2Coptions%2Cl3%2Cr3%2Cps%2Ctouchpad%0A HTTP/1.1\r\nX-FreePad-Control: 1\r\n\r\n", 200, "Profiles saved and applied", 1);
+    request("GET /api/profiles HTTP/1.1\r\n\r\n", 200, "0e6f:0184 switch8 triangle,circle,cross", 0);
     request("POST /api/home HTTP/1.1\r\nX-PDP-Control: 1\r\n\r\n", 409, "not active", 0);
     assert(pressed == 1);
     connected = 0;
@@ -104,6 +115,7 @@ int main(void)
     assert(!strcmp(escaped, "Name\\\"\\\\ "));
     assert(freepad_web_init(0)); /* Exercise actual socket/thread startup and stop. */
     freepad_web_cleanup();
+    unlink(FREEPAD_PROFILES_PATH);
     puts("FreePad dashboard tests passed");
     return 0;
 }
