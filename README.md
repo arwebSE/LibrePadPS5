@@ -1,47 +1,46 @@
 # LibrePadPS5
 
-Use your gamepad on PS5.
+Use your favorite gamepad on a jailbroken PS5.
 
 [Download v1.1.0](https://github.com/arwebSE/LibrePadPS5/releases/download/v1.1.0/LibrePadPS5.elf) · [Releases](https://github.com/arwebSE/LibrePadPS5/releases) · [Issues](https://github.com/arwebSE/LibrePadPS5/issues)
 
-## What it does
+## Features
 
-- Up to four independent virtual gamepads, including wired USB plus one Xbox Wireless controller.
-- USB drivers for DualShock 3/4, Xbox/XInput, Switch Pro and 8BitDo adapters.
-- Descriptor-based generic USB HID and Bluetooth gamepads.
-- Bluetooth Classic and LE, including Secure Connections pairing.
-- Custom USB IDs, raw report layouts and named button remapping.
-- LAN dashboard with per-gamepad controls, native-profile reservations, input, remapping and logs.
+- Supports 1-4 gamepads.
+- Wired USB, Xbox Wireless and Bluetooth connections.
+- Support for PlayStation, Xbox, Switch and 8BitDo gamepads.
+- A dashboard to connect controllers, change button mappings and download logs.
 
-**Tested on PS5 12.60:** the PDP wired controller `0e6f:0184` and Xbox One model 1697 through adapter `045e:02e6` run simultaneously with separate profiles. Software regression checks pass. Other controller models, Bluetooth hardware and game-specific four-player behavior remain unverified. [Controller coverage and limits](docs/CONTROLLERS.md).
+**Tested on PS5 12.60** with a PDP wired controller and an Xbox One controller using Microsoft's wireless adapter. Other setups, including Bluetooth and four-player games, still need testing. See [controller compatibility](docs/CONTROLLERS.md) for details.
 
-## Use
+## Get started
 
-1. Use a separate PS5 profile for every player. Reserve all native DualSense profiles in Advanced.
-2. Stop other controller payloads and configure [protected-user settings](docs/SETUP.md#setup).
-3. Load `LibrePadPS5.elf`. Open `http://<PS5_IP>:8096/`.
-   The **Controller** tab has connection controls; **Advanced** has profiles, remapping and diagnostics.
-4. USB/Xbox: select each gamepad in **Control gamepad**, click **Reconnect** if released, then assign its separate signed-in profile. [8BitDo Adapter 2 requires manual XInput mode](docs/SETUP.md#8bitdo-usb-wireless-adapter-2). [Xbox setup](docs/XBOX.md#quick-install-on-windows) downloads and installs the adapter firmware directly, or you can upload an existing file from the dashboard.
-5. Bluetooth: unplug USB gamepads, release the virtual pad, enter the controller address and select **Enable & pair** while the controller is in pairing mode. Bluetooth starts disabled.
+You'll need a jailbroken PS5 and an ELF loader or Payload Manager.
 
-Already using an older build? Keep `/data/pdp-pad/` and its profile files. Stop the old instance before loading this one.
+1. Stop any other controller payloads and leave your extra gamepads unplugged.
+2. Download and load `LibrePadPS5.elf`, then open `http://<PS5_IP>:8096/` on your phone or computer. Replace `<PS5_IP>` with your console's IP address.
+3. In **Advanced > Input & native controllers**, reserve the profiles used by your DualSense controllers.
+4. Connect your gamepad. Select it under **Control gamepad**, click **Reconnect** if needed, and assign it to a separate signed-in PS5 profile.
 
-Having trouble? [Download a diagnostic report and attach it to a GitHub issue](docs/SETUP.md#share-a-diagnostic-report-on-github). Logs are optional.
+Use a different profile for each player, with up to four players total including DualSense users. The game must support the number of players you want to use.
 
-## Remap
+For wireless setup, follow the [Xbox Wireless guide](docs/XBOX.md#quick-install-on-windows), [Bluetooth guide](docs/SETUP.md#bluetooth) or [8BitDo Adapter 2 guide](docs/SETUP.md#8bitdo-usb-wireless-adapter-2). Xbox Wireless supports one controller; its setup helper installs the required firmware for you.
 
-Choose the driver and VID/PID in the dashboard, change the named outputs, then **Add / update**, **Release all virtual pads**, **Save & apply**, then reconnect each pad. Unknown USB devices can use **Generic USB HID** or a custom raw layout. [Configuration](docs/SETUP.md#controller-profiles--remapping).
+Upgrading? Stop the old version before loading the new one. Keep your saved settings.
 
-## Safety and limits
+## Help and customization
 
-Up to four virtual slots, with one Xbox Wireless controller. PS5 supports four signed-in users, shared by native and virtual players: reserving one native profile leaves three profiles for virtual players. Slots are allocated as devices connect; no slot-count setting is needed. Native DualSense USB devices are excluded from capture. Reserve both native profiles for a two-DualSense setup; never select those profiles in the console picker. Local multiplayer also depends on the game supporting that player count. LAN only, no authentication; do not expose the dashboard publicly. No game-driven rumble, controller audio, motion forwarding or touchpad movement.
+- [Setup and troubleshooting](docs/SETUP.md)
+- [Controller compatibility and limitations](docs/CONTROLLERS.md)
+- [Change button mappings](docs/SETUP.md#controller-profiles--remapping)
+- [Build and development](docs/DEVELOPMENT.md)
 
-Bluetooth uses shared console services. Address filtering and owned-handle cleanup reduce accidental interference but do not guarantee native DualSense isolation. If native input fails, stop the payload and fully reboot the console, not Rest Mode. Never select the console's own DualSense for pairing. No firmware updates are needed for this workflow.
-
-[Setup, troubleshooting and build](docs/SETUP.md) · [Source map](src/README.md)
+Having trouble? In the dashboard, open **Advanced > Logs & support** to download a report. You can [attach it to a GitHub issue](docs/SETUP.md#share-a-diagnostic-report-on-github) if you'd like to help us troubleshoot. Review it before sharing; logs are optional.
 
 ## Credits
 
 Shoutout to [MODDED WARFARE](https://www.youtube.com/@MODDEDWARFARE) for covering similar tools and sharing setup instructions with the PlayStation homebrew community.
 
-Derived from [OmniPad PS5](https://github.com/diegobarbosaa/OmniPad-PS5), with the [AnyPad Bluetooth core](vendor/anypad/README.md) and optional [xow radio port](docs/XBOX.md#source-provenance). Thanks to PoorDS4/Ghostcontrol, YetAnotherControllerEnabler and PS5 Payload SDK contributors. [GPL-3.0](LICENSE). No upstream Git history is imported.
+Built on [OmniPad PS5](https://github.com/diegobarbosaa/OmniPad-PS5), [AnyPad](vendor/anypad/README.md) and [xow](docs/XBOX.md#source-provenance). Thanks to PoorDS4/Ghostcontrol, YetAnotherControllerEnabler and PS5 Payload SDK contributors.
+
+[GPL-3.0 license](LICENSE).
