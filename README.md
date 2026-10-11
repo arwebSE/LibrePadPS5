@@ -1,8 +1,8 @@
-# FreePad USB
+# FreePadUSB
 
 Configurable wired USB controller support for jailbroken PS5. No Bluetooth.
 
-**[Download FreePad-USB.elf](https://github.com/arwebSE/freepad-usb-ps5/releases/latest/download/FreePad-USB.elf)** · [Releases](https://github.com/arwebSE/freepad-usb-ps5/releases) · [Issues](https://github.com/arwebSE/freepad-usb-ps5/issues)
+**[Download FreePadUSB.elf](https://github.com/arwebSE/freepad-usb-ps5/releases/latest/download/FreePad-USB.elf)** · [Releases](https://github.com/arwebSE/freepad-usb-ps5/releases) · [Issues](https://github.com/arwebSE/freepad-usb-ps5/issues)
 
 The development build adds custom USB IDs, report layouts and button mappings. Host-tested only; not yet tested on PS5. [Configuration](docs/FREEPAD.md#controller-profiles--remapping-preview).
 
@@ -16,7 +16,7 @@ The development build adds custom USB IDs, report layouts and button mappings. H
 
 1. Create a **separate PS5 user** for the USB controller. Keep your DualSense on its own user.
 2. Stop other controller payloads. Follow the [first-time profile protection setup](docs/FREEPAD.md#setup) before enabling input.
-3. Load **`FreePad-USB.elf`** and plug in the controller.
+3. Load **`FreePadUSB.elf`** and plug in the controller.
 4. Open **`http://<PS5_IP>:8096/`**, click **Reconnect**, press **Home / PS**, then select the separate user.
 
 Already using the previous build? **Keep your existing state directory and profile files.** Stop the old instance before loading this one. See [upgrade compatibility](docs/FREEPAD.md#troubleshooting--upgrades).

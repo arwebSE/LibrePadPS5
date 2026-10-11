@@ -67,7 +67,7 @@ int main(void)
     mock_pad.buttons = PAD_BTN_CROSS;
     mock_pad.lx = 128;
     request("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n", 200, "Release virtual pad", 1);
-    assert(strstr(PAGE, "<title>FreePad USB</title>"));
+    assert(strstr(PAGE, "<title>FreePadUSB</title>"));
     assert(!strstr(PAGE, "PDP"));
     assert(!strstr(PAGE, "Switch controller"));
     request("GET /dashboard.css HTTP/1.1\r\nHost: localhost\r\n\r\n", 200, "text/css", 0);
@@ -119,6 +119,6 @@ int main(void)
     assert(freepad_web_init(0)); /* Exercise actual socket/thread startup and stop. */
     freepad_web_cleanup();
     unlink(FREEPAD_PROFILES_PATH);
-    puts("FreePad dashboard tests passed");
+    puts("FreePadUSB dashboard tests passed");
     return 0;
 }

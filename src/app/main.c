@@ -45,12 +45,12 @@ int main(void)
      * a PID from a stale file, and never load two instances of this build. */
     int lock_fd = open(STATE_DIR "/instance.lock", O_RDWR | O_CREAT, 0600);
     if (lock_fd < 0 || flock(lock_fd, LOCK_EX | LOCK_NB) != 0) {
-        puts("FreePad USB: state directory unavailable or another instance is running");
+        puts("FreePadUSB: state directory unavailable or another instance is running");
         if (lock_fd >= 0) close(lock_fd);
         return 1;
     }
     log_init(FREEPAD_LOG_PATH);
-    log_line("FreePad USB development build; configurable USB report layouts; no Bluetooth or autoload");
+    log_line("FreePadUSB development build; configurable USB report layouts; no Bluetooth or autoload");
     if (!freepad_profiles_init(FREEPAD_PROFILES_PATH)) {
         log_line("Invalid/unreadable controller profiles; refusing startup");
         log_close();
@@ -74,7 +74,7 @@ int main(void)
         return 1;
     }
     usb_hotplug_init();
-    if (!freepad_web_init(8096)) log_line("FreePad USB dashboard failed to start");
+    if (!freepad_web_init(8096)) log_line("FreePadUSB dashboard failed to start");
     log_line("Ready. Stop by creating " STOP_FLAG " or sending SIGTERM.");
     while (running && !atomic_load(&stop_requested)) {
         long now = now_ms();
@@ -89,7 +89,7 @@ int main(void)
     freepad_web_cleanup();
     usb_hotplug_cleanup();
     vpad_cleanup_all();
-    log_line("FreePad USB stopped cleanly");
+    log_line("FreePadUSB stopped cleanly");
     log_close();
     close(lock_fd);
     return 0;

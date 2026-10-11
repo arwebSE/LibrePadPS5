@@ -1,7 +1,7 @@
 include $(PS5_PAYLOAD_SDK)/toolchain/prospero.mk
-.DEFAULT_GOAL := dist/FreePad-USB.elf
+.DEFAULT_GOAL := dist/FreePadUSB.elf
 
-ELF := dist/FreePad-USB.elf
+ELF := dist/FreePadUSB.elf
 BUILD := build/freepad
 CFLAGS := -std=c11 -Wall -Wextra -O2 -ffunction-sections -fdata-sections -Isrc -Ibuild/generated
 LDFLAGS += -Wl,--gc-sections

@@ -250,7 +250,7 @@ static void handle(int fd)
                  * before queuing a replacement rather than leaking it. */
                 if (pad.status == VP_FAILED) vpad_remove(0);
                 ok = unlink(FREEPAD_STATE_DIR "/pause") == 0 || errno == ENOENT;
-                if (ok) ok = vpad_add(0, CONN_USB_WIRED, "FreePad USB controller");
+                if (ok) ok = vpad_add(0, CONN_USB_WIRED, "FreePadUSB controller");
             } else ok = 0;
             message = ok ? "Creating virtual pad" : "Controller unavailable or already active";
         } else if (!strcmp(path, "/api/home")) {
@@ -316,7 +316,7 @@ int freepad_web_init(int port)
         server = -1;
         return 0;
     }
-    log_line("FreePad USB dashboard listening on port %d", port);
+    log_line("FreePadUSB dashboard listening on port %d", port);
     return 1;
 }
 

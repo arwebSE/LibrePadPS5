@@ -100,6 +100,6 @@ int main(void)
     assert(freepad_profiles_init("/nonexistent-directory/controllers.conf"));
     assert(!freepad_profiles_save(remapped));
     assert(!freepad_profiles_allowed(0x1234,0x5678));
-    puts("FreePad profile tests passed");
+    puts("FreePadUSB profile tests passed");
     return 0;
 }
