@@ -7,10 +7,15 @@
   <main>
     <h1>LibrePadPS5</h1>
     <p>Use your gamepad on PS5. <span id="fw"> </span></p>
+    <div class="tabs" role="tablist" aria-label="Dashboard sections">
+      <button id="tab-controller" type="button" role="tab" aria-selected="true" aria-controls="panel-controller" data-panel="controller">Controller</button>
+      <button id="tab-advanced" type="button" role="tab" aria-selected="false" aria-controls="panel-advanced" tabindex="-1" data-panel="advanced">Advanced</button>
+    </div>
+    <section id="panel-controller" role="tabpanel" aria-labelledby="tab-controller">
     <div class="card">
       <h2 id="status">Connecting...</h2>
       <p id="profile"></p>
-      <p id="input" class="muted"></p>
+      <p>Plug in a USB gamepad, select Reconnect, then press Home / PS. Use a separate console user from your DualSense.</p>
       <div class="row">
         <button id="home" onclick='act("home")'>Press Home / PS</button>
         <button onclick='act("release")'>Release virtual pad</button>
@@ -23,12 +28,33 @@
           id="bind"
           onclick='act("rebind?user="+document.getElementById("users").value)'
         >
-          Assign profile
+          Assign user
         </button>
       </div>
     </div>
     <div class="card">
-      <h2>Native controllers</h2>
+      <h2>Bluetooth (experimental)</h2>
+      <p>Disabled at startup. Only the selected address can pair or reconnect.
+        Unplug USB controllers first. Native DualSense isolation is not guaranteed:
+        stop immediately if it stops working. Keep a USB data cable available.</p>
+      <label><input id="bt-risk" type="checkbox" /> I understand this uses shared Bluetooth services.</label>
+      <div class="row">
+        <label>Controller address <input id="bt-address" maxlength="17" placeholder="AA:BB:CC:DD:EE:FF" /></label>
+        <button onclick="pairBluetooth()">Enable &amp; pair selected controller</button>
+        <button onclick='act("bluetooth/disable")'>Disable Bluetooth</button>
+        <button onclick='act("bluetooth/forget")'>Forget selected controller</button>
+      </div>
+      <p id="bt-status" role="status">Bluetooth disabled</p>
+      <p>Put the controller in pairing mode. Address is available from a PC's Bluetooth device details.
+        Pairing lasts 120 seconds. Use Reconnect after releasing an already connected pad.</p>
+    </div>
+    <p class="muted">Need to add an unrecognized gamepad or change button mappings? Open Advanced.</p>
+    </section>
+    <section id="panel-advanced" role="tabpanel" aria-labelledby="tab-advanced" hidden>
+    <p class="muted">Custom drivers, remapping and diagnostics. These settings are optional for recognized controllers.</p>
+    <div class="card">
+      <h2>Input &amp; native controllers</h2>
+      <p id="input" class="muted"></p>
       <p id="native">Checking...</p>
       <p>
         Release the virtual pad to check native controller behavior. If a
@@ -100,29 +126,15 @@
       <pre id="rawreport"></pre>
     </div>
     <div class="card">
-      <h2>Bluetooth (experimental)</h2>
-      <p>Disabled at startup. Only the selected address can pair or reconnect.
-        Unplug USB controllers first. Native DualSense isolation is not guaranteed:
-        stop immediately if it stops working. Keep a USB data cable available.</p>
-      <label><input id="bt-risk" type="checkbox" /> I understand this uses shared Bluetooth services.</label>
-      <div class="row">
-        <label>Controller address <input id="bt-address" maxlength="17" placeholder="AA:BB:CC:DD:EE:FF" /></label>
-        <button onclick="pairBluetooth()">Enable &amp; pair selected controller</button>
-        <button onclick='act("bluetooth/disable")'>Disable Bluetooth</button>
-        <button onclick='act("bluetooth/forget")'>Forget selected controller</button>
-      </div>
-      <p id="bt-status" role="status">Bluetooth disabled</p>
-      <p>Put the controller in pairing mode. Address is available from a PC's Bluetooth device details.
-        Pairing lasts 120 seconds. Use Reconnect after releasing an already connected pad.</p>
-    </div>
-    <div class="card">
-      <div class="row">
-        <button onclick="logs()">Refresh log</button>
-        <button class="danger" onclick='act("stop")'>Stop payload</button>
-      </div>
-      <p id="message" role="status"></p>
+      <h2>Logs</h2>
+      <button onclick="logs()">Refresh log</button>
       <pre id="log"></pre>
     </div>
+    </section>
+    <footer class="card">
+      <p id="message" role="status" aria-live="polite"></p>
+      <button class="danger" onclick='act("stop")'>Stop payload</button>
+    </footer>
   </main>
   <script src="/dashboard.js" defer></script>
 </html>

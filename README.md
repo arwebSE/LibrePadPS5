@@ -19,6 +19,7 @@ Use your gamepad on PS5.
 1. Create a separate PS5 user for the gamepad. Keep the DualSense on its own user.
 2. Stop other controller payloads and configure [protected-user settings](docs/FREEPAD.md#setup).
 3. Load `LibrePadPS5.elf`. Open `http://<PS5_IP>:8096/`.
+   The **Controller** tab has connection controls; **Advanced** has profiles, remapping and diagnostics.
 4. USB: plug in the controller, click **Reconnect**, then **Home / PS** and select its separate user.
 5. Bluetooth: unplug USB gamepads, release the virtual pad, enter the controller address and select **Enable & pair** while the controller is in pairing mode. Bluetooth starts disabled.
 

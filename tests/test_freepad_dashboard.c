@@ -68,6 +68,11 @@ int main(void)
     mock_pad.lx = 128;
     request("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n", 200, "Release virtual pad", 1);
     assert(strstr(PAGE, "<title>LibrePadPS5</title>"));
+    assert(strstr(PAGE, "role=\"tablist\""));
+    assert(strstr(PAGE, "aria-controls=\"panel-controller\""));
+    assert(strstr(PAGE, "aria-labelledby=\"tab-advanced\" hidden"));
+    assert(strstr(PAGE, "id=\"panel-advanced\"") < strstr(PAGE, "id=\"vid\""));
+    assert(strstr(PAGE, "id=\"bt-address\"") < strstr(PAGE, "id=\"panel-advanced\""));
     assert(!strstr(PAGE, "PDP"));
     assert(!strstr(PAGE, "Switch controller"));
     request("GET /dashboard.css HTTP/1.1\r\nHost: localhost\r\n\r\n", 200, "text/css", 0);

@@ -30,6 +30,30 @@ p {
   flex-wrap: wrap;
   align-items: center;
 }
+[hidden] {
+  display: none !important;
+}
+.tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid #34445b;
+  padding-bottom: 12px;
+  margin-top: 24px;
+}
+.tabs [aria-selected="true"] {
+  background: #336154;
+  border-color: #7ae5b2;
+}
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid #7ae5b2;
+  outline-offset: 3px;
+}
+#message:empty {
+  display: none;
+}
 button,
 select {
   font: inherit;

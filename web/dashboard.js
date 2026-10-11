@@ -1,5 +1,29 @@
 let stopped = false;
 const el = (id) => document.getElementById(id);
+const dashboardTabs = Array.from(document.querySelectorAll('[role="tab"]'));
+function showPanel(tab) {
+  dashboardTabs.forEach((item) => {
+    const selected = item === tab;
+    item.setAttribute("aria-selected", String(selected));
+    item.tabIndex = selected ? 0 : -1;
+    el(item.getAttribute("aria-controls")).hidden = !selected;
+  });
+}
+dashboardTabs.forEach((tab, index) => {
+  tab.addEventListener("click", () => showPanel(tab));
+  tab.addEventListener("keydown", (event) => {
+    const next = {
+      ArrowRight: (index + 1) % dashboardTabs.length,
+      ArrowLeft: (index + dashboardTabs.length - 1) % dashboardTabs.length,
+      Home: 0,
+      End: dashboardTabs.length - 1,
+    }[event.key];
+    if (next === undefined) return;
+    event.preventDefault();
+    showPanel(dashboardTabs[next]);
+    dashboardTabs[next].focus();
+  });
+});
 async function refresh() {
   if (stopped) return;
   try {
