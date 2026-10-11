@@ -1,7 +1,7 @@
 #ifndef _DEFAULT_SOURCE
 #define _DEFAULT_SOURCE
 #endif
-#include "core/legacy_paths.h"
+#include "core/paths.h"
 #include "dashboard/http_server.h"
 #include "ps5/virtual_controller.h"
 #include "input/usb_device.h"

@@ -167,10 +167,9 @@ Upload the staged file through the console's existing FTP service to:
 /data/pdp-pad/xbox/firmware.bin
 ```
 
-The legacy `/data/pdp-pad` namespace is intentional: it shares the process lock
-and protected-user configuration with existing builds. Renaming it without a
-migration would discard that protection. Keep `native-user`, `pdp-user`, and
-`pause` files in place. Do not overwrite or delete the other agent's settings.
+Source builds use `/data/LibrePadPS5/xbox/firmware.bin` and automatically migrate
+existing firmware and settings. The destination above applies to published
+v1.1.1-preview and earlier. See [storage paths and migration](STORAGE.md).
 
 The installed Windows copy here was a 2015 image (70,008 bytes); it initialized
 the radio but did not pair this controller. A full adapter power cycle was used

@@ -2,7 +2,7 @@
 #define _DEFAULT_SOURCE
 #endif
 #include "bluetooth/controller_host.h"
-#include "core/legacy_paths.h"
+#include "core/paths.h"
 #include "core/logging.h"
 #include "core/time_utils.h"
 #include "input/controller_profiles.h"

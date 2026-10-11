@@ -24,7 +24,8 @@ def main():
     shutil.copyfile(args.source, args.out)
     print("Local firmware staged:", args.out.resolve())
     print("Bytes:", len(data), "SHA256:", hashlib.sha256(data).hexdigest())
-    print("Console destination: /data/pdp-pad/xbox/firmware.bin")
+    print("Published v1.1.1-preview and earlier use /data/pdp-pad/xbox/firmware.bin")
+    print("Console destination for source builds: /data/LibrePadPS5/xbox/firmware.bin")
 
 
 if __name__ == "__main__":

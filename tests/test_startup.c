@@ -2,9 +2,11 @@
 #define _DEFAULT_SOURCE
 #define __PROSPERO__
 #define LIBREPAD_STATE_DIR "build/startup-state"
+#define LIBREPAD_LEGACY_STATE_DIR "build/startup-legacy"
 #define main payload_main
 #include "../src/app/main.c"
 #undef main
+#include "../src/core/storage.c"
 #include <assert.h>
 #include <stdarg.h>
 
@@ -43,6 +45,12 @@ static void reset(void)
     notifications[0]=logs[0]=0; usb_starts=cleanups=0;
     running=1; atomic_store(&stop_requested,0);
 }
+static void remove_state(void)
+{
+    unlink(LIBREPAD_LEGACY_STATE_DIR);
+    unlink(STATE_DIR "/pdp-user"); unlink(STATE_DIR "/pdp-pad.log");
+    unlink(STATE_DIR "/instance.lock"); rmdir(STATE_DIR);
+}
 int main(void)
 {
     mkdir("build",0700); mkdir(STATE_DIR,0700);
@@ -65,8 +73,8 @@ int main(void)
     assert(payload_main()==1 && !usb_starts);
     assert(strstr(notifications,"already running"));
     close(lock);
-    unlink(STATE_DIR "/instance.lock"); rmdir(STATE_DIR);
+    remove_state();
     reset(); assert(payload_main()==0); /* All failure paths release their lock. */
-    unlink(STATE_DIR "/instance.lock"); rmdir(STATE_DIR);
+    remove_state();
     puts("Startup: 13.60, firmware rejection, profiles, virtual pads, HTTP and duplicate-instance diagnostics passed");
 }

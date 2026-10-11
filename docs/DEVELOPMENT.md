@@ -41,9 +41,9 @@ In PowerShell, use `"${PWD}:/work"` for the volume. The main output is
 `dist/LibrePadPS5.elf`. Install it with the metadata from
 [config/payload](../config/payload/LibrePadPS5.elf.json).
 
-`make test` runs all 20 C/C++ host suites with sanitizers, including the PS5 USB
+`make test` runs all 21 C/C++ host suites with sanitizers, including storage migration and the PS5 USB
 reader's initialization ordering and interleaved input/output completions. Tests create files under
-the legacy state directory, so use the disposable builder, not a console.
+the state directory, so use the disposable builder, not a console.
 `make dashboard-test` runs the JavaScript checks and requires Node.js.
 `make check` validates punctuation, local documentation links and active C/C++
 includes. `make help` lists the entry points.
@@ -59,9 +59,9 @@ verification](XBOX.md) for arguments and firmware staging.
 
 ## Compatibility and naming
 
-New code uses LibrePad names. Existing console storage paths are defined in
-[legacy_paths.h](../src/core/legacy_paths.h) and stay unchanged so saved profiles,
-native-user protection, pause flags and the instance lock remain compatible.
+New code uses LibrePad names. Active console paths are defined in
+[paths.h](../src/core/paths.h). [Storage migration](STORAGE.md) moves existing
+settings to `/data/LibrePadPS5` and keeps compatibility aliases for older payloads.
 The dashboard sends `X-LibrePad-Control`; the server also accepts the released
 `X-FreePad-Control` and `X-PDP-Control` headers with the same strict value checks.
 

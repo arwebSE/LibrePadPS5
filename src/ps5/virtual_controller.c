@@ -2,7 +2,7 @@
 #include "ps5/system_bridge.h"
 #include "core/logging.h"
 #include "core/time_utils.h"
-#include "core/legacy_paths.h"
+#include "core/paths.h"
 
 #include <stdio.h>
 #include <stdlib.h>

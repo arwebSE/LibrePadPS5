@@ -8,7 +8,7 @@ CFLAGS := -std=c11 -D_DEFAULT_SOURCE -Wall -Wextra -O2 -ffunction-sections -fdat
 LDFLAGS += -Wl,--gc-sections
 LDLIBS += -lScePad -lSceUserService -lSceSystemService -lSceAppInstUtil -ldl
 
-SRCS := src/core/time_utils.c src/core/logging.c src/input/controller_profiles.c src/input/usb_device.c src/input/controller_router.c \
+SRCS := src/core/time_utils.c src/core/storage.c src/core/logging.c src/input/controller_profiles.c src/input/usb_device.c src/input/controller_router.c \
         src/input/protocol_decoder.c src/bluetooth/controller_host.c \
         src/ps5/system_bridge.c src/ps5/virtual_controller.c src/dashboard/http_server.c src/app/main.c \
         vendor/anypad/util.c vendor/anypad/crc32.c vendor/anypad/smp_crypto.c \

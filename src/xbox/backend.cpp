@@ -6,7 +6,7 @@
 extern "C" {
 #include "ps5/virtual_controller.h"
 #include "input/controller_router.h"
-#include "core/legacy_paths.h"
+#include "core/paths.h"
 #include "core/logging.h"
 }
 #include <atomic>

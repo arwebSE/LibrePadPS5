@@ -3,7 +3,7 @@
 #include "ps5/virtual_controller.h"
 #include "core/logging.h"
 #include "core/time_utils.h"
-#include "core/legacy_paths.h"
+#include "core/paths.h"
 #include "input/controller_profiles.h"
 #include "bluetooth/controller_host.h"
 #include "profiles.h"

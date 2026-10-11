@@ -14,6 +14,10 @@ Use a wired USB, Xbox Wireless or Bluetooth gamepad on a jailbroken PS5. See [te
 
 Requires an existing jailbreak and ELF loader or Payload Manager. Normal setup uses the dashboard; FTP is available for troubleshooting and manual legacy configuration.
 
+Source builds now store settings in `/data/LibrePadPS5`, with automatic migration
+from older versions. Published v1.1.1-preview and earlier use the old location.
+See [storage paths and migration](STORAGE.md) before doing manual FTP configuration.
+
 **Use a separate PS5 user for the gamepad**, such as `Gamepad`. Do not assign it to your DualSense user.
 
 1. Confirm your DualSense works. Stop AnyPad, OmniPad and older controller payloads.
@@ -22,7 +26,7 @@ Requires an existing jailbreak and ELF loader or Payload Manager. Normal setup u
 4. Plug in your gamepad. For Xbox Wireless on v1.1.0, use [the setup helper or dashboard firmware upload](XBOX.md#firmware), then unplug/replug the adapter and pair.
 5. Select the gamepad, click **Reconnect** if released, and assign a separate signed-in profile. If needed, press **Home / PS** and choose **`Gamepad`** in the console's user picker. Check both controllers.
 
-Optional: save the gamepad user's ID in `pdp-user` in the same directory for automatic assignment. Settings are read on startup; restart after editing. Never copy IDs from another console. Invalid or identical protected/preferred IDs prevent startup. Protection does not override the console's own user picker.
+Optional: save the gamepad user's ID in `controller-user` (`pdp-user` on older releases) in the same directory for automatic assignment. Settings are read on startup; restart after editing. Never copy IDs from another console. Invalid or identical protected/preferred IDs prevent startup. Protection does not override the console's own user picker.
 
 ### Multiple controllers
 
@@ -47,7 +51,7 @@ one pad leaves the other slots paused. Disconnecting or stopping cleans up only
 owned virtual handles. Controller creation/identification remains serialized.
 
 Unknown native connection status requires explicit reservations. Extra slots
-wait unbound until assigned; the legacy `pdp-user` preference applies only to the
+wait unbound until assigned; the `controller-user` preference (`pdp-user` on older releases) applies only to the
 first virtual slot. Reservations do not override the console's own user picker.
 
 [PS5 supports four simultaneous controllers](https://www.playstation.com/en-ph/support/hardware/dualsense-controller-support/)
@@ -196,7 +200,7 @@ limit, retrieve the same file through FTP.
 - **No startup notification / firmware 13.60:** v1.0.0 announces `starting` before opening its state/lock files and `ready` after its dashboard opens. Startup failures report the state-directory/lock, controller configuration, firmware check or virtual-pad initialization stage. If it says already running, open the existing dashboard and stop that instance before reloading. If no message appears, check `http://<PS5_IP>:8096/` and retrieve `/data/pdp-pad/pdp-pad.log` through FTP; confirm the first new line contains `1.1.0`. No new log entry can mean the loader/SDK failed before reaching the entry point; include loader name/version and its output. The firmware gate accepts 13.60, but hardware operation on 13.60 is still unverified. Do not repeatedly inject while a previous instance is active.
 - **Dashboard offline:** check the console IP, HTTP and port `8096`. It closes when the payload stops.
 - **Stop through FTP:** upload an empty file named `stop` into the state directory.
-- **Upgrade compatibility:** the on-console state directory is still `/data/pdp-pad/`; keep it and your profile files. The legacy `pdp-user` filename and lock remain compatible with previous builds. These paths are centralized in [legacy_paths.h](../src/core/legacy_paths.h); changing them without migration would lose profile protection and allow old/new instances to use separate locks. Historical releases keep their original assets.
+- **Upgrade compatibility:** source builds automatically migrate settings to `/data/LibrePadPS5`. Keep your existing settings when upgrading; see [storage paths and migration](STORAGE.md). Published v1.1.1-preview and earlier still use `/data/pdp-pad/`.
 
 The payload manages its own virtual pad. Bluetooth scanning is opt-in and address-filtered; no shell-process injection, native-handle fallback or autoload. It uses elevated credentials and shared controller services: crashes/service issues remain possible. Do not run competing controller payloads.
 
@@ -213,7 +217,7 @@ PowerShell: use `"${PWD}:/work"` for the volume. Output: `dist/LibrePadPS5.elf`.
 
 Host tests (run inside a disposable builder container; they create the legacy state directory and do not contact a PS5):
 
-Run all 20 sanitizer-enabled C/C++ suites with `make test`: USB protocols and transport, configuration, HTTP, lifecycle, Classic/LE simulations, crypto, descriptors, fuzzing, adapter ownership/queues and Xbox transport/radio tests. This also generates dashboard assets. Run `make dashboard-test` separately with Node.js installed for tab, keyboard and GitHub reporting checks. Use the disposable container, not the live console. [Repository layout and contribution checks](DEVELOPMENT.md).
+Run all 21 sanitizer-enabled C/C++ suites with `make test`: USB protocols and transport, configuration, HTTP, lifecycle, Classic/LE simulations, crypto, descriptors, fuzzing, adapter ownership/queues and Xbox transport/radio tests. This also generates dashboard assets. Run `make dashboard-test` separately with Node.js installed for tab, keyboard and GitHub reporting checks. Use the disposable container, not the live console. [Repository layout and contribution checks](DEVELOPMENT.md).
 
 ## Credits
 

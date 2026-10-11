@@ -47,6 +47,6 @@ Driver profiles remap canonical PS5 inputs in this order:
 
 The mapping preserves stick and D-pad state. Analog trigger pressure follows trigger-output remapping. Use `driver:bluetooth` for Bluetooth button overrides; it does not enable that ID for USB scanning.
 
-For unusual generic HID axis/button usages, place `VVVV_PPPP.map` inside `/data/pdp-pad/maps/` using hexadecimal IDs. [Example](../config/maps/EXAMPLE.map). Disable/re-enable Bluetooth or replug USB after editing a map. Generic reports retain state across separate report IDs.
+For unusual generic HID axis/button usages, place `VVVV_PPPP.map` inside `/data/LibrePadPS5/maps/` using hexadecimal IDs. [Example](../config/maps/EXAMPLE.map). [Older releases and migration](STORAGE.md). Disable/re-enable Bluetooth or replug USB after editing a map. Generic reports retain state across separate report IDs.
 
 USB wake-up/Guide protocol details were checked against Linux's [xpad](https://github.com/torvalds/linux/blob/master/drivers/input/joystick/xpad.c) and [hid-nintendo](https://github.com/torvalds/linux/blob/master/drivers/hid/hid-nintendo.c) drivers.

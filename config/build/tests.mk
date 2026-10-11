@@ -34,6 +34,8 @@ payload-test: check
 	./$(TEST_BUILD)/test_usb_transport
 	clang -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -g -Isrc -Itests/stubs tests/test_startup.c -o $(TEST_BUILD)/test_startup
 	./$(TEST_BUILD)/test_startup
+	clang -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -g -Isrc tests/test_storage.c -o $(TEST_BUILD)/test_storage
+	./$(TEST_BUILD)/test_storage
 	clang -std=c11 -Wall -Wextra -Werror -pthread -fsanitize=address,undefined -g -Isrc tests/test_controller_profiles.c src/input/controller_profiles.c src/input/protocol_decoder.c -o $(TEST_BUILD)/test_controller_profiles
 	./$(TEST_BUILD)/test_controller_profiles
 	clang -std=c11 -Wall -Wextra -Werror -pthread -fsanitize=address,undefined -g -Isrc -Ibuild/generated tests/test_dashboard.c tests/mock_bluetooth.c src/input/controller_profiles.c src/input/protocol_decoder.c -o $(TEST_BUILD)/test_dashboard

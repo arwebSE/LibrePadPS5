@@ -1,6 +1,6 @@
 #include "input/controller_router.h"
 #include "ps5/virtual_controller.h"
-#include "core/legacy_paths.h"
+#include "core/paths.h"
 #include <pthread.h>
 #include <stdio.h>
 #include <string.h>

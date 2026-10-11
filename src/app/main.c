@@ -24,7 +24,8 @@
 #include <ps5/kernel.h>
 #endif
 
-#include "core/legacy_paths.h"
+#include "core/paths.h"
+#include "core/storage.h"
 #define STATE_DIR LIBREPAD_STATE_DIR
 #define STOP_FLAG STATE_DIR "/stop"
 
@@ -48,26 +49,21 @@ int main(void)
     signal(SIGTERM, stop_signal);
     signal(SIGPIPE, SIG_IGN);
     notify_ps5("LibrePadPS5 " LIBREPAD_VERSION ": starting");
-    if (mkdir(STATE_DIR, 0755) != 0 && errno != EEXIST) {
-        int directory_error = errno;
-        printf("LibrePadPS5: mkdir %s failed: %s\n", STATE_DIR, strerror(directory_error));
-        notify_ps5("LibrePadPS5: cannot create " STATE_DIR ": %s", strerror(directory_error));
-        return 1;
-    }
-    /* Advisory lock is released automatically on process exit. Never kill
-     * a PID from a stale file, and never load two instances of this build. */
-    int lock_fd = open(STATE_DIR "/instance.lock", O_RDWR | O_CREAT, 0600);
-    if (lock_fd < 0 || flock(lock_fd, LOCK_EX | LOCK_NB) != 0) {
+    /* Migration acquires the old/new shared lock before touching any settings.
+     * The advisory lock is released automatically on process exit. */
+    int lock_fd = librepad_storage_open();
+    if (lock_fd < 0) {
         int lock_error = errno;
         printf("LibrePadPS5: instance lock fd=%d: %s (errno %d)\n", lock_fd, strerror(lock_error), lock_error);
-        if (lock_fd >= 0 && (lock_error == EWOULDBLOCK || lock_error == EAGAIN))
+        if (lock_error == EWOULDBLOCK || lock_error == EAGAIN)
             notify_ps5("LibrePadPS5 is already running. Open http://<PS5_IP>:8096/ or stop the old instance before loading this build.");
-        else notify_ps5("LibrePadPS5: cannot lock " STATE_DIR ": %s", strerror(lock_error));
+        else notify_ps5("LibrePadPS5: cannot prepare " STATE_DIR ": %s", strerror(lock_error));
         if (lock_fd >= 0) close(lock_fd);
         return 1;
     }
     log_init(LIBREPAD_LOG_PATH);
     log_line("LibrePadPS5 version " LIBREPAD_VERSION);
+    log_line("Settings directory: " STATE_DIR);
 #ifdef LIBREPAD_XBOX_STANDALONE
     log_line("LibrePadPS5 Xbox Wireless: native adapter / MT76 / GIP");
 #elif defined(LIBREPAD_WITH_XBOX)

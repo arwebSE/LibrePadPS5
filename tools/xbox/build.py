@@ -6,7 +6,7 @@ import shutil
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-C_SOURCES = ["src/core/time_utils.c", "src/core/logging.c", "src/input/protocol_decoder.c",
+C_SOURCES = ["src/core/time_utils.c", "src/core/storage.c", "src/core/logging.c", "src/input/protocol_decoder.c",
              "src/input/controller_profiles.c", "src/input/controller_router.c", "src/ps5/system_bridge.c", "src/ps5/virtual_controller.c",
              "src/dashboard/http_server.c", "src/app/main.c", "src/xbox/standalone_bluetooth.c"]
 CPP_SOURCES = ["src/xbox/backend.cpp", "src/xbox/usb.cpp", "src/xbox/controller.cpp", "src/xbox/log.cpp", "vendor/xow/dongle/mt76.cpp", "vendor/xow/dongle/dongle.cpp", "vendor/xow/controller/gip.cpp"]
@@ -50,7 +50,7 @@ def main():
     for source, cpp in sources:
         obj = build / (source.relative_to(ROOT).as_posix().replace("/", "_") + ".o")
         extra = ["-x", "c++", "-std=c++11", "-frtti", "-fexceptions", "-isystem", str(sdk / "target/include/c++/v1"),
-                 '-DFIRMWARE="/data/pdp-pad/xbox/firmware.bin"'] if cpp else ["-std=c11"]
+                 "-include", "core/paths.h", "-DFIRMWARE=LIBREPAD_XBOX_FIRMWARE_PATH"] if cpp else ["-std=c11"]
         if cpp and args.radio_debug:
             extra += ["-DDEBUG"]
         print("Compiling", source.relative_to(ROOT), flush=True)
