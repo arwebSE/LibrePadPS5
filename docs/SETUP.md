@@ -2,7 +2,7 @@
 
 Use a wired USB, Xbox Wireless or Bluetooth gamepad on a jailbroken PS5. See [tested hardware and controller coverage](CONTROLLERS.md).
 
-**[Download v1.0.0 ELF](https://github.com/arwebSE/LibrePadPS5/releases/download/v1.0.0/LibrePadPS5.elf)** · [Releases](https://github.com/arwebSE/LibrePadPS5/releases) · [Issues](https://github.com/arwebSE/LibrePadPS5/issues)
+**[Download v1.1.0 ELF](https://github.com/arwebSE/LibrePadPS5/releases/download/v1.1.0/LibrePadPS5.elf)** · [Releases](https://github.com/arwebSE/LibrePadPS5/releases) · [Issues](https://github.com/arwebSE/LibrePadPS5/issues)
 
 ## Supported hardware
 
@@ -19,14 +19,14 @@ Requires an existing jailbreak and ELF loader or Payload Manager. Normal setup u
 1. Confirm your DualSense works. Stop AnyPad, OmniPad and older controller payloads.
 2. Leave third-party gamepads and the Xbox receiver unplugged. Load `LibrePadPS5.elf` and open **`http://<PS5_IP>:8096/`**.
 3. In **Advanced / Input & native controllers**, reserve each signed-in profile used by a native DualSense. The dashboard saves the reservations immediately; no ID files or restart are needed. Existing `native-user` protection remains in force.
-4. Plug in your gamepad. For Xbox Wireless on v1.1.0 preview, use [the setup helper or dashboard firmware upload](XBOX.md#firmware), then unplug/replug the adapter and pair.
+4. Plug in your gamepad. For Xbox Wireless on v1.1.0, use [the setup helper or dashboard firmware upload](XBOX.md#firmware), then unplug/replug the adapter and pair.
 5. Select the gamepad, click **Reconnect** if released, and assign a separate signed-in profile. If needed, press **Home / PS** and choose **`Gamepad`** in the console's user picker. Check both controllers.
 
 Optional: save the gamepad user's ID in `pdp-user` in the same directory for automatic assignment. Settings are read on startup; restart after editing. Never copy IDs from another console. Invalid or identical protected/preferred IDs prevent startup. Protection does not override the console's own user picker.
 
 ### Multiple controllers
 
-USB and Xbox Wireless share four virtual slots in v1.1.0 preview (three in v1.0.0). Native DualSense controllers
+USB and Xbox Wireless share four virtual slots in v1.1.0 (three in v1.0.0). Native DualSense controllers
 remain native and do not consume these slots. For two DualSense controllers plus
 PDP and Xbox, use four separate signed-in profiles:
 
@@ -187,7 +187,7 @@ limit, retrieve the same file through FTP.
 - **Inactive pad:** click Reconnect, check the log and USB ID. If unassigned, press Home and select the separate user. For game focus, try Home/PS; game-specific behavior is not verified.
 - **Skipped D-pad taps:** use the current release and stop older instances. Report recurring problems with logs.
 - **DualSense cannot connect:** stop LibrePadPS5, unplug the USB controller and fully shut down the console, not Rest Mode. A development-session failure required a full reboot; its cause remains unconfirmed. If needed, [reset the DualSense](https://www.playstation.com/en-us/support/hardware/troubleshoot-dualsense/) and reconnect with a USB data cable. Do not update firmware just to troubleshoot.
-- **No startup notification / firmware 13.60:** v1.0.0 announces `starting` before opening its state/lock files and `ready` after its dashboard opens. Startup failures report the state-directory/lock, controller configuration, firmware check or virtual-pad initialization stage. If it says already running, open the existing dashboard and stop that instance before reloading. If no message appears, check `http://<PS5_IP>:8096/` and retrieve `/data/pdp-pad/pdp-pad.log` through FTP; confirm the first new line contains `1.0.0`. No new log entry can mean the loader/SDK failed before reaching the entry point; include loader name/version and its output. The firmware gate accepts 13.60, but hardware operation on 13.60 is still unverified. Do not repeatedly inject while a previous instance is active.
+- **No startup notification / firmware 13.60:** v1.0.0 announces `starting` before opening its state/lock files and `ready` after its dashboard opens. Startup failures report the state-directory/lock, controller configuration, firmware check or virtual-pad initialization stage. If it says already running, open the existing dashboard and stop that instance before reloading. If no message appears, check `http://<PS5_IP>:8096/` and retrieve `/data/pdp-pad/pdp-pad.log` through FTP; confirm the first new line contains `1.1.0`. No new log entry can mean the loader/SDK failed before reaching the entry point; include loader name/version and its output. The firmware gate accepts 13.60, but hardware operation on 13.60 is still unverified. Do not repeatedly inject while a previous instance is active.
 - **Dashboard offline:** check the console IP, HTTP and port `8096`. It closes when the payload stops.
 - **Stop through FTP:** upload an empty file named `stop` into the state directory.
 - **Upgrade compatibility:** the on-console state directory is still `/data/pdp-pad/`; keep it and your profile files. The legacy `pdp-user` filename and lock remain compatible with previous builds. These paths are centralized in [legacy_paths.h](../src/core/legacy_paths.h); changing them without migration would lose profile protection and allow old/new instances to use separate locks. Historical releases keep their original assets.

@@ -19,7 +19,7 @@ The exact Bluetooth ID tables and mappings are in [profiles.c](../vendor/anypad/
 
 The optional xow-based radio module supports the Microsoft adapter `045e:02e6`
 (hardware verified) and allowlists `045e:02fe` (unverified). It handles one Xbox
-controller alongside USB controllers through the shared four-slot manager in v1.1.0 preview.
+controller alongside USB controllers through the shared four-slot manager in v1.1.0.
 Microsoft firmware is supplied separately and is not distributed in the payload.
 See [radio setup and limits](XBOX.md).
 

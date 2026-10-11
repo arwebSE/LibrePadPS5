@@ -2,9 +2,7 @@
 
 Use your gamepad on PS5.
 
-[Download v1.0.0](https://github.com/arwebSE/LibrePadPS5/releases/download/v1.0.0/LibrePadPS5.elf) · [Releases](https://github.com/arwebSE/LibrePadPS5/releases) · [Issues](https://github.com/arwebSE/LibrePadPS5/issues)
-
-[Try v1.1.0 preview](https://github.com/arwebSE/LibrePadPS5/releases/tag/v1.1.0-preview) for four virtual slots and Xbox firmware installation from the dashboard. The features below describe this preview; v1.0.0 remains the stable release.
+[Download v1.1.0](https://github.com/arwebSE/LibrePadPS5/releases/download/v1.1.0/LibrePadPS5.elf) · [Releases](https://github.com/arwebSE/LibrePadPS5/releases) · [Issues](https://github.com/arwebSE/LibrePadPS5/issues)
 
 ## What it does
 
@@ -23,7 +21,7 @@ Use your gamepad on PS5.
 2. Stop other controller payloads and configure [protected-user settings](docs/SETUP.md#setup).
 3. Load `LibrePadPS5.elf`. Open `http://<PS5_IP>:8096/`.
    The **Controller** tab has connection controls; **Advanced** has profiles, remapping and diagnostics.
-4. USB/Xbox: select each gamepad in **Control gamepad**, click **Reconnect** if released, then assign its separate signed-in profile. [8BitDo Adapter 2 requires manual XInput mode](docs/SETUP.md#8bitdo-usb-wireless-adapter-2). In the preview, [Xbox setup](docs/XBOX.md#quick-install-on-windows) downloads and installs the adapter firmware directly, or you can upload an existing file from the dashboard.
+4. USB/Xbox: select each gamepad in **Control gamepad**, click **Reconnect** if released, then assign its separate signed-in profile. [8BitDo Adapter 2 requires manual XInput mode](docs/SETUP.md#8bitdo-usb-wireless-adapter-2). [Xbox setup](docs/XBOX.md#quick-install-on-windows) downloads and installs the adapter firmware directly, or you can upload an existing file from the dashboard.
 5. Bluetooth: unplug USB gamepads, release the virtual pad, enter the controller address and select **Enable & pair** while the controller is in pairing mode. Bluetooth starts disabled.
 
 Already using an older build? Keep `/data/pdp-pad/` and its profile files. Stop the old instance before loading this one.

@@ -106,7 +106,7 @@ payload with C++ statically linked and the usual console service imports.
 
 The adapter requires Microsoft's firmware. It is downloaded directly from
 Microsoft and saved once on the console, outside the ELF, so payload upgrades
-keep it. **v1.1.0 preview adds direct installation; v1.0.0 needs the manual FTP
+keep it. **v1.1.0 adds direct installation; v1.0.0 needs the manual FTP
 method below.** The hardware test used the 2017 firmware image
 expected by xow: build `201703281033____`, 70,620 bytes, ILM 61,456 bytes and
 DLM 9,132 bytes. SHA-256:
@@ -114,8 +114,8 @@ DLM 9,132 bytes. SHA-256:
 
 ### Quick install on Windows
 
-1. Load the [v1.1.0 preview main ELF](https://github.com/arwebSE/LibrePadPS5/releases/tag/v1.1.0-preview) and confirm `http://<PS5_IP>:8096/` opens.
-2. Download [LibrePadPS5-Xbox-Setup.zip](https://github.com/arwebSE/LibrePadPS5/releases/download/v1.1.0-preview/LibrePadPS5-Xbox-Setup.zip), extract it, and double-click `setup.cmd`.
+1. Load the [v1.1.0 main ELF](https://github.com/arwebSE/LibrePadPS5/releases/tag/v1.1.0) and confirm `http://<PS5_IP>:8096/` opens.
+2. Download [LibrePadPS5-Xbox-Setup.zip](https://github.com/arwebSE/LibrePadPS5/releases/download/v1.1.0/LibrePadPS5-Xbox-Setup.zip), extract it, and double-click `setup.cmd`.
 3. Enter the PS5 IP address. The helper downloads Microsoft's driver package,
    extracts the tested image using Windows' built-in extractor, verifies the
    SHA-256 above and uploads it directly to the dashboard. Python, FTP and a
@@ -132,7 +132,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/xbox/setup.ps1 -PS5Add
 
 Replace the example IP with your console's address. Optional `-FirmwarePath`
 installs a local copy instead of downloading; it must match the tested hash.
-The helper requires the preview's `/api/xbox` and `/api/xbox/firmware` endpoints.
+The helper requires v1.1.0's `/api/xbox` and `/api/xbox/firmware` endpoints.
 Its traffic goes to Microsoft for the driver download and to the dashboard for
 installation. Firmware remains separate from the release download.
 

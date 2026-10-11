@@ -1,6 +1,6 @@
 LibrePadPS5 Xbox Wireless setup for Windows
 
-1. Load LibrePadPS5 v1.1.0 preview or newer on the PS5.
+1. Load LibrePadPS5 v1.1.0 or newer on the PS5.
 2. Confirm http://<PS5_IP>:8096/ opens and reserve your native DualSense profiles.
 3. Keep setup.cmd and setup.ps1 together. Double-click setup.cmd.
 4. Enter the PS5 IP address. The helper downloads the driver package directly
@@ -14,7 +14,7 @@ retain an older firmware image until unplugged; a payload restart alone does
 not clear it. The Xbox backend supports one controller per adapter.
 
 If setup fails, read the error shown in the window and check that the dashboard
-opens. v1.0.0 and older lack the installation endpoint: load the preview first.
+opens. v1.0.0 and older lack the installation endpoint: load v1.1.0 or newer first.
 Alternatively, choose FW_ACC_00U.bin or firmware.bin in Controller > Xbox
 Wireless setup > Install firmware. Advanced > Logs & support can download a
 diagnostic report to attach to a GitHub issue if you want to share logs.

@@ -61,7 +61,7 @@ int main(void)
         int lock_error = errno;
         printf("LibrePadPS5: instance lock fd=%d: %s (errno %d)\n", lock_fd, strerror(lock_error), lock_error);
         if (lock_fd >= 0 && (lock_error == EWOULDBLOCK || lock_error == EAGAIN))
-            notify_ps5("LibrePadPS5 is already running. Open http://<PS5_IP>:8096/ or stop the old instance before loading this preview.");
+            notify_ps5("LibrePadPS5 is already running. Open http://<PS5_IP>:8096/ or stop the old instance before loading this build.");
         else notify_ps5("LibrePadPS5: cannot lock " STATE_DIR ": %s", strerror(lock_error));
         if (lock_fd >= 0) close(lock_fd);
         return 1;
