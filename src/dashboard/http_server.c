@@ -267,7 +267,11 @@ static void handle(int fd)
                  * before queuing a replacement rather than leaking it. */
                 if (pad.status == VP_FAILED) vpad_remove(0);
                 ok = unlink(FREEPAD_STATE_DIR "/pause") == 0 || errno == ENOENT;
+#ifdef LIBREPAD_XBOX_EXPERIMENT
+                if (ok) ok = vpad_add(0, CONN_USB_DONGLE_24G, "Xbox One Wireless / LibrePadPS5");
+#else
                 if (ok) ok = vpad_add(0, CONN_USB_WIRED, "LibrePadPS5 controller");
+#endif
             } else ok = 0;
             message = ok ? "Creating virtual pad" : "Controller unavailable or already active";
         } else if (!strcmp(path, "/api/home")) {

@@ -51,7 +51,11 @@ int main(void)
         return 1;
     }
     log_init(FREEPAD_LOG_PATH);
+#ifdef LIBREPAD_XBOX_EXPERIMENT
+    log_line("LibrePadPS5 Xbox experimental: native Xbox Wireless Adapter / MT76 / GIP");
+#else
     log_line("LibrePadPS5 development build; USB and opt-in Bluetooth; no autoload");
+#endif
     if (!freepad_profiles_init(FREEPAD_PROFILES_PATH)) {
         log_line("Invalid/unreadable controller profiles; refusing startup");
         log_close();
