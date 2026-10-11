@@ -10,6 +10,13 @@
 #include "core/version.h"
 #include "input/controller_profiles.h"
 #include "bluetooth/controller_host.h"
+#include "xbox/firmware.h"
+#if defined(LIBREPAD_WITH_XBOX) || defined(LIBREPAD_XBOX_STANDALONE)
+#include "xbox/librepad_xbox.h"
+#define XBOX_ENABLED 1
+#else
+#define XBOX_ENABLED 0
+#endif
 
 #include <arpa/inet.h>
 #include <ctype.h>
@@ -26,6 +33,7 @@
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/time.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #ifdef __PROSPERO__
@@ -63,6 +71,102 @@ static void reply_headers(int fd, int status, const char *type, const char *body
 static void reply(int fd, int status, const char *type, const char *body)
 {
     reply_headers(fd, status, type, body, "");
+}
+
+static void xbox_reply(int fd)
+{
+#if XBOX_ENABLED
+    const char *status = "missing";
+    FILE *file = fopen(LIBREPAD_XBOX_FIRMWARE_PATH, "rb");
+    if (file) {
+        uint8_t header[32];
+        struct stat info;
+        status = fread(header, 1, sizeof(header), file) == sizeof(header) &&
+                 !fstat(fileno(file), &info) && S_ISREG(info.st_mode) && info.st_size >= 32 &&
+                 xbox_firmware_valid(header, (size_t)info.st_size) ? "installed" : "invalid";
+        fclose(file);
+    } else if (errno != ENOENT) status = "unreadable";
+    char body[128];
+    snprintf(body, sizeof(body), "{\"enabled\":true,\"firmware\":\"%s\",\"connected\":%s}",
+             status, librepad_xbox_is_connected() ? "true" : "false");
+    reply(fd, 200, "application/json", body);
+#else
+    reply(fd, 200, "application/json", "{\"enabled\":false}");
+#endif
+}
+
+/* Only fixed-length raw binary uploads are accepted. Reject ambiguous framing
+ * before allocation, including duplicate lengths and transfer encodings. */
+#if XBOX_ENABLED
+static size_t upload_length(const char *request)
+{
+    size_t length = 0;
+    int seen = 0;
+    const char *line = strstr(request, "\r\n");
+    while (line && line[2]) {
+        line += 2;
+        if (!strncasecmp(line, "Transfer-Encoding:", 18)) return 0;
+        if (!strncasecmp(line, "Content-Length:", 15)) {
+            const char *value = line + 15;
+            while (*value == ' ' || *value == '\t') value++;
+            char *end;
+            errno = 0;
+            unsigned long n = strtoul(value, &end, 10);
+            if (seen++ || !isdigit((unsigned char)*value) || errno ||
+                end[0] != '\r' || end[1] != '\n' || n < 32 || n > 1024 * 1024) return 0;
+            length = (size_t)n;
+        }
+        line = strstr(line, "\r\n");
+    }
+    return length;
+}
+#endif
+
+static void xbox_upload(int fd, const char *request, const uint8_t *initial, size_t buffered)
+{
+#if XBOX_ENABLED
+    size_t length = upload_length(request);
+    if (!length || buffered > length) {
+        reply(fd, 400, "application/json", "{\"message\":\"Invalid firmware upload length\"}"); return;
+    }
+    uint8_t *bytes = malloc(length);
+    if (!bytes) { reply(fd, 500, "application/json", "{\"message\":\"Out of memory\"}"); return; }
+    memcpy(bytes, initial, buffered);
+    size_t used = buffered;
+    struct timeval started, current;
+    gettimeofday(&started, NULL);
+    while (used < length) {
+        gettimeofday(&current, NULL);
+        if (current.tv_sec - started.tv_sec >= 10) break;
+        ssize_t count = recv(fd, bytes + used, length - used, 0);
+        if (count <= 0) break;
+        used += (size_t)count;
+    }
+    if (used != length || !xbox_firmware_valid(bytes, length)) {
+        free(bytes);
+        reply(fd, 400, "application/json", "{\"message\":\"Incomplete or invalid Xbox firmware; installed file unchanged\"}"); return;
+    }
+    int ok = mkdir(LIBREPAD_STATE_DIR "/xbox", 0755) == 0 || errno == EEXIST;
+    FILE *file = ok ? fopen(LIBREPAD_XBOX_FIRMWARE_PATH ".tmp", "wb") : NULL;
+    ok = file != NULL;
+    if (file) {
+        ok = fwrite(bytes, 1, length, file) == length;
+        if (fflush(file) || fsync(fileno(file))) ok = 0;
+        if (fclose(file)) ok = 0;
+        if (ok) ok = rename(LIBREPAD_XBOX_FIRMWARE_PATH ".tmp", LIBREPAD_XBOX_FIRMWARE_PATH) == 0;
+    }
+    free(bytes);
+    if (!ok) {
+        unlink(LIBREPAD_XBOX_FIRMWARE_PATH ".tmp");
+        reply(fd, 500, "application/json", "{\"message\":\"Could not save firmware; installed file unchanged\"}"); return;
+    }
+    log_line("Xbox firmware installed through dashboard (%zu bytes)", length);
+    librepad_xbox_reload();
+    reply(fd, 200, "application/json", "{\"message\":\"Firmware installed; Xbox restart queued. Unplug and replug the Xbox adapter, then pair.\"}");
+#else
+    (void)request; (void)initial; (void)buffered;
+    reply(fd, 409, "application/json", "{\"message\":\"This payload was built without Xbox Wireless\"}");
+#endif
 }
 
 static void escape_json(char *out, size_t size, const char *in)
@@ -274,7 +378,7 @@ static int get_route(int fd, const char *path)
     static const struct { const char *path; void (*handle)(int); } routes[] = {
         {"/api/state",state}, {"/api/profiles",profiles_reply},
         {"/api/report",report_reply}, {"/api/log",log_reply}, {"/api/bluetooth",bluetooth_reply},
-        {"/api/diagnostics",diagnostics_reply}
+        {"/api/diagnostics",diagnostics_reply}, {"/api/xbox",xbox_reply}
     };
     for (size_t i = 0; i < sizeof(assets)/sizeof(assets[0]); i++)
         if (!strcmp(path,assets[i].path)) {
@@ -341,6 +445,9 @@ static void handle(int fd)
         used += (size_t)count;
         request[used] = 0;
     }
+    size_t header_length = (size_t)(strstr(request, "\r\n\r\n") - request) + 4;
+    /* Binary body bytes must never be interpreted as control headers. */
+    request[header_length - 2] = 0;
     if (sscanf(request, "%7s %6399s %15s", method, path, version) != 3 ||
         (strcmp(version, "HTTP/1.1") && strcmp(version, "HTTP/1.0"))) return;
     if (!strcmp(method, "GET")) {
@@ -348,6 +455,10 @@ static void handle(int fd)
     } else if (!strcmp(method, "POST")) {
         if (!control_header(request)) {
             reply(fd, 403, "application/json", "{\"message\":\"Missing control header\"}");
+            return;
+        }
+        if (!strcmp(path, "/api/xbox/firmware")) {
+            xbox_upload(fd, request, (const uint8_t *)request + header_length, used - header_length);
             return;
         }
         int slot = 0, reserved = -1; int32_t user = 0;

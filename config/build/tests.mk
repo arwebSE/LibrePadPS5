@@ -46,3 +46,4 @@ dashboard-test:
 	node --check web/dashboard.js
 	node tests/test_dashboard_tabs.js
 	node tests/test_dashboard_support.js
+	node tests/test_dashboard_xbox.js

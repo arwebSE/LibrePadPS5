@@ -1428,7 +1428,7 @@ bool Mt76::loadFirmware()
     if (!file)
     {
         Log::error("Failed to open %s", FIRMWARE);
-        Log::info("Run xow-get-firmware.sh to download the firmware");
+        Log::info("Install Xbox Wireless firmware from the LibrePadPS5 dashboard");
 
         return false;
     }

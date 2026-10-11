@@ -47,6 +47,11 @@ the legacy state directory, so use the disposable builder, not a console.
 `make check` validates punctuation, local documentation links and active C/C++
 includes. `make help` lists the entry points.
 
+On Windows, `python tests/test_xbox_setup_windows.py` exercises the setup helper
+with a real Microsoft download, native CAB extraction, hash verification and a
+disposable localhost HTTP server. It never contacts a console. Python is only
+needed for this integration test; the shipped setup helper uses Windows alone.
+
 The portable LLVM builder is [tools/xbox/build.py](../tools/xbox/build.py).
 It supports combined, standalone and module-only builds. See [Xbox setup and
 verification](XBOX.md) for arguments and firmware staging.

@@ -12,29 +12,29 @@ Use a wired USB, Xbox Wireless or Bluetooth gamepad on a jailbroken PS5. See [te
 
 ## Setup
 
-Requires an existing jailbreak, ELF loader or Payload Manager and FTP access.
+Requires an existing jailbreak and ELF loader or Payload Manager. Normal setup uses the dashboard; FTP is available for troubleshooting and manual legacy configuration.
 
 **Use a separate PS5 user for the gamepad**, such as `Gamepad`. Do not assign it to your DualSense user.
 
 1. Confirm your DualSense works. Stop AnyPad, OmniPad and older controller payloads.
-2. Through FTP, create the state directory listed in [upgrade compatibility](#troubleshooting--upgrades) and upload an empty file named `pause` into it.
-3. Load `LibrePadPS5.elf`, plug in the controller and open **`http://<PS5_IP>:8096/`**.
-4. Protect your DualSense user: open `/api/state` at that address, find its eight-digit user `id`, put only that ID in a plain-text file named `native-user`, and upload it into the state directory. Click **Stop payload**, then reload the ELF.
-5. Click **Reconnect**, press **Home** or the dashboard's **Press Home / PS**, and select **`Gamepad`** in the console's user picker. Check both controllers.
+2. Leave third-party gamepads and the Xbox receiver unplugged. Load `LibrePadPS5.elf` and open **`http://<PS5_IP>:8096/`**.
+3. In **Advanced / Input & native controllers**, reserve each signed-in profile used by a native DualSense. The dashboard saves the reservations immediately; no ID files or restart are needed. Existing `native-user` protection remains in force.
+4. Plug in your gamepad. For Xbox Wireless on v1.1.0 preview, use [the setup helper or dashboard firmware upload](XBOX.md#firmware), then unplug/replug the adapter and pair.
+5. Select the gamepad, click **Reconnect** if released, and assign a separate signed-in profile. If needed, press **Home / PS** and choose **`Gamepad`** in the console's user picker. Check both controllers.
 
 Optional: save the gamepad user's ID in `pdp-user` in the same directory for automatic assignment. Settings are read on startup; restart after editing. Never copy IDs from another console. Invalid or identical protected/preferred IDs prevent startup. Protection does not override the console's own user picker.
 
 ### Multiple controllers
 
-USB and Xbox Wireless share three virtual slots. Native DualSense controllers
+USB and Xbox Wireless share four virtual slots in v1.1.0 preview (three in v1.0.0). Native DualSense controllers
 remain native and do not consume these slots. For two DualSense controllers plus
 PDP and Xbox, use four separate signed-in profiles:
 
 1. Reserve both native profiles in **Advanced / Input & native controllers**.
    The original `native-user` reservation remains protected. Additional IDs are
    saved atomically, one hexadecimal ID per line, in `native-users`.
-2. Connect the PDP and Xbox receiver. Stage the Xbox firmware as described in
-   [the radio module guide](XBOX.md#firmware).
+2. Connect the PDP and Xbox receiver. Install the Xbox firmware as described in
+   [the Xbox setup guide](XBOX.md#firmware).
 3. Select each pad in **Control gamepad** and **Assign user** to its own signed-in
    profile. A profile already assigned to another virtual pad is refused.
 4. Join a game with local multiplayer support and verify each player's input.
@@ -49,6 +49,11 @@ owned virtual handles. Controller creation/identification remains serialized.
 Unknown native connection status requires explicit reservations. Extra slots
 wait unbound until assigned; the legacy `pdp-user` preference applies only to the
 first virtual slot. Reservations do not override the console's own user picker.
+
+[PS5 supports four simultaneous controllers](https://www.playstation.com/en-ph/support/hardware/dualsense-controller-support/)
+and [four signed-in users](https://blog.playstation.com/2020/11/09/ps5-the-ultimate-faq/).
+The virtual-slot capacity does not promise extra players beyond those four users.
+Native reservations reduce the available profiles; unused slots cost no extra virtual devices.
 
 Payload Manager: place the ELF and [metadata](../config/payload/LibrePadPS5.elf.json) together in `/data/pldmgr/payloads/LibrePadPS5/`. Older releases download under the previous ELF filename; rename the downloaded ELF to `LibrePadPS5.elf`. Keep one installed entry and stop the old instance before loading a replacement.
 

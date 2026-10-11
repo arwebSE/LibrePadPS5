@@ -153,7 +153,9 @@ void bluetooth_poll(void)
     switch (command) {
     case BT_PAIR: {
         vpad_slot_info_t pad={0}; vpad_get_slot_info(0,&pad);
-        if (usb_hotplug_librepad_connected() || controller_connected(0) || controller_connected(1) || controller_connected(2) || (!host && pad.status != VP_FREE)) {
+        int other_connected = usb_hotplug_librepad_connected();
+        for (int i = 0; i < MAX_SLOTS; i++) other_connected |= controller_connected(i);
+        if (other_connected || (!host && pad.status != VP_FREE)) {
             publish("Unplug USB controllers and release the virtual pad first"); break;
         }
     if (host) {

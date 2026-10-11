@@ -10,6 +10,8 @@ extern "C" {
 int librepad_xbox_start(void);
 void librepad_xbox_poll(long now);
 int librepad_xbox_is_connected(void);
+/* Queue a restart after dashboard installation. Executed by poll, never HTTP. */
+void librepad_xbox_reload(void);
 void librepad_xbox_stop(void);
 #ifdef __cplusplus
 }

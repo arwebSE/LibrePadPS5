@@ -45,7 +45,7 @@ int32_t scePadVirtualDeviceDeleteDevice(int32_t handle)
 uint64_t sceKernelGetProcessTime(void) { return 0; }
 static int32_t bind_pad(uint64_t dev, int32_t user)
 {
-    assert((dev == OWN_HANDLE || dev == OWN_HANDLE+1) && user != NATIVE_USER && user != 101);
+    assert(dev >= OWN_HANDLE && dev < OWN_HANDLE+MAX_SLOTS && user != NATIVE_USER && user != 101);
     binds++; bound_user = user; return bind_result;
 }
 static int32_t disconnect_pad(uint64_t dev)
@@ -118,6 +118,15 @@ int main(void)
     input.buttons=PAD_BTN_CROSS; vpad_update(0,&input);
     input.buttons=PAD_BTN_CIRCLE; vpad_update(1,&input);
     assert(g_slots[0].pad_state.buttons==PAD_BTN_CROSS && g_slots[1].pad_state.buttons==PAD_BTN_CIRCLE);
+    /* All four profiles may be virtual when no signed-in native profile is reserved. */
+    users[0]=CONTROLLER_USER; users[1]=201; users[2]=202; users[3]=203;
+    for (int slot=2; slot<MAX_SLOTS; slot++) {
+        g_slots[slot].status=VP_READY; g_slots[slot].handle=OWN_HANDLE+slot;
+        g_slots[slot].device_id=OWN_HANDLE+slot; g_slots[slot].user_id=-1;
+        assert(vpad_rebind_user(slot,users[slot]));
+    }
+    assert(g_slots[3].user_id==203 && !vpad_rebind_user(0,203));
+    users[0]=NATIVE_USER; users[1]=CONTROLLER_USER; users[2]=101; users[3]=201;
     pending(1); input.buttons=PAD_BTN_PS; vpad_update(0,&input);
     finish_identification(now_ms());
     assert(g_slots[0].status==VP_READY && g_slots[0].ps_until > now_ms());

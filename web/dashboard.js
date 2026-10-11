@@ -74,6 +74,7 @@ async function refresh() {
     const bt = await (await fetch("/api/bluetooth", { cache: "no-store" })).json();
     el("bt-status").textContent = bt.message + (bt.pairing ? " · " + bt.pairing + " seconds remaining" : "") +
       (bt.connected ? " · USB ID " + bt.vid.toString(16).padStart(4,"0") + ":" + bt.pid.toString(16).padStart(4,"0") : "");
+    await refreshXbox();
     el("fw").textContent = (s.version ? "· " + s.version + " " : "") + "· FW " + s.firmware;
     el("report-issue").href = supportIssueUrl(s);
     el("status").textContent = s.usb_connected
@@ -129,6 +130,45 @@ async function refresh() {
 }
 function padAct(action, query = "") {
   return act(action + "?slot=" + el("pads").value + (query ? "&" + query : ""));
+}
+async function refreshXbox() {
+  try {
+    const response = await fetch("/api/xbox", {cache:"no-store"});
+    if (!response.ok) throw new Error("Firmware status unavailable");
+    const xbox = await response.json();
+    el("xbox-setup").hidden = !xbox.enabled;
+    if (!xbox.enabled) return;
+    el("xbox-status").textContent = xbox.connected ? "Xbox controller connected" :
+      xbox.firmware === "installed" ? "Firmware installed. Plug in the adapter and pair your Xbox controller." :
+      xbox.firmware === "missing" ? "One-time firmware setup needed" : "Adapter firmware is " + xbox.firmware + ". Install a valid firmware file.";
+    // Keep an explicitly opened replacement form open during polling.
+    if (xbox.firmware !== "installed") el("xbox-install").hidden = false;
+    else if (!el("xbox-install").dataset.opened) el("xbox-install").hidden = true;
+  } catch (error) {
+    el("xbox-status").textContent = error.message;
+  }
+}
+function showXboxInstall() {
+  el("xbox-install").dataset.opened = "1";
+  el("xbox-install").hidden = false;
+}
+async function installXboxFirmware() {
+  const file = el("xbox-file").files[0];
+  if (!file || file.size < 32 || file.size > 1024 * 1024) {
+    el("message").textContent = "Choose a firmware .bin file between 32 bytes and 1 MiB."; return;
+  }
+  el("xbox-upload").disabled = true;
+  el("message").textContent = "Installing Xbox adapter firmware...";
+  try {
+    const response = await fetch("/api/xbox/firmware", {
+      method:"POST", headers:{"X-LibrePad-Control":"1", "Content-Type":"application/octet-stream"}, body:file,
+    });
+    const result = await response.json();
+    el("message").textContent = result.message;
+    if (response.ok) { el("xbox-file").value = ""; el("xbox-install").dataset.opened = ""; }
+    await refreshXbox();
+  } catch (error) { el("message").textContent = "Firmware installation failed: " + error.message; }
+  finally { el("xbox-upload").disabled = false; }
 }
 async function act(path) {
   try {

@@ -5,7 +5,9 @@
 #include <stddef.h>
 #include <string.h>
 
-#define MAX_SLOTS 3
+/* Capacity is independent of native pads. Four signed-in console profiles
+ * constrain assignment; native reservations determine how many are available. */
+#define MAX_SLOTS 4
 
 /* ---- PS5 DualSense Buttons bitmask ---- */
 #define PAD_BTN_CREATE      (1u << 0)

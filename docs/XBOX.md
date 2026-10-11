@@ -3,7 +3,7 @@
 Native PS5 support for Xbox One controller model **1697** and the original
 Xbox Wireless Adapter **045e:02e6**. The slim **045e:02fe** is also allowlisted;
 it has not been tested here. The optional module integrates with the main payload
-through four C functions and a shared controller router. A separate Xbox-only
+through a small C interface and a shared controller router. A separate Xbox-only
 payload is retained for radio diagnostics.
 
 **Status: model 1697 paired through adapter 045e:02e6 on PS5 firmware 12.60.
@@ -36,7 +36,7 @@ and multiple Xbox controllers on one adapter are not implemented by this backend
 
 ## Small integration module
 
-The main project only needs `librepad_xbox.h` (four C functions) and the optional
+The main project only needs `librepad_xbox.h` (five C functions) and the optional
 `dist/liblibrepad_xbox.a` archive. The module exports no `usb_hotplug_*` functions
 and does not replace the main project's existing USB manager. Radio/GIP code is
 behind the interface and can stay disabled in normal builds.
@@ -104,15 +104,56 @@ payload with C++ statically linked and the usual console service imports.
 
 ## Firmware
 
-The adapter requires Microsoft's firmware. **It is not embedded in the ELF or
-included in source packages.** The hardware test used the 2017 firmware image
+The adapter requires Microsoft's firmware. It is downloaded directly from
+Microsoft and saved once on the console, outside the ELF, so payload upgrades
+keep it. **v1.1.0 preview adds direct installation; v1.0.0 needs the manual FTP
+method below.** The hardware test used the 2017 firmware image
 expected by xow: build `201703281033____`, 70,620 bytes, ILM 61,456 bytes and
 DLM 9,132 bytes. SHA-256:
 `48084d9fa53b9bb04358f3bb127b7495dc8f7bb0b3ca1437bd24ef2b6eabdf66`.
 
-Use a local driver copy with that version, or obtain the corresponding driver
-package from [Microsoft's driver distribution](http://download.windowsupdate.com/c/msdownload/update/driver/drvs/2017/07/1cd6a87c-623f-4407-a52d-c31be49e925c_e19f60808bdcbfbd3c3df6be3e71ffc52e43261e.cab)
-and extract `FW_ACC_00U.bin`. The staging helper accepts an explicit source:
+### Quick install on Windows
+
+1. Load the [v1.1.0 preview main ELF](https://github.com/arwebSE/LibrePadPS5/releases/tag/v1.1.0-preview) and confirm `http://<PS5_IP>:8096/` opens.
+2. Download [LibrePadPS5-Xbox-Setup.zip](https://github.com/arwebSE/LibrePadPS5/releases/download/v1.1.0-preview/LibrePadPS5-Xbox-Setup.zip), extract it, and double-click `setup.cmd`.
+3. Enter the PS5 IP address. The helper downloads Microsoft's driver package,
+   extracts the tested image using Windows' built-in extractor, verifies the
+   SHA-256 above and uploads it directly to the dashboard. Python, FTP and a
+   separate Xbox payload are unnecessary.
+4. Unplug and replug the Xbox adapter, then press the pairing buttons on the
+   adapter and Xbox controller. Select the gamepad in the dashboard and assign
+   a separate console profile.
+
+From a source checkout, the same helper is [tools/xbox/setup.ps1](../tools/xbox/setup.ps1):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/xbox/setup.ps1 -PS5Address 192.168.1.100
+```
+
+Replace the example IP with your console's address. Optional `-FirmwarePath`
+installs a local copy instead of downloading; it must match the tested hash.
+The helper requires the preview's `/api/xbox` and `/api/xbox/firmware` endpoints.
+Its traffic goes to Microsoft for the driver download and to the dashboard for
+installation. Firmware remains separate from the release download.
+
+### Upload an existing file from any browser
+
+Open **Controller / Xbox Wireless setup**, select `FW_ACC_00U.bin` or
+`firmware.bin`, then **Install firmware**. The dashboard shows missing, invalid
+or installed firmware and Xbox controller connection status. Installation saves
+the file atomically and queues a radio restart without restarting USB controllers
+or the payload. Unplug/replug the Xbox adapter afterward to clear resident firmware.
+You can replace an installed file under **Replace adapter firmware**.
+
+Malformed, oversized and incomplete uploads leave the installed file unchanged.
+The dashboard validates memory lengths; use the Windows helper for verification
+against the known SHA-256. Builds with `WITH_XBOX=0` disable firmware installation.
+
+### Manual installation for v1.0.0 and older builds
+
+Use a local driver copy with the tested version, or obtain the corresponding
+driver package from [Microsoft's driver distribution](http://download.windowsupdate.com/c/msdownload/update/driver/drvs/2017/07/1cd6a87c-623f-4407-a52d-c31be49e925c_e19f60808bdcbfbd3c3df6be3e71ffc52e43261e.cab)
+and extract `FW_ACC_00U.bin`. The original staging helper accepts an explicit source:
 
 ```sh
 python tools/xbox/copy_firmware_windows.py --source /path/to/FW_ACC_00U.bin --out /path/to/staging/firmware.bin
@@ -144,8 +185,10 @@ it is not a firmware authenticity check. Missing firmware disables radio startup
    LibrePadPS5/controller payload cleanly. This build uses the same instance lock.
 2. Keep the DualSense on its explicitly protected user and sign in a separate
    Xbox user, using the project's existing profile protection setup.
-3. Stage the firmware, then move the USB adapter from Windows to the PS5.
-4. Load `LibrePadPS5-Xbox.elf` using the existing ELF loader.
+3. Load the main `LibrePadPS5.elf` using the existing ELF loader and install the
+   firmware from the dashboard or Windows helper. The standalone Xbox ELF is
+   only needed when specifically diagnosing radio behavior.
+4. Unplug/replug the USB adapter on the PS5, then pair the controller.
 5. Open `http://<PS5_IP>:8096/`, then Read log. Confirm `radio endpoints opened`
    and `Dongle initialized`. If initialization fails, retain the exact error/log.
 6. Press the pairing buttons on the adapter and the 1697 controller. Confirm

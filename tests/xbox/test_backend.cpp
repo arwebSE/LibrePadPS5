@@ -31,6 +31,9 @@ int main() {
     assert(!librepad_xbox_is_connected() && adds == 0);
     librepad_xbox_stop();
     firmware = true;
+    librepad_xbox_reload();
+    librepad_xbox_poll(0); // installation recovers without restarting the app
+    assert(!xbox_transport_stopping());
     assert(librepad_xbox_start());
     assert(librepad_xbox_start()); // repeated init must not replace a joinable thread
     assert(xbox_sink_connect(&controller, 0x045e, 0x02dd));

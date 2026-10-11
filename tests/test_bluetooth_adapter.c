@@ -6,7 +6,7 @@
 #include <fcntl.h>
 static sim_t *simulator;
 static vpad_slot_info_t virtual_pad;
-static int usb_present, opened, added, removed, updates;
+static int usb_present, opened, added, removed, updates, fourth_connected;
 int hci_usb_open(hci_t *out) { opened++; *out=sim_hci(simulator); return 1; }
 long now_ms(void) { return sim_now(); }
 int usb_hotplug_librepad_connected(void) { return usb_present; }
@@ -26,7 +26,7 @@ int controller_attach(void *owner, pad_conn_type_t type, const char *name) {
 }
 void controller_update(void *owner, const pad_state_t *state) { (void)owner; if (virtual_pad.status!=VP_FREE) vpad_update(0,state); }
 void controller_detach(void *owner) { (void)owner; if (virtual_pad.status!=VP_FREE) vpad_remove(0); }
-int controller_connected(int slot) { (void)slot; return 0; }
+int controller_connected(int slot) { return slot==3 && fourth_connected; }
 int controller_reconnect(int slot) { return vpad_add(slot,CONN_BLUETOOTH_CLASSIC,"Mock Bluetooth gamepad"); }
 static void run(int milliseconds) {
     long end=sim_now()+milliseconds;
@@ -48,6 +48,9 @@ int main(void)
     usb_present=0; virtual_pad.status=VP_READY;
     assert(bluetooth_pair_address("06:05:04:03:02:01")); bluetooth_poll(); assert(!opened);
     virtual_pad.status=VP_FREE;
+    fourth_connected=1;
+    assert(bluetooth_pair_address("06:05:04:03:02:01")); bluetooth_poll(); assert(!opened);
+    fourth_connected=0;
     sim_pad pad={0}; pad.mode=SIM_WAIT_PAIRING; pad.cod=0x002508; pad.vid=0x054c; pad.pid=0x05c4;
     memcpy(pad.addr,"\x01\x02\x03\x04\x05\x06",6);
     pad.report_len=78; pad.needs_output=1;

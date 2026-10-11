@@ -20,6 +20,7 @@ extern "C" int xbox_test_access(const char *path, int mode);
 #endif
 
 static std::atomic<bool> stopping(false), failed(false), connected(false);
+static std::atomic<bool> reloadRequested(false);
 static std::thread worker;
 static std::mutex stateMutex;
 static void *owner = nullptr;
@@ -94,7 +95,12 @@ extern "C" int librepad_xbox_start() {
     return 1;
 }
 extern "C" int librepad_xbox_is_connected() { return connected; }
+extern "C" void librepad_xbox_reload() { reloadRequested = true; }
 extern "C" void librepad_xbox_poll(long) {
+    if (reloadRequested.exchange(false)) {
+        librepad_xbox_stop();
+        librepad_xbox_start();
+    }
     std::lock_guard<std::mutex> lock(stateMutex);
     if (detachPending) { controller_detach(detachedOwner); detachedOwner = nullptr; detachPending = false; }
     if (attachPending) {

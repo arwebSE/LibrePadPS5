@@ -1,5 +1,6 @@
 /* Host-only HTTP tests. Controller/console APIs are mocked; no hardware touched.
  * Run in the disposable SDK container, not on a console. */
+#define LIBREPAD_WITH_XBOX
 #include "../src/dashboard/http_server.c"
 #include <assert.h>
 #include <signal.h>
@@ -8,9 +9,12 @@
 static vpad_slot_info_t mock_pad, second_pad;
 static int last_slot;
 static int connected = 1, removed, added, pressed, rebound, stopped;
+static int xbox_reloads;
 static char last_response[DIAGNOSTIC_HEADER_LIMIT + DIAGNOSTIC_LOG_LIMIT + 1024];
 
 void log_line(const char *fmt, ...) { (void)fmt; }
+int librepad_xbox_is_connected(void) { return 0; }
+void librepad_xbox_reload(void) { xbox_reloads++; }
 void librepad_request_stop(void) { stopped++; }
 int usb_hotplug_librepad_connected(void) { return connected; }
 int32_t vpad_get_protected_user(void) { return 0; }
@@ -51,14 +55,14 @@ int controller_reconnect(int slot) {
 static void *serve(void *arg)
 { int fd = *(int *)arg; handle(fd); close(fd); return NULL; }
 
-static void request(const char *raw, int status, const char *expected, int split)
+static void request_bytes(const char *raw, size_t len, int status, const char *expected, int split)
 {
     int fds[2]; assert(socketpair(AF_UNIX, SOCK_STREAM, 0, fds) == 0);
     struct timeval timeout = {2, 0};
     setsockopt(fds[0], SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
     setsockopt(fds[1], SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
     pthread_t worker_thread; assert(pthread_create(&worker_thread, NULL, serve, &fds[1]) == 0);
-    size_t len = strlen(raw), part = split ? 7 : len;
+    size_t part = split ? 7 : len;
     assert(send(fds[0], raw, part, 0) == (ssize_t)part);
     if (split) {
         usleep(10000);
@@ -75,12 +79,45 @@ static void request(const char *raw, int status, const char *expected, int split
     assert(!strncmp(response, prefix, strlen(prefix)));
     assert(strstr(response, expected));
 }
+static void request(const char *raw, int status, const char *expected, int split)
+{ request_bytes(raw, strlen(raw), status, expected, split); }
+
+static void firmware_upload(size_t declared, size_t actual, int valid, const char *headers, int status)
+{
+    char *raw = calloc(1, actual + 512); assert(raw);
+    int n = snprintf(raw, 512, "POST /api/xbox/firmware HTTP/1.1\r\nContent-Length: %zu\r\n%s\r\n", declared, headers);
+    assert(n > 0 && n < 512);
+    /* Large body includes NUL bytes and spans multiple recv calls. */
+    if (valid && actual >= 32) {
+        uint32_t ilm = (uint32_t)actual - 33;
+        for (int i=0; i<4; i++) raw[n+i]=(char)(ilm >> (8*i));
+        raw[n+4]=1;
+    }
+    request_bytes(raw, (size_t)n + actual, status, "application/json", 1);
+    free(raw);
+}
 
 int main(void)
 {
     signal(SIGPIPE, SIG_IGN);
     request("GET /api/state HTTP/1.1\r\nHost: localhost\r\n\r\n", 200, "\"version\":\"" LIBREPAD_VERSION "\"", 0);
     mkdir("/data", 0700); mkdir(LIBREPAD_STATE_DIR, 0700);
+    mkdir(LIBREPAD_STATE_DIR "/xbox", 0700);
+    unlink(LIBREPAD_XBOX_FIRMWARE_PATH);
+    request("GET /api/xbox HTTP/1.1\r\n\r\n",200,"\"firmware\":\"missing\"",0);
+    firmware_upload(70620,70620,1,"X-LibrePad-Control: 1\r\n",200);
+    assert(xbox_reloads==1);
+    request("GET /api/xbox HTTP/1.1\r\n\r\n",200,"\"firmware\":\"installed\"",0);
+    firmware_upload(70620,70620,0,"X-LibrePad-Control: 1\r\n",400);
+    firmware_upload(70620,64,1,"X-LibrePad-Control: 1\r\n",400);
+    request("POST /api/xbox/firmware HTTP/1.1\r\nContent-Length: 1048577\r\nX-LibrePad-Control: 1\r\n\r\n",400,"Invalid firmware upload length",0);
+    request("POST /api/xbox/firmware HTTP/1.1\r\nContent-Length: 32\r\nContent-Length: 32\r\nX-LibrePad-Control: 1\r\n\r\n",400,"Invalid firmware upload length",0);
+    request("POST /api/xbox/firmware HTTP/1.1\r\nContent-Length: 32\r\nTransfer-Encoding: chunked\r\nX-LibrePad-Control: 1\r\n\r\n",400,"Invalid firmware upload length",0);
+    request("POST /api/xbox/firmware HTTP/1.1\r\nContent-Length: 32\r\n\r\nX-LibrePad-Control: 1\r\n",403,"Missing control header",0);
+    assert(xbox_reloads==1);
+    struct stat saved; assert(!stat(LIBREPAD_XBOX_FIRMWARE_PATH,&saved) && saved.st_size==70620);
+    assert(access(LIBREPAD_XBOX_FIRMWARE_PATH ".tmp",F_OK)!=0);
+    unlink(LIBREPAD_XBOX_FIRMWARE_PATH);
     unlink(LIBREPAD_PROFILES_PATH);
     assert(librepad_profiles_init(LIBREPAD_PROFILES_PATH));
     /* Downloads work without a log; only fixed, non-secret files are read. */
@@ -177,11 +214,13 @@ int main(void)
     request("POST /api/reconnect HTTP/1.1\r\nX-PDP-Control: 1\r\n\r\n", 200, "Creating virtual pad", 0);
     assert(added == 2 && removed == 2);
     second_pad.status=VP_READY;
+    request("POST /api/home?slot=3 HTTP/1.1\r\nX-LibrePad-Control: 1\r\n\r\n",200,"Home / PS sent",0);
+    assert(last_slot==3);
     request("POST /api/home?slot=1 HTTP/1.1\r\nX-LibrePad-Control: 1\r\n\r\n",200,"Home / PS sent",0);
     assert(last_slot==1);
     request("POST /api/release?slot=1 HTTP/1.1\r\nX-LibrePad-Control: 1\r\n\r\n",200,"Virtual pad released",0);
     assert(second_pad.status==VP_FREE && mock_pad.status==VP_QUEUED && added==2);
-    request("POST /api/home?slot=3 HTTP/1.1\r\nX-LibrePad-Control: 1\r\n\r\n",400,"Invalid controller parameters",0);
+    request("POST /api/home?slot=4 HTTP/1.1\r\nX-LibrePad-Control: 1\r\n\r\n",400,"Invalid controller parameters",0);
     request("POST /api/home?slot=1&slot=0 HTTP/1.1\r\nX-LibrePad-Control: 1\r\n\r\n",400,"Invalid controller parameters",0);
     request("POST /api/release?slot=-1 HTTP/1.1\r\nX-LibrePad-Control: 1\r\n\r\n",400,"Invalid controller parameters",0);
     request("POST /api/protect?user=65&reserved=1 HTTP/1.1\r\nX-LibrePad-Control: 1\r\n\r\n",200,"reservation saved",0);

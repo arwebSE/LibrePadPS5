@@ -1,10 +1,10 @@
 {
   "name": "LibrePadPS5",
   "filename": "LibrePadPS5.elf",
-  "url": "https://github.com/arwebSE/LibrePadPS5/releases/download/v1.0.0/LibrePadPS5.elf",
+  "url": "https://github.com/arwebSE/LibrePadPS5/releases/download/v1.1.0-preview/LibrePadPS5.elf",
   "source": "https://github.com/arwebSE/LibrePadPS5",
   "description": "USB, Xbox Wireless and opt-in Bluetooth gamepads. LAN dashboard on port 8096. Each virtual gamepad requires a separate console user.",
-  "version": "1.0.0",
+  "version": "1.1.0-preview",
   "category": "Controller",
   "install_source": "web_upload",
   "source_name": "LibrePadPS5"

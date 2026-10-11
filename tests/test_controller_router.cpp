@@ -40,7 +40,7 @@ extern "C" void vpad_remove(int slot) { ++removals[slot]; pads[slot]={}; states[
 extern "C" void vpad_get_slot_info(int slot, vpad_slot_info_t *out) { *out=pads[slot]; }
 extern "C" void vpad_update(int slot, const pad_state_t *state) { if (pads[slot].status != VP_FREE) states[slot]=*state; }
 int main() {
-    int pdp, xbox, extra, overflow;
+    int pdp, xbox, extra, fourth, overflow;
     assert(controller_attach(&pdp,CONN_USB_WIRED,"PDP") == 0);
     assert(controller_attach(&xbox,CONN_USB_DONGLE_24G,"Xbox") == 1);
     assert(controller_attach(&pdp,CONN_USB_WIRED,"PDP") == 0 && additions[0]==1);
@@ -55,6 +55,7 @@ int main() {
     assert(removals[0]==1 && removals[1]==0);
     controller_update(&pdp,&a); assert(pads[0].status==VP_FREE);
     assert(controller_attach(&extra,CONN_USB_WIRED,"Extra") == 2);
+    assert(controller_attach(&fourth,CONN_USB_WIRED,"Fourth") == 3);
     assert(controller_attach(&overflow,CONN_USB_WIRED,"Overflow") == -1);
     assert(controller_reconnect(0) && states[0].buttons==PAD_BTN_CROSS);
     assert(additions[0]==2 && additions[1]==1);
@@ -68,6 +69,6 @@ int main() {
     assert(controller_attach(&pdp,CONN_USB_WIRED,"PDP") == 0);
     assert(pads[0].status==VP_FREE); // Unplug/replug retains release policy.
     assert(!controller_release(-2) && !controller_reconnect(MAX_SLOTS));
-    controller_detach(&pdp); controller_detach(&xbox);
+    controller_detach(&pdp); controller_detach(&xbox); controller_detach(&fourth);
     puts("Shared router: concurrent PDP/Xbox isolation, reserved released slots, capacity, reconnect and pause persistence passed");
 }
