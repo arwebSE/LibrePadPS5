@@ -1,11 +1,11 @@
-/* Host-only regression tests for the PDP-specific virtual-pad lifecycle. */
+/* Host-only regression tests for the FreePad virtual-pad lifecycle. */
 #define _DEFAULT_SOURCE
-#define PDP_ONLY
+#define FREEPAD_ONLY
 #define __PROSPERO__
 #include "../src/ps5_vpad.c"
 #include <assert.h>
 
-enum { NATIVE_USER = 100, PDP_USER = 200, OWN_HANDLE = 0x4030d };
+enum { NATIVE_USER = 100, CONTROLLER_USER = 200, OWN_HANDLE = 0x4030d };
 static int32_t users[4] = {NATIVE_USER, -1, -1, -1};
 static int native_mode = -1, binds, deletes, disconnects, insertions, bind_result;
 static uint32_t inserted_buttons;
@@ -75,20 +75,20 @@ int main(void)
     native_mode = 0; assert(vpad_native_controller_connected(NATIVE_USER) == 0);
     native_mode = 1; assert(vpad_native_controller_connected(NATIVE_USER) == 1);
     native_mode = -1;
-    g_ready = 1; g_protected_user = NATIVE_USER; g_pdp_user = PDP_USER;
+    g_ready = 1; g_protected_user = NATIVE_USER; g_controller_user = CONTROLLER_USER;
     g_bind = bind_pad; g_disconnect = disconnect_pad;
-    assert(get_user_id_for_slot(0) == -1); /* PDP profile not signed in. */
+    assert(get_user_id_for_slot(0) == -1); /* Controller profile not signed in. */
     pending(1); finish_identification(now_ms());
     assert(g_slots[0].status == VP_READY && g_slots[0].user_id == -1 && !binds);
-    users[1] = PDP_USER;
+    users[1] = CONTROLLER_USER;
     vpad_poll(now_ms());
-    assert(binds == 1 && bound_user == PDP_USER && g_slots[0].user_id == PDP_USER);
+    assert(binds == 1 && bound_user == CONTROLLER_USER && g_slots[0].user_id == CONTROLLER_USER);
     assert(!vpad_rebind_user(0, NATIVE_USER));
     assert(binds == 1);
-    assert(vpad_rebind_user(0, PDP_USER));
+    assert(vpad_rebind_user(0, CONTROLLER_USER));
     bind_result = -1;
-    assert(!vpad_rebind_user(0, PDP_USER));
-    assert(g_slots[0].user_id == PDP_USER);
+    assert(!vpad_rebind_user(0, CONTROLLER_USER));
+    assert(g_slots[0].user_id == CONTROLLER_USER);
     bind_result = 0;
     pad_state_t input; pad_state_neutral(&input); input.buttons = PAD_BTN_CROSS;
     vpad_update(0, &input); vpad_press_ps_button(0); vpad_poll(now_ms());
@@ -103,6 +103,6 @@ int main(void)
     pending(2); finish_identification(now_ms());
     assert(g_slots[0].status == VP_FAILED && deletes == 2 && binds == previous_binds);
     assert(insertions > 0);
-    puts("PDP lifecycle tests passed");
+    puts("FreePad lifecycle tests passed");
     return 0;
 }

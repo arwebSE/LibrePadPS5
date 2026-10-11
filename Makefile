@@ -6,11 +6,9 @@ PS5_PORT ?= 9021
 
 BUILD := build
 
-.PHONY: all freepad pdp ps5 send clean test host-test
+.PHONY: all freepad ps5 send clean test host-test
 
 all: freepad
-
-pdp: freepad
 
 freepad:
 ifndef PS5_PAYLOAD_SDK

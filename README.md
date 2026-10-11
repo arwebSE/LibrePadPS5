@@ -17,7 +17,7 @@ Wired Switch controller support for jailbroken PS5. No Bluetooth.
 3. Load **`FreePad-USB.elf`** and plug in the controller.
 4. Open **`http://<PS5_IP>:8096/`**, click **Reconnect**, press **Home / PS**, then select the separate user.
 
-Already using the previous build? **Keep `/data/pdp-pad/` and your profile files.** Stop the old instance before loading this one. v0.3.1 changes branding, not input handling.
+Already using the previous build? **Keep your existing state directory and profile files.** Stop the old instance before loading this one. See [upgrade compatibility](docs/FREEPAD.md#troubleshooting--upgrades). Input handling is unchanged.
 
 ## Dashboard & buttons
 

@@ -1,4 +1,4 @@
-"""Read changed input reports from the PDP 0e6f:0184 controller."""
+"""Read changed input reports from the supported USB 0e6f:0184 controller."""
 
 import time
 import hid

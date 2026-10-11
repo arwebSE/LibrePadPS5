@@ -1,5 +1,6 @@
 #define _DEFAULT_SOURCE
-#include "web_pdp.h"
+#include "freepad_compat.h"
+#include "web_freepad.h"
 #include "ps5_vpad.h"
 #include "usb_hotplug.h"
 #include "log.h"
@@ -119,7 +120,7 @@ static void state(int fd)
     snprintf(body, sizeof(body),
         "{\"firmware\":\"%x.%02x\",\"usb_connected\":%s,\"live\":%s,\"status\":%d,\"user\":\"%08x\",\"buttons\":%u,\"axes\":[%u,%u,%u,%u],\"frames\":%u,\"users\":[%s]}",
         (firmware >> 24) & 255, (firmware >> 16) & 255,
-        usb_hotplug_pdp_connected() ? "true" : "false", pad.status == VP_READY ? "true" : "false", pad.status,
+        usb_hotplug_freepad_connected() ? "true" : "false", pad.status == VP_READY ? "true" : "false", pad.status,
         (unsigned)pad.user_id, pad.buttons, pad.lx, pad.ly, pad.rx, pad.ry, pad.packets_injected, users);
     reply(fd, 200, "application/json", body);
 }
@@ -166,7 +167,7 @@ static void handle(int fd)
         state(fd);
     } else if (!strcmp(method, "GET") && !strcmp(path, "/api/log")) {
         char log[12001] = {0};
-        FILE *file = fopen("/data/pdp-pad/pdp-pad.log", "r");
+        FILE *file = fopen(FREEPAD_LOG_PATH, "r");
         if (file) {
             fseek(file, 0, SEEK_END);
             long size = ftell(file);
@@ -184,10 +185,10 @@ static void handle(int fd)
         const char *message = "Action completed";
         if (!strcmp(path, "/api/stop")) {
             reply(fd, 200, "application/json", "{\"message\":\"Stopping payload\"}");
-            pdp_request_stop();
+            freepad_request_stop();
             return;
         } else if (!strcmp(path, "/api/release")) {
-            int pause = open("/data/pdp-pad/pause", O_WRONLY | O_CREAT, 0600);
+            int pause = open(FREEPAD_STATE_DIR "/pause", O_WRONLY | O_CREAT, 0600);
             ok = pause >= 0;
             if (ok) {
                 close(pause);
@@ -197,11 +198,11 @@ static void handle(int fd)
         } else if (!strcmp(path, "/api/reconnect")) {
             vpad_slot_info_t pad = {0};
             vpad_get_slot_info(0, &pad);
-            if (usb_hotplug_pdp_connected() && (pad.status == VP_FREE || pad.status == VP_FAILED)) {
+            if (usb_hotplug_freepad_connected() && (pad.status == VP_FREE || pad.status == VP_FAILED)) {
                 /* A failed insertion can still own a device. Release it
                  * before queuing a replacement rather than leaking it. */
                 if (pad.status == VP_FAILED) vpad_remove(0);
-                ok = unlink("/data/pdp-pad/pause") == 0 || errno == ENOENT;
+                ok = unlink(FREEPAD_STATE_DIR "/pause") == 0 || errno == ENOENT;
                 if (ok) ok = vpad_add(0, CONN_USB_WIRED, "PDP Faceoff Deluxe+ Wired");
             } else ok = 0;
             message = ok ? "Creating virtual pad" : "Controller unavailable or already active";
@@ -246,7 +247,7 @@ static void *worker(void *arg)
     return NULL;
 }
 
-int pdp_web_init(int port)
+int freepad_web_init(int port)
 {
     server = socket(AF_INET, SOCK_STREAM, 0);
     if (server < 0) return 0;
@@ -272,7 +273,7 @@ int pdp_web_init(int port)
     return 1;
 }
 
-void pdp_web_cleanup(void)
+void freepad_web_cleanup(void)
 {
     if (server < 0) return;
     running = 0;

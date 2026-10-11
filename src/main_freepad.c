@@ -2,7 +2,7 @@
 #include "usb_hotplug.h"
 #include "log.h"
 #include "util.h"
-#include "web_pdp.h"
+#include "web_freepad.h"
 
 #include <signal.h>
 #include <stdatomic.h>
@@ -16,13 +16,14 @@
 #include <ps5/kernel.h>
 #endif
 
-#define STATE_DIR "/data/pdp-pad"
+#include "freepad_compat.h"
+#define STATE_DIR FREEPAD_STATE_DIR
 #define STOP_FLAG STATE_DIR "/stop"
 
 static volatile sig_atomic_t running = 1;
 static atomic_int stop_requested;
 
-void pdp_request_stop(void)
+void freepad_request_stop(void)
 {
     atomic_store(&stop_requested, 1);
 }
@@ -47,8 +48,8 @@ int main(void)
         if (lock_fd >= 0) close(lock_fd);
         return 1;
     }
-    log_init(STATE_DIR "/pdp-pad.log");
-    log_line("FreePad USB v0.3.1; wired Switch controller for PS5; no Bluetooth or autoload");
+    log_init(FREEPAD_LOG_PATH);
+    log_line("FreePad USB v0.3.2; wired Switch controller for PS5; no Bluetooth or autoload");
 
 #ifdef __PROSPERO__
     uint32_t fw = kernel_get_fw_version();
@@ -66,7 +67,7 @@ int main(void)
         return 1;
     }
     usb_hotplug_init();
-    if (!pdp_web_init(8096)) log_line("FreePad USB dashboard failed to start");
+    if (!freepad_web_init(8096)) log_line("FreePad USB dashboard failed to start");
     log_line("Ready. Stop by creating " STOP_FLAG " or sending SIGTERM.");
     while (running && !atomic_load(&stop_requested)) {
         long now = now_ms();
@@ -78,7 +79,7 @@ int main(void)
         }
         usleep(4000);
     }
-    pdp_web_cleanup();
+    freepad_web_cleanup();
     usb_hotplug_cleanup();
     vpad_cleanup_all();
     log_line("FreePad USB stopped cleanly");

@@ -62,8 +62,8 @@ void log_line(const char *fmt, ...)
     pthread_mutex_unlock(&g_log_mutex);
 
 #ifdef __PROSPERO__
-#ifdef PDP_ONLY
-    klog_printf("[PDP-Pad] %s\n", buf);
+#ifdef FREEPAD_ONLY
+    klog_printf("[FreePad-USB] %s\n", buf);
 #else
     klog_printf("[OmniPad] %s\n", buf);
 #endif

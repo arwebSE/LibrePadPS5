@@ -3,6 +3,7 @@
 #include "ps5_vpad.h"
 #include "log.h"
 #include "util.h"
+#include "freepad_compat.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -221,7 +222,7 @@ static int usb_fs_recv_packet(usb_slot_device_t *dev, uint8_t *buffer, uint32_t 
 {
     if (!dev->use_fs) return -1;
     struct usb_fs_endpoint *ep = &dev->endpoints[dev->in_index];
-#ifdef PDP_ONLY
+#ifdef FREEPAD_ONLY
     (void)timeout_ms;
     /* Do not restart a transfer before consuming its completion. The old
      * short-timeout loop could discard press/release reports between calls. */
@@ -362,7 +363,7 @@ static void *usb_reader_worker(void *arg)
     long last_led_time = 0;
     long last_log_t = 0;
     int consecutive_errors = 0;
-#ifdef PDP_ONLY
+#ifdef FREEPAD_ONLY
     uint32_t last_buttons = UINT32_MAX;
 #endif
 
@@ -440,7 +441,7 @@ static void *usb_reader_worker(void *arg)
                 vpad_update(dev->slot, &st);
                 last_data_time = cur_time;
 
-#ifdef PDP_ONLY
+#ifdef FREEPAD_ONLY
                 if (st.buttons != last_buttons) {
                     log_line("FreePad: raw buttons=%02x%02x hat=%x -> PS buttons=0x%08x",
                              report[1], report[0], report[2] & 0x0f, (unsigned)st.buttons);
@@ -479,7 +480,7 @@ static void *usb_reader_worker(void *arg)
             }
         }
 
-#ifndef PDP_ONLY
+#ifndef FREEPAD_ONLY
         usleep(4000); /* ~250 Hz polling tick */
 #endif
     }
@@ -590,7 +591,7 @@ static void probe_usb_devices(void)
                 continue;
             }
 
-#ifdef PDP_ONLY
+#ifdef FREEPAD_ONLY
             /* Never claim or send USB transfers to any other device. */
             if (vid != 0x0e6f || pid != 0x0184) {
                 close(fd);
@@ -669,8 +670,8 @@ static void probe_usb_devices(void)
                                            strstr(ctrl_name, "Receiver") != NULL));
             sdev->conn_type = is_dongle ? CONN_USB_DONGLE_24G : CONN_USB_WIRED;
 
-#ifdef PDP_ONLY
-            if (access("/data/pdp-pad/pause", F_OK) != 0)
+#ifdef FREEPAD_ONLY
+            if (access(FREEPAD_STATE_DIR "/pause", F_OK) != 0)
 #endif
                 vpad_add(slot, sdev->conn_type, ctrl_name);
             pthread_create(&sdev->thread, NULL, usb_reader_worker, sdev);
@@ -686,7 +687,7 @@ int usb_hotplug_init(void)
     return 1;
 }
 
-int usb_hotplug_pdp_connected(void)
+int usb_hotplug_freepad_connected(void)
 {
     int connected = 0;
     pthread_mutex_lock(&g_usb_hotplug.lock);

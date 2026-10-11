@@ -1,6 +1,6 @@
 /* Host-only HTTP tests. Controller/console APIs are mocked; no hardware touched.
  * Run in the disposable SDK container, not on a console. */
-#include "../src/web_pdp.c"
+#include "../src/web_freepad.c"
 #include <assert.h>
 #include <signal.h>
 #include <sys/stat.h>
@@ -9,8 +9,8 @@ static vpad_slot_info_t mock_pad;
 static int connected = 1, removed, added, pressed, rebound, stopped;
 
 void log_line(const char *fmt, ...) { (void)fmt; }
-void pdp_request_stop(void) { stopped++; }
-int usb_hotplug_pdp_connected(void) { return connected; }
+void freepad_request_stop(void) { stopped++; }
+int usb_hotplug_freepad_connected(void) { return connected; }
 int32_t vpad_get_protected_user(void) { return 0; }
 void vpad_get_slot_info(int slot, vpad_slot_info_t *out)
 { assert(slot == 0); *out = mock_pad; }
@@ -58,8 +58,8 @@ static void request(const char *raw, int status, const char *expected, int split
 int main(void)
 {
     signal(SIGPIPE, SIG_IGN);
-    mkdir("/data", 0700); mkdir("/data/pdp-pad", 0700);
-    unlink("/data/pdp-pad/pause");
+    mkdir("/data", 0700); mkdir(FREEPAD_STATE_DIR, 0700);
+    unlink(FREEPAD_STATE_DIR "/pause");
     mock_pad.status = VP_READY;
     mock_pad.user_id = 0x1234;
     mock_pad.buttons = PAD_BTN_CROSS;
@@ -83,15 +83,15 @@ int main(void)
     request("POST /api/rebind?user=ffffffff HTTP/1.1\r\nX-PDP-Control: 1\r\n\r\n", 409, "Could not bind", 0);
     assert(rebound == 1);
     request("POST /api/release HTTP/1.1\r\nX-PDP-Control: 1\r\n\r\n", 200, "Virtual pad released", 0);
-    assert(removed == 1 && access("/data/pdp-pad/pause", F_OK) == 0);
+    assert(removed == 1 && access(FREEPAD_STATE_DIR "/pause", F_OK) == 0);
     request("POST /api/home HTTP/1.1\r\nX-PDP-Control: 1\r\n\r\n", 409, "not active", 0);
     assert(pressed == 1);
     connected = 0;
     request("POST /api/reconnect HTTP/1.1\r\nX-PDP-Control: 1\r\n\r\n", 409, "unavailable", 0);
-    assert(!added && access("/data/pdp-pad/pause", F_OK) == 0);
+    assert(!added && access(FREEPAD_STATE_DIR "/pause", F_OK) == 0);
     connected = 1;
     request("POST /api/reconnect HTTP/1.1\r\nX-PDP-Control: 1\r\n\r\n", 200, "Creating virtual pad", 0);
-    assert(added == 1 && access("/data/pdp-pad/pause", F_OK) != 0);
+    assert(added == 1 && access(FREEPAD_STATE_DIR "/pause", F_OK) != 0);
     request("POST /api/reconnect HTTP/1.1\r\nX-PDP-Control: 1\r\n\r\n", 409, "unavailable", 0);
     assert(added == 1);
     mock_pad.status = VP_FAILED;
@@ -102,8 +102,8 @@ int main(void)
     request("GET /api/log HTTP/1.1\r\n\r\n", 200, "text/plain", 0);
     char escaped[64]; escape_json(escaped, sizeof(escaped), "Name\"\\\n");
     assert(!strcmp(escaped, "Name\\\"\\\\ "));
-    assert(pdp_web_init(0)); /* Exercise actual socket/thread startup and stop. */
-    pdp_web_cleanup();
-    puts("PDP dashboard tests passed");
+    assert(freepad_web_init(0)); /* Exercise actual socket/thread startup and stop. */
+    freepad_web_cleanup();
+    puts("FreePad dashboard tests passed");
     return 0;
 }
