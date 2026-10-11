@@ -5,15 +5,17 @@ The PDP `0e6f:0184` wired gamepad and Xbox One model 1697 through `045e:02e6` ar
 | Family | USB | Bluetooth |
 |---|---|---|
 | DualShock 4 | Dedicated driver; Sony IDs `05c4`, `09cc`, `0ba0` | Dedicated Classic driver; DS4, Hori Onyx, Raiju, SCUF Vantage profiles |
-| DualShock 3 | Dedicated driver, `054c:0268` | Not implemented upstream or here |
+| DualShock 3 | Dedicated driver, `054c:0268` | Unsupported by the bundled AnyPad core |
 | Xbox | 360/XInput and One/Series GIP input, wake-up and Guide ACK | Classic One S/Elite/Adaptive; LE Series/current firmware; Secure Connections |
 | Switch Pro / NSO | Full-report driver and USB wake-up | Classic driver and report-mode initialization |
 | 8BitDo | Known XInput IDs use vendor interfaces; Adapter 2 needs manual XInput mode (hardware unverified). [Setup](SETUP.md#8bitdo-usb-wireless-adapter-2); other HID modes can use Generic USB HID | Descriptor-based generic HID, including upstream mappings |
 | GameSir, iPega, SteelSeries, MOGA, Shield, Atari, Hyperkin, Mocute and other HID pads | Generic USB HID after adding an explicit profile if not auto-recognized | All AnyPad built-in generic mappings retained; other HID pads use descriptor/default mapping |
 | DualSense / Edge | Never claimed by our USB scanner | Upstream decoder retained, selected address only. Do not select the console's native controller |
-| Wii Remote, Wii U Pro, standalone Joy-Con | No dedicated driver | Not implemented upstream or here |
+| Wii Remote, Wii U Pro, standalone Joy-Con | No dedicated driver | Unsupported by the bundled AnyPad core |
 
 The exact Bluetooth ID tables and mappings are in [profiles.c](../vendor/anypad/profiles.c) and [generic.c](../vendor/anypad/generic.c), pinned to the [documented AnyPad commit](../vendor/anypad/README.md). Firmware-dependent Bluetooth layouts remain unverified on actual hardware.
+
+AnyPad's [compatibility list at that commit](https://github.com/Mohammad-Aghayan/AnyPad-PS5-English/blob/9475e9f88b7d06f890ca3bb3f16537bcc503eff4/COMPATIBILITY.md) explicitly lists DualShock 3, Wii Remote, Wii U Pro and standalone Joy-Con as unsupported over Bluetooth. Generic HID support does not establish support for those controllers. A converter presenting one as a supported USB gamepad is a separate setup; compatibility depends on the converter's output mode.
 
 ## Xbox Wireless and simultaneous pads
 
