@@ -13,6 +13,10 @@
 #include <unistd.h>
 #include <sys/file.h>
 #include <sys/stat.h>
+#ifdef LIBREPAD_XBOX_EXPERIMENT
+#include <errno.h>
+#include <string.h>
+#endif
 
 #ifdef __PROSPERO__
 #include <ps5/kernel.h>
@@ -46,6 +50,9 @@ int main(void)
      * a PID from a stale file, and never load two instances of this build. */
     int lock_fd = open(STATE_DIR "/instance.lock", O_RDWR | O_CREAT, 0600);
     if (lock_fd < 0 || flock(lock_fd, LOCK_EX | LOCK_NB) != 0) {
+#ifdef LIBREPAD_XBOX_EXPERIMENT
+        printf("LibrePadPS5 Xbox: instance lock fd=%d: %s (errno %d)\n", lock_fd, strerror(errno), errno);
+#endif
         puts("LibrePadPS5: state directory unavailable or another instance is running");
         if (lock_fd >= 0) close(lock_fd);
         return 1;

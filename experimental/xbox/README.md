@@ -6,7 +6,8 @@ it has not been tested here. This optional module and separate test payload are
 rebased onto LibrePadPS5 main `914cbf6`, including its reorganized source tree and
 current dashboard. Work remains isolated from the other agent's checkout.
 
-**Status: builds and host tests pass; PS5 pairing/input is not yet verified.**
+**Status: builds and host tests pass; PS5 firmware upload/radio initialization
+verified on firmware 12.60; pairing/input is not yet verified.**
 Do not describe this as hardware-supported until console testing passes.
 
 ## What is implemented
@@ -125,8 +126,12 @@ it is not a firmware authenticity check. Missing firmware disables radio startup
 8. Test Release, explicit Reconnect, controller power-off/on, adapter unplug/replug,
    and Stop. Held input must clear on disconnect and Release must remain paused.
 
-The payload has not been sent to a PS5 during this experiment. Driver behavior,
-radio initialization, pairing and in-game input still require that test.
+The rebased payload was loaded on the user's PS5 (firmware `0x12600006`).
+The previous PDP process stopped through its existing stop flag, then the new
+payload acquired the instance lock, opened the radio endpoints, read wireless
+address `62:45:b4:e7:24:99`, and reported `Dongle initialized`. The firmware was
+uploaded separately and verified by reading it back. Protected/preferred user
+settings were retained. Pairing and in-game input still require verification.
 
 ## Verification performed
 
