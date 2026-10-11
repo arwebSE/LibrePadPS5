@@ -13,6 +13,8 @@ Use your favorite gamepad on a jailbroken PS5.
 
 **Tested on PS5 12.60** with a PDP wired controller and an Xbox One controller using Microsoft's wireless adapter. Other setups, including Bluetooth and four-player games, still need testing. See [controller compatibility](docs/CONTROLLERS.md) for details.
 
+Using an **8BitDo USB Wireless Adapter 2**? Try [v1.1.1-preview](https://github.com/arwebSE/LibrePadPS5/releases/tag/v1.1.1-preview), reported working by a tester on PS5 13.60. The fix is not included in v1.1.0.
+
 ## Get started
 
 You'll need a jailbroken PS5 and an ELF loader or Payload Manager.

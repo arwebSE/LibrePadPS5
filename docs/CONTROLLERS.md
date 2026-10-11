@@ -1,6 +1,6 @@
 # Controller coverage
 
-The PDP `0e6f:0184` wired gamepad and Xbox One model 1697 through `045e:02e6` are verified on PS5 12.60, including simultaneous active pads assigned to different profiles. Targeted PDP release/reconnect leaves Xbox injection running. Other models, Bluetooth hardware and game-specific four-player multiplayer remain unverified. The tables below describe implemented drivers; software coverage is distinct from hardware verification.
+The PDP `0e6f:0184` wired gamepad and Xbox One model 1697 through `045e:02e6` are verified on PS5 12.60, including simultaneous active pads assigned to different profiles. Targeted PDP release/reconnect leaves Xbox injection running. A tester [reports the 8BitDo USB Wireless Adapter 2 working on PS5 13.60 with v1.1.1-preview](https://github.com/arwebSE/LibrePadPS5/issues/1#issuecomment-6114971637); their follow-up log shows 20-byte input reports and button presses. The exact paired controller and game coverage still need confirmation. Other models, direct Bluetooth hardware and game-specific four-player multiplayer remain unverified. The tables below describe implemented drivers; software coverage is distinct from hardware verification.
 
 | Family | USB | Bluetooth |
 |---|---|---|
@@ -8,7 +8,7 @@ The PDP `0e6f:0184` wired gamepad and Xbox One model 1697 through `045e:02e6` ar
 | DualShock 3 | Dedicated driver, `054c:0268` | Unsupported by the bundled AnyPad core |
 | Xbox | 360/XInput and One/Series GIP input, wake-up and Guide ACK | Classic One S/Elite/Adaptive; LE Series/current firmware; Secure Connections |
 | Switch Pro / NSO | Full-report driver and USB wake-up | Classic driver and report-mode initialization |
-| 8BitDo | Known XInput IDs use vendor interfaces; Adapter 2 needs manual XInput mode (hardware unverified). [Setup](SETUP.md#8bitdo-usb-wireless-adapter-2); other HID modes can use Generic USB HID | Descriptor-based generic HID, including upstream mappings |
+| 8BitDo | Known XInput IDs use vendor interfaces; Adapter 2 needs manual XInput mode and v1.1.1-preview (tester reports it working on PS5 13.60). [Setup](SETUP.md#8bitdo-usb-wireless-adapter-2); other HID modes can use Generic USB HID | Descriptor-based generic HID, including upstream mappings |
 | GameSir, iPega, SteelSeries, MOGA, Shield, Atari, Hyperkin, Mocute and other HID pads | Generic USB HID after adding an explicit profile if not auto-recognized | All AnyPad built-in generic mappings retained; other HID pads use descriptor/default mapping |
 | DualSense / Edge | Never claimed by our USB scanner | Upstream decoder retained, selected address only. Do not select the console's native controller |
 | Wii Remote, Wii U Pro, standalone Joy-Con | No dedicated driver | Unsupported by the bundled AnyPad core |

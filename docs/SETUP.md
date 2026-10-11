@@ -8,6 +8,7 @@ Use a wired USB, Xbox Wireless or Bluetooth gamepad on a jailbroken PS5. See [te
 
 - **Hardware verified:** PDP Faceoff Deluxe+ Audio Wired Switch controller, USB ID `0e6f:0184`. The current release also accepts configurable HID layouts; Xbox One model 1697 with Xbox Wireless Adapter `045e:02e6` is also verified individually on firmware 12.60; the adapter needs separately staged firmware.
 - Tested on **PS5 firmware 12.60**: sticks, buttons, D-pad, dashboard and separate-profile assignment. Individual games/emulators and other firmware are not explicitly verified.
+- **Tester reported:** 8BitDo USB Wireless Adapter 2 works on PS5 13.60 with [v1.1.1-preview](https://github.com/arwebSE/LibrePadPS5/releases/tag/v1.1.1-preview). The paired controller and game coverage are awaiting confirmation. [Report](https://github.com/arwebSE/LibrePadPS5/issues/1#issuecomment-6114971637).
 - No game-driven rumble, motion forwarding, controller audio or touchpad movement. Dedicated drivers preserve analog triggers where available; the 8-byte preset has digital triggers.
 
 ## Setup
@@ -133,6 +134,11 @@ The original protected-user settings and native-device ownership checks still ap
 
 ## 8BitDo USB Wireless Adapter 2
 
+Use [v1.1.1-preview](https://github.com/arwebSE/LibrePadPS5/releases/tag/v1.1.1-preview)
+for this adapter. It fixes the no-input problem in v1.1.0, and a tester reports
+it working on PS5 13.60. This is a USB connection to LibrePadPS5; the adapter
+handles the controller's wireless connection.
+
 Pair the gamepad to the adapter, then explicitly select **XInput mode**. The
 adapter only switches automatically on Windows and Switch; a PS5 needs the
 manual mode combination. First confirm that the adapter LED is **solid**, which
@@ -146,10 +152,10 @@ assign a separate PS5 profile. Leave LibrePadPS5 Bluetooth disabled: the adapter
 handles its own wireless pairing and presents a USB gamepad to the payload.
 
 XInput receivers may identify as Xbox 360 `045e:028e` or an 8BitDo USB ID.
-The current release fixes vendor-interface selection for the 8BitDo driver and recognizes
+The payload recognizes
 `2dc8:3106` and `2dc8:3109` alongside `310a`/`310b`. Other HID modes still require
-a valid gamepad report descriptor. This is software-tested; Adapter 2 has not
-been verified on a PS5. If input fails, include the dashboard log, VID/PID,
+a valid gamepad report descriptor. Only the reported Adapter 2 setup has
+hardware confirmation; other modes and models remain unverified. If input fails, include the dashboard log, VID/PID,
 selected adapter mode and paired controller model in the issue.
 
 If the log shows **`2dc8:3107`**, the adapter is exposing its **idle receiver**
