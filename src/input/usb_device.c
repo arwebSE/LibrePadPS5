@@ -231,7 +231,7 @@ static void *usb_reader_worker(void *arg)
                 last_data_time = cur_time;
 
                 if (st.buttons != last_buttons) {
-                    log_line("FreePadUSBPS5: report bytes=%d -> PS buttons=0x%08x", n, (unsigned)st.buttons);
+                    log_line("LibrePadPS5: report bytes=%d -> PS buttons=0x%08x", n, (unsigned)st.buttons);
                     last_buttons = st.buttons;
                 }
 
@@ -344,7 +344,7 @@ static void probe_usb_devices(void)
             }
 
             const char *ctrl_name = NULL;
-            ctrl_name = "FreePadUSBPS5 controller";
+            ctrl_name = "LibrePadPS5 controller";
 
             if (vid != 0 || pid != 0) {
                 uint32_t packed = ((uint32_t)vid << 16) | pid;

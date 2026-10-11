@@ -36,6 +36,6 @@ int main(void)
     st = parse(report, sizeof(report));
     assert((st.buttons & (PAD_BTN_L2 | PAD_BTN_R2)) == (PAD_BTN_L2 | PAD_BTN_R2));
     assert(st.l2 == 255 && st.r2 == 255);
-    puts("FreePadUSBPS5 parser tests passed");
+    puts("LibrePadPS5 parser tests passed");
     return 0;
 }

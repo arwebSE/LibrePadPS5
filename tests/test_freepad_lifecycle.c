@@ -1,4 +1,4 @@
-/* Host-only regression tests for the FreePadUSBPS5 virtual-pad lifecycle. */
+/* Host-only regression tests for the LibrePadPS5 virtual-pad lifecycle. */
 #define _DEFAULT_SOURCE
 #define __PROSPERO__
 #include "../src/ps5/virtual_controller.c"
@@ -102,6 +102,6 @@ int main(void)
     pending(2); finish_identification(now_ms());
     assert(g_slots[0].status == VP_FAILED && deletes == 2 && binds == previous_binds);
     assert(insertions > 0);
-    puts("FreePadUSBPS5 lifecycle tests passed");
+    puts("LibrePadPS5 lifecycle tests passed");
     return 0;
 }

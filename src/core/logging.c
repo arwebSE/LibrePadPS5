@@ -62,7 +62,7 @@ void log_line(const char *fmt, ...)
     pthread_mutex_unlock(&g_log_mutex);
 
 #ifdef __PROSPERO__
-    klog_printf("[FreePadUSBPS5] %s\n", buf);
+    klog_printf("[LibrePadPS5] %s\n", buf);
 #endif
 }
 
