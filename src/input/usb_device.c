@@ -51,6 +51,9 @@ typedef struct {
     uint8_t               interface, in_address;
     int                   use_fs;
     int                   in_pending;
+    int                   in_ready, out_ready;
+    uint32_t              in_requested;
+    long                  last_read_error_log;
     void                 *fs_frame[4];
     uint32_t              fs_len[4];
     uint8_t               rx_buf[64];
@@ -160,21 +163,75 @@ static int usb_fs_setup_device(usb_slot_device_t *sdev)
     return 1;
 }
 
+/* Completions are device-wide, including while sending initialization or a
+ * Guide ACK. Leave completed input untouched until the reader consumes it. */
+static int usb_fs_collect(usb_slot_device_t *dev)
+{
+    struct usb_fs_complete complete={0};
+    if (ioctl(dev->fd,USB_FS_COMPLETE,&complete)) {
+        if (errno==EBUSY || errno==EAGAIN || errno==EWOULDBLOCK || errno==ETIMEDOUT) return 0;
+        log_line("usb_hotplug: %04x:%04x USB_FS_COMPLETE failed (errno=%d: %s)",
+                 dev->vid,dev->pid,errno,strerror(errno));
+        return -1;
+    }
+    if (complete.ep_index==dev->in_index) {
+        dev->in_pending=0; dev->in_ready=1;
+    } else if (complete.ep_index==1) dev->out_ready=1;
+    else {
+        log_line("usb_hotplug: unexpected USB completion index=%u",complete.ep_index);
+        return -1;
+    }
+    return 1;
+}
+
+static int usb_fs_start_input(usb_slot_device_t *dev)
+{
+    if (dev->in_pending || dev->in_ready) return 1;
+    size_t size=librepad_profiles_report_size(dev->vid,dev->pid);
+    if (!size || size>sizeof(dev->rx_buf)) return 0;
+    dev->in_requested=dev->fs_len[dev->in_index]=(uint32_t)size;
+    struct usb_fs_endpoint *ep=&dev->endpoints[dev->in_index];
+    ep->nFrames=1; ep->timeout=1000;
+    struct usb_fs_start start={0}; start.ep_index=dev->in_index;
+    if (ioctl(dev->fd,USB_FS_START,&start)) {
+        long now=now_ms();
+        if (!dev->last_read_error_log || now-dev->last_read_error_log>=3000) {
+            dev->last_read_error_log=now;
+            log_line("usb_hotplug: %04x:%04x USB_FS_START IN=0x%02x failed (requested=%u, errno=%d: %s)",
+                     dev->vid,dev->pid,dev->in_address,dev->in_requested,errno,strerror(errno));
+        }
+        return 0;
+    }
+    dev->in_pending=1;
+    return 1;
+}
+
 static int usb_output(usb_slot_device_t *dev, const uint8_t *data, size_t length)
 {
     if (!dev->has_output || !length || length>sizeof(dev->tx_buf)) return 0;
     memcpy(dev->tx_buf,data,length); dev->fs_len[1]=(uint32_t)length;
+    dev->out_ready=0;
     dev->endpoints[1].nFrames=1; dev->endpoints[1].timeout=250;
     struct usb_fs_start start={0}; start.ep_index=1;
     if (ioctl(dev->fd,USB_FS_START,&start)) return 0;
     long deadline=now_ms()+300;
     while (now_ms()<deadline) {
-        struct usb_fs_complete complete={0};
-        if (ioctl(dev->fd,USB_FS_COMPLETE,&complete)==0)
-            return complete.ep_index==1 && dev->endpoints[1].status==USB_ERR_NORMAL_COMPLETION;
-        if (errno!=EBUSY && errno!=EAGAIN && errno!=EWOULDBLOCK && errno!=ETIMEDOUT) return 0;
+        if (usb_fs_collect(dev)<0) break;
+        if (dev->out_ready) {
+            int status=dev->endpoints[1].status;
+            int ok=status==USB_ERR_NORMAL_COMPLETION && dev->fs_len[1]==length;
+            if (!ok) log_line("usb_hotplug: %04x:%04x OUT=0x%02x failed (status=%d, actual=%u, requested=%zu)",
+                              dev->vid,dev->pid,dev->out_address,status,dev->fs_len[1],length);
+            return ok;
+        }
         usleep(1000);
     }
+    /* Keep buffers alive until UNINIT; do not reuse an endpoint whose canceled
+     * completion may still be queued. Input may continue for optional LEDs. */
+    struct usb_fs_stop stop={0}; stop.ep_index=1;
+    ioctl(dev->fd,USB_FS_STOP,&stop);
+    dev->has_output=0;
+    log_line("usb_hotplug: %04x:%04x OUT=0x%02x did not complete; output disabled",dev->vid,dev->pid,dev->out_address);
     return 0;
 }
 
@@ -209,6 +266,16 @@ static int setup_generic(usb_slot_device_t *dev)
 
 static int wake_device(usb_slot_device_t *dev)
 {
+    if ((dev->driver==CTRL_XBOX_XINPUT || dev->driver==CTRL_8BITDO_ADAPTER) && !dev->gip) {
+        /* xpad arms the input URB before its optional vendor request. XInput
+         * LED commands use the OUT endpoint, not HID SET_REPORT on EP0. */
+        if (!usb_fs_start_input(dev)) return 0;
+        usb_init_controller_handshake(dev->fd,dev->driver,dev->interface);
+        const uint8_t led[]={1,3,2};
+        int sent=usb_output(dev,led,sizeof(led));
+        log_line("usb_ctrl: XInput input armed; interrupt LED %s (OUT=0x%02x)",sent ? "sent" : "unavailable",dev->out_address);
+        return 1; /* The optional LED must not prevent input. */
+    }
     if (dev->driver==CTRL_NINTENDO_SWITCH_PRO) {
         static const uint8_t usb_commands[]={2,3,2,4};
         for (size_t i=0; i<sizeof(usb_commands); i++) {
@@ -238,30 +305,25 @@ static int usb_fs_recv_packet(usb_slot_device_t *dev, uint8_t *buffer, uint32_t 
     if (!dev->use_fs) return -1;
     struct usb_fs_endpoint *ep = &dev->endpoints[dev->in_index];
     (void)timeout_ms;
-    /* Do not restart a transfer before consuming its completion. The old
-     * short-timeout loop could discard press/release reports between calls. */
-    if (!dev->in_pending) {
-        size_t report_size = librepad_profiles_report_size(dev->vid, dev->pid);
-        if (!report_size || report_size > length) return -1;
-        dev->fs_len[dev->in_index] = (uint32_t)report_size;
-        ep->nFrames = 1;
-        ep->timeout = 1000;
-        struct usb_fs_start start = {0};
-        start.ep_index = dev->in_index;
-        if (ioctl(dev->fd, USB_FS_START, &start) != 0) return -1;
-        dev->in_pending = 1;
-    }
-    struct usb_fs_complete complete = {0};
-    if (ioctl(dev->fd, USB_FS_COMPLETE, &complete) == 0) {
-        dev->in_pending = 0;
-        if (complete.ep_index != dev->in_index) return -1;
-        if (ep->status != USB_ERR_NORMAL_COMPLETION && ep->status != USB_ERR_SHORT_XFER) return 0;
+    if (!usb_fs_start_input(dev)) return -1;
+    if (!dev->in_ready && usb_fs_collect(dev)<0) return -1;
+    if (dev->in_ready) {
+        dev->in_ready=0;
+        if (ep->status==USB_ERR_TIMEOUT) return 0;
+        if (ep->status != USB_ERR_NORMAL_COMPLETION && ep->status != USB_ERR_SHORT_XFER) {
+            long now=now_ms();
+            if (!dev->last_read_error_log || now-dev->last_read_error_log>=3000) {
+                dev->last_read_error_log=now;
+                log_line("usb_hotplug: %04x:%04x IN=0x%02x transfer failed (status=%d, frames=%u, requested=%u)",
+                         dev->vid,dev->pid,dev->in_address,ep->status,ep->aFrames,dev->in_requested);
+            }
+            return -1;
+        }
         uint32_t count = dev->fs_len[dev->in_index];
-        if (count > length) count = length;
+        if (count>dev->in_requested || count>length || count>sizeof(dev->rx_buf)) return -1;
         memcpy(buffer, dev->rx_buf, count);
         return (int)count;
     }
-    if (errno != EBUSY && errno != ETIMEDOUT && errno != EAGAIN && errno != EWOULDBLOCK) return -1;
     fd_set reads;
     FD_ZERO(&reads);
     FD_SET(dev->fd, &reads);

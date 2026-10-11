@@ -41,7 +41,8 @@ In PowerShell, use `"${PWD}:/work"` for the volume. The main output is
 `dist/LibrePadPS5.elf`. Install it with the metadata from
 [config/payload](../config/payload/LibrePadPS5.elf.json).
 
-`make test` runs all 19 C/C++ host suites with sanitizers. Tests create files under
+`make test` runs all 20 C/C++ host suites with sanitizers, including the PS5 USB
+reader's initialization ordering and interleaved input/output completions. Tests create files under
 the legacy state directory, so use the disposable builder, not a console.
 `make dashboard-test` runs the JavaScript checks and requires Node.js.
 `make check` validates punctuation, local documentation links and active C/C++

@@ -159,6 +159,12 @@ replugging. Please include whether the adapter LED stays solid. The current log
 also records the selected driver/interface/endpoints and distinguishes report
 descriptor read failures from descriptors that contain no gamepad controls.
 
+An Adapter 2 tester's v1.1.0 log on PS5 13.60 shows startup reaching **Ready**
+and the adapter switching to XInput `2dc8:3106`, but receiving no input reports.
+This setup remains unresolved. The `Xbox: firmware missing` message refers to
+Microsoft's Xbox Wireless Adapter, so installing that firmware will not fix
+an 8BitDo adapter. [Latest investigation and test build](https://github.com/arwebSE/LibrePadPS5/issues/1).
+
 ## Share a diagnostic report on GitHub
 
 Logs are optional. A GitHub account is needed to post an issue or comment.
@@ -207,7 +213,7 @@ PowerShell: use `"${PWD}:/work"` for the volume. Output: `dist/LibrePadPS5.elf`.
 
 Host tests (run inside a disposable builder container; they create the legacy state directory and do not contact a PS5):
 
-Run all 19 sanitizer-enabled C/C++ suites with `make test`: USB protocols, configuration, HTTP, lifecycle, Classic/LE simulations, crypto, descriptors, fuzzing, adapter ownership/queues and Xbox transport/radio tests. This also generates dashboard assets. Run `make dashboard-test` separately with Node.js installed for tab, keyboard and GitHub reporting checks. Use the disposable container, not the live console. [Repository layout and contribution checks](DEVELOPMENT.md).
+Run all 20 sanitizer-enabled C/C++ suites with `make test`: USB protocols and transport, configuration, HTTP, lifecycle, Classic/LE simulations, crypto, descriptors, fuzzing, adapter ownership/queues and Xbox transport/radio tests. This also generates dashboard assets. Run `make dashboard-test` separately with Node.js installed for tab, keyboard and GitHub reporting checks. Use the disposable container, not the live console. [Repository layout and contribution checks](DEVELOPMENT.md).
 
 ## Credits
 

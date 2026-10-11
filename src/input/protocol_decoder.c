@@ -7,6 +7,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
+#include <errno.h>
 
 #ifdef __PROSPERO__
 #include <dev/usb/usb.h>
@@ -181,19 +182,11 @@ int usb_init_controller_handshake(int fd, usb_controller_type_t type, uint8_t in
         USETW(req.ucr_request.wLength, 0x0014);
         req.ucr_data = dummy;
         int r1 = ioctl(fd, USB_DO_REQUEST, &req);
+        int error=r1 ? errno : 0;
         usleep(20000);
 
-        /* Handshake 2: Xbox 360 Player 1 LED initialization */
-        uint8_t x360_led[] = { 0x01, 0x03, 0x02 };
-        memset(&req, 0, sizeof(req));
-        req.ucr_request.bmRequestType = 0x21; /* Host to device, class, interface */
-        req.ucr_request.bRequest = 0x09;      /* SET_REPORT */
-        USETW(req.ucr_request.wValue, 0x0200);
-        USETW(req.ucr_request.wIndex, interface);
-        USETW(req.ucr_request.wLength, sizeof(x360_led));
-        req.ucr_data = x360_led;
-        int r2 = ioctl(fd, USB_DO_REQUEST, &req);
-        log_line("usb_ctrl: XInput wake-up sent (r1=%d, r2=%d)", r1, r2);
+        log_line("usb_ctrl: XInput optional vendor request (result=%d, errno=%d, actual=%u)",
+                 r1,error,(unsigned)req.ucr_actlen);
         return 0;
     }
 #endif
