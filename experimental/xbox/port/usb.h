@@ -7,6 +7,7 @@
 #include <stdexcept>
 #include <mutex>
 #include <array>
+#include <atomic>
 #ifdef XBOX_USB_TEST
 #include "../tests/usb_mock.h"
 #else
@@ -24,11 +25,13 @@ public:
     void controlTransfer(ControlPacket packet, bool write);
     int bulkRead(uint8_t endpoint, FixedBytes<USB_MAX_BULK_TRANSFER_SIZE> &buffer);
     bool bulkWrite(uint8_t endpoint, Bytes &data);
+    void prepareShutdown() { shutdownWrites = true; }
 private:
     static constexpr size_t capacity = 0x4000;
     int fd;
     bool initialized = false;
     bool claimed = false;
+    std::atomic<bool> shutdownWrites{false};
     Terminate terminate;
     std::mutex ioMutex;
     std::array<std::mutex, 3> endpointMutex;

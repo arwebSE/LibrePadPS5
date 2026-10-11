@@ -6,14 +6,16 @@ it has not been tested here. This optional module and separate test payload are
 rebased onto LibrePadPS5 main `914cbf6`, including its reorganized source tree and
 current dashboard. Work remains isolated from the other agent's checkout.
 
-**Status: builds and host tests pass; PS5 firmware upload/radio initialization
-verified on firmware 12.60; pairing/input is not yet verified.**
-Do not describe this as hardware-supported until console testing passes.
+**Status: model 1697 paired through adapter 045e:02e6 on PS5 firmware 12.60.
+The user confirmed working controller input and PS5 navigation.** Five host
+test suites pass with ASan/UBSan. This is still an optional experimental backend.
 
 ## What is implemented
 
 - xow's MT76 radio initialization, firmware upload, WLAN association/pairing,
-  controller disconnect handling, and GIP acknowledgements.
+  controller disconnect handling, and GIP acknowledgements. Reassociation
+  requests receive the corresponding response, and repeated requests retain
+  the same radio client ID and controller owner.
 - A native PS5/FreeBSD USB transport, replacing libusb: vendor control requests,
   bulk endpoints **85 IN**, **84 IN**, and **04 OUT**, persistent buffers and
   device-wide completion dispatch. Firmware chunks are up to `0x3808` bytes.
@@ -78,6 +80,8 @@ python experimental/xbox/build.py --sdk /path/to/ps5-payload-sdk --clang /path/t
 
 The Python builder works on Windows and Unix. A normal SDK/toolchain setup can
 also use `make -f experimental/xbox/xbox.mk`.
+Add `--radio-debug` to the Python command for bounded packet diagnostics when
+investigating pairing. Normal builds omit those packet dumps.
 
 Outputs: `dist/liblibrepad_xbox.a` and `dist/LibrePadPS5-Xbox-Experimental.elf`. The ELF is a native x86-64 PS5 PIE
 payload with C++ statically linked and the usual console service imports.
@@ -85,14 +89,22 @@ payload with C++ statically linked and the usual console service imports.
 ## Firmware
 
 The adapter requires Microsoft's firmware. **It is not embedded in the ELF or
-included in source packages.** Use a local installed driver copy:
+included in source packages.** The hardware test used the 2017 firmware image
+expected by xow: build `201703281033____`, 70,620 bytes, ILM 61,456 bytes and
+DLM 9,132 bytes. SHA-256:
+`48084d9fa53b9bb04358f3bb127b7495dc8f7bb0b3ca1437bd24ef2b6eabdf66`.
+
+Use a local driver copy with that version, or obtain the corresponding driver
+package from [Microsoft's driver distribution](http://download.windowsupdate.com/c/msdownload/update/driver/drvs/2017/07/1cd6a87c-623f-4407-a52d-c31be49e925c_e19f60808bdcbfbd3c3df6be3e71ffc52e43261e.cab)
+and extract `FW_ACC_00U.bin`. The staging helper accepts an explicit source:
 
 ```sh
-python experimental/xbox/copy_firmware_windows.py --out /path/to/staging/firmware.bin
+python experimental/xbox/copy_firmware_windows.py --source /path/to/FW_ACC_00U.bin --out /path/to/staging/firmware.bin
 ```
 
-The default source is `C:/Windows/System32/drivers/FW_ACC_00U.bin`. Upload the
-staged file through the console's existing FTP service to:
+Without `--source`, the helper reads `C:/Windows/System32/drivers/FW_ACC_00U.bin`.
+Check its printed hash: installed Windows drivers may contain an older image.
+Upload the staged file through the console's existing FTP service to:
 
 ```text
 /data/pdp-pad/xbox/firmware.bin
@@ -103,9 +115,10 @@ and protected-user configuration with existing builds. Renaming it without a
 migration would discard that protection. Keep `native-user`, `pdp-user`, and
 `pause` files in place. Do not overwrite or delete the other agent's settings.
 
-The local 2015 firmware inspected here is 70,008 bytes with ILM 60,856 bytes and
-DLM 9,120 bytes. SHA-256:
-`080ce4091e53a4ef3e5fe29939f51fd91f46d6a88be6d67eb6e99a5723b3a223`.
+The installed Windows copy here was a 2015 image (70,008 bytes); it initialized
+the radio but did not pair this controller. A full adapter power cycle was used
+after switching to the verified 2017 image. Warm startup reuses resident radio
+firmware; changing the file alone does not replace that resident image.
 Length validation prevents truncated/malformed memory images from being uploaded;
 it is not a firmware authenticity check. Missing firmware disables radio startup.
 
@@ -131,7 +144,12 @@ The previous PDP process stopped through its existing stop flag, then the new
 payload acquired the instance lock, opened the radio endpoints, read wireless
 address `62:45:b4:e7:24:99`, and reported `Dongle initialized`. The firmware was
 uploaded separately and verified by reading it back. Protected/preferred user
-settings were retained. Pairing and in-game input still require verification.
+settings were retained. After installing the 2017 firmware and fixing WLAN
+reassociation, the controller announced `045e:02dd`, delivered stick/button
+reports, and the user confirmed PS5 navigation after pressing Guide and choosing
+the separate Xbox profile. In-game behavior, rumble and accessories were not
+verified. The transport resets USB before claiming endpoints and permits final
+radio-off writes after reader shutdown, allowing subsequent starts to recover.
 
 ## Verification performed
 
@@ -147,7 +165,10 @@ across both readers and the writer; full-size firmware transfers, timeouts,
 partial writes, constructor-failure cleanup; firmware header bounds; and single-pad,
 missing-firmware, persisted pause, disconnect, reconnect and shutdown behavior.
 
-All four host suites also passed with ASan/UBSan on Windows.
+The fifth suite exercises MT76/Dongle/GIP together: pairing responses, association
+and reassociation subtypes, repeated requests retaining one controller, client
+removal/reuse, malformed radio packets and warm startup without DMA re-upload.
+All five host suites passed with ASan/UBSan on Windows.
 The tests use mock USB ioctls and pad services; they do not verify the console's
 USB implementation. On Windows they compile with packed GCC bitfield layout,
 matching the PS5 target. Unix host runs also enable ASan/UBSan.
@@ -168,7 +189,9 @@ and [supported controllers](https://github.com/medusalix/xow#supported-devices).
 
 Local changes to that code: replace USB/log/controller interfaces; reject truncated
 and chunked GIP messages; validate firmware bounds; avoid stepping iterators past
-the firmware image. The protocol/radio core remains recognizably upstream.
+the firmware image; support reassociation and deduplicate radio clients; skip
+channel-scan responses; reuse firmware after warm reset. The protocol/radio core
+remains recognizably upstream.
 
 [xone](https://github.com/medusalix/xone) was inspected as a reference. Its Linux
 kernel interface is unsuitable for direct loading on PS5; no xone code is built.

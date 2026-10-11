@@ -40,6 +40,8 @@
 // WLAN frame subtypes
 #define MT_WLAN_ASSOCIATION_REQ 0x00
 #define MT_WLAN_ASSOCIATION_RESP 0x01
+#define MT_WLAN_REASSOCIATION_REQ 0x02
+#define MT_WLAN_REASSOCIATION_RESP 0x03
 #define MT_WLAN_DISASSOCIATION 0x0a
 #define MT_WLAN_RESERVED 0x07
 #define MT_WLAN_BEACON 0x08
@@ -58,6 +60,9 @@
  */
 class Mt76
 {
+#ifdef XBOX_RADIO_TEST
+    friend class Radio;
+#endif
 protected:
     enum Qsel
     {
@@ -509,7 +514,7 @@ protected:
     virtual ~Mt76();
 
     /* WLAN client operations */
-    uint8_t associateClient(Bytes address);
+    uint8_t associateClient(Bytes address, bool reassociation = false);
     bool removeClient(uint8_t wcid);
     bool pairClient(Bytes address);
     bool sendClientPacket(
@@ -572,6 +577,7 @@ private:
     Bytes efuseRead(uint8_t address, uint8_t index);
 
     uint16_t connectedClients = 0;
+    std::array<Bytes, MT_WCID_COUNT> clientAddresses;
 };
 
 class Mt76Exception : public std::runtime_error

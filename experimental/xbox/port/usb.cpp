@@ -1,5 +1,8 @@
 #include "usb.h"
 #include "sink.h"
+extern "C" {
+#include "core/logging.h"
+}
 #ifndef XBOX_USB_TEST
 #include <dev/usb/usb_endian.h>
 #include <dev/usb/usbdi.h>
@@ -22,10 +25,15 @@
 
 UsbDevice::UsbDevice(int descriptor, Terminate onTerminate) : fd(descriptor), terminate(onTerminate) {
     try {
+        // Match libusb_reset_device before claiming/opening any endpoints.
+        int reset = 0;
+        if (ioctl(fd, USB_DEVICEENUMERATE, &reset))
+            throw UsbException("USB_DEVICEENUMERATE failed: " + std::to_string(errno));
         int config = -1;
         if (ioctl(fd, USB_GET_CONFIG, &config)) throw UsbException("USB_GET_CONFIG failed");
         // FreeBSD uses a configuration INDEX, so index zero is USB configuration 1.
-        if (config != 0) { config = 0; if (ioctl(fd, USB_SET_CONFIG, &config)) throw UsbException("USB_SET_CONFIG failed"); }
+        config = 0;
+        if (ioctl(fd, USB_SET_CONFIG, &config)) throw UsbException("USB_SET_CONFIG failed");
         int iface = 0;
         if (ioctl(fd, USB_CLAIM_INTERFACE, &iface)) throw UsbException("USB_CLAIM_INTERFACE failed");
         claimed = true;
@@ -64,7 +72,7 @@ UsbDevice::~UsbDevice() { closeDevice(); }
 
 void UsbDevice::controlTransfer(ControlPacket packet, bool write) {
     std::lock_guard<std::mutex> lock(ioMutex);
-    if (xbox_transport_stopping()) { if (!write && packet.data) memset(packet.data, 0, packet.length); return; }
+    if (xbox_transport_stopping() && !shutdownWrites) { if (!write && packet.data) memset(packet.data, 0, packet.length); return; }
     usb_ctl_request req = {};
     req.ucr_request.bmRequestType = write ? 0x40 : 0xc0;
     req.ucr_request.bRequest = packet.request;
@@ -73,13 +81,17 @@ void UsbDevice::controlTransfer(ControlPacket packet, bool write) {
     USETW(req.ucr_request.wLength, packet.length);
     req.ucr_data = packet.data;
     if (ioctl(fd, USB_DO_REQUEST, &req) || req.ucr_actlen != packet.length) {
+        log_line("xbox USB: control %s request=%02x value=%04x index=%04x length=%u actual=%u errno=%d",
+                 write ? "OUT" : "IN", packet.request, packet.value, packet.index,
+                 packet.length, req.ucr_actlen, errno);
         terminate();
         if (!write && packet.data) memset(packet.data, 0, packet.length);
     }
 }
 
 int UsbDevice::transfer(unsigned index, uint8_t *data, size_t length, bool write) {
-    if (!data || length > capacity || xbox_transport_stopping()) return -1;
+    const bool shutdownOutput = write && shutdownWrites;
+    if (!data || length > capacity || (xbox_transport_stopping() && !shutdownOutput)) return -1;
     std::lock_guard<std::mutex> ownEndpoint(endpointMutex[index]);
     {
         std::lock_guard<std::mutex> lock(ioMutex);
@@ -88,7 +100,10 @@ int UsbDevice::transfer(unsigned index, uint8_t *data, size_t length, bool write
         complete[index] = false;
         usb_fs_start start = {};
         start.ep_index = index;
-        if (ioctl(fd, USB_FS_START, &start)) { terminate(); return -1; }
+        if (ioctl(fd, USB_FS_START, &start)) {
+            log_line("xbox USB: start endpoint index=%u length=%zu errno=%d", index, length, errno);
+            terminate(); return -1;
+        }
     }
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
     while (true) {
@@ -103,13 +118,20 @@ int UsbDevice::transfer(unsigned index, uint8_t *data, size_t length, bool write
             }
             if (complete[index]) {
                 int status = endpoints[index].status;
-                if (status == USB_ERR_TIMEOUT) return 0;
-                if (status != USB_ERR_NORMAL_COMPLETION && status != USB_ERR_SHORT_XFER) { terminate(); return -1; }
+                if (status == USB_ERR_TIMEOUT) {
+                    if (write) { log_line("xbox USB: OUT timed out length=%zu", length); terminate(); }
+                    return 0;
+                }
+                if (status != USB_ERR_NORMAL_COMPLETION && status != USB_ERR_SHORT_XFER) {
+                    log_line("xbox USB: endpoint index=%u status=%d actual=%u requested=%zu",
+                             index, status, lengths[index], length);
+                    terminate(); return -1;
+                }
                 if (lengths[index] > length) { terminate(); return -1; }
                 if (!write) memcpy(data, buffers[index].data(), lengths[index]);
                 return static_cast<int>(lengths[index]);
             }
-            if (xbox_transport_stopping() || std::chrono::steady_clock::now() >= deadline) {
+            if ((xbox_transport_stopping() && !shutdownOutput) || std::chrono::steady_clock::now() >= deadline) {
                 // Mark the device failed; persistent buffers remain alive until
                 // USB_FS_UNINIT, even if cancellation completion arrives later.
                 usb_fs_stop stop = {};

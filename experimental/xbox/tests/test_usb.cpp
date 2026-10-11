@@ -12,11 +12,14 @@ static std::atomic<bool> stopped(false);
 static std::atomic<int> failures(0);
 static unsigned threshold = 3, started, finished, closed, uninitialized;
 static bool timeoutRead, shortWrite, failOpen;
+extern "C" void log_line(const char *, ...) {}
 extern "C" int xbox_transport_stopping() { return stopped; }
 int xbox_test_close(int fd) { assert(fd == 123); ++closed; return 0; }
 int xbox_test_ioctl(int fd, unsigned long request, void *arg) {
     assert(fd == 123);
     switch (request) {
+    case USB_DEVICEENUMERATE: case USB_SET_CONFIG:
+        assert(*static_cast<int *>(arg) == 0); return 0;
     case USB_GET_CONFIG: *static_cast<int *>(arg) = 0; return 0;
     case USB_CLAIM_INTERFACE: case USB_RELEASE_INTERFACE: return 0;
     case USB_FS_INIT: {
@@ -92,6 +95,8 @@ int main() {
         stopped = true;
         unsigned before = started;
         assert(device.bulkRead(5, mcu) == -1 && started == before);
+        device.prepareShutdown(); shortWrite = false;
+        assert(device.bulkWrite(4, firmware)); // final radio-off is allowed after read cancellation
     }
     assert(failures == 0 && closed == 1 && uninitialized == 1);
     failOpen = true;

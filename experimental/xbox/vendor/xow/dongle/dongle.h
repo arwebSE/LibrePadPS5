@@ -43,6 +43,9 @@
  */
 class Dongle : public Mt76
 {
+#ifdef XBOX_RADIO_TEST
+    friend class RadioHarness;
+#endif
 public:
     Dongle(std::unique_ptr<UsbDevice> usbDevice);
     ~Dongle();
@@ -51,7 +54,7 @@ public:
 
 private:
     /* Packet handling */
-    void handleControllerConnect(Bytes address);
+    void handleControllerConnect(Bytes address, bool reassociation = false);
     void handleControllerDisconnect(uint8_t wcid);
     void handleControllerPair(Bytes address, const Bytes &packet);
     void handleControllerPacket(uint8_t wcid, const Bytes &packet);

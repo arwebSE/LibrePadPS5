@@ -815,6 +815,7 @@ Mt76::Mt76(
     std::unique_ptr<UsbDevice> usbDevice
 ) : usbDevice(std::move(usbDevice))
 {
+#ifndef XBOX_RADIO_TEST
     if (!loadFirmware())
     {
         throw Mt76Exception("Failed to load firmware");
@@ -868,10 +869,14 @@ Mt76::Mt76(
     {
         throw Mt76Exception("Failed to write beacon");
     }
+#endif
 }
 
 Mt76::~Mt76()
 {
+    // Reader threads have joined; permit the final LED/radio-off commands even
+    // though the backend stop flag has already cancelled normal I/O.
+    usbDevice->prepareShutdown();
     if (!setLedMode(MT_LED_OFF))
     {
         Log::error("Failed to turn off LED");
@@ -883,11 +888,18 @@ Mt76::~Mt76()
     }
 }
 
-uint8_t Mt76::associateClient(Bytes address)
+uint8_t Mt76::associateClient(Bytes address, bool reassociation)
 {
     // Find first available WCID
     uint16_t freeIds = static_cast<uint16_t>(~connectedClients);
-    uint8_t wcid = __builtin_ffs(freeIds);
+    uint8_t wcid = 0;
+    // Retransmitted (re)association must retain the same WCID and GIP owner.
+    for (unsigned i = 0; i < MT_WCID_COUNT; ++i)
+        if ((connectedClients & BIT(i)) && clientAddresses[i] == address) {
+            wcid = i + 1;
+            break;
+        }
+    if (!wcid) wcid = __builtin_ffs(freeIds);
 
     if (wcid == 0)
     {
@@ -897,6 +909,7 @@ uint8_t Mt76::associateClient(Bytes address)
     }
 
     connectedClients |= BIT(wcid - 1);
+    clientAddresses[wcid - 1] = address;
 
     TxWi txWi = {};
 
@@ -911,7 +924,7 @@ uint8_t Mt76::associateClient(Bytes address)
     WlanFrame wlanFrame = {};
 
     wlanFrame.frameControl.type = MT_WLAN_MANAGEMENT;
-    wlanFrame.frameControl.subtype = MT_WLAN_ASSOCIATION_RESP;
+    wlanFrame.frameControl.subtype = reassociation ? MT_WLAN_REASSOCIATION_RESP : MT_WLAN_ASSOCIATION_RESP;
 
     address.copy(wlanFrame.destination);
     macAddress.copy(wlanFrame.source);
@@ -976,6 +989,7 @@ bool Mt76::removeClient(uint8_t wcid)
 
     // Remove WCID from connected clients
     connectedClients &= ~BIT(wcid - 1);
+    clientAddresses[wcid - 1] = Bytes();
 
     if (!sendFirmwareCommand(FW_CLIENT_REMOVE, wcidData))
     {
@@ -1463,6 +1477,11 @@ bool Mt76::loadFirmware()
 
             return false;
         }
+        // A warm reset restarts the firmware already resident in ILM/DLM.
+        // Uploading into that running image stalls DMA on the PS5 transport.
+        // xone likewise returns after restarting an already loaded image.
+        Log::info("Resident radio firmware restarted; skipping DMA re-upload");
+        return true;
     }
 
     DmaConfig config = {};
@@ -1481,6 +1500,8 @@ bool Mt76::loadFirmware()
     controlWrite(MT_FCE_SKIP_FS, 0x03);
 
     const FwHeader *header = firmware.toStruct<FwHeader>();
+    Log::info("Uploading firmware build %.16s (ILM=%u DLM=%u)",
+              header->buildTime, header->ilmLength, header->dlmLength);
     Bytes::Iterator ilmStart = firmware.begin() + sizeof(FwHeader);
     Bytes::Iterator dlmStart = ilmStart + header->ilmLength;
     Bytes::Iterator dlmEnd = dlmStart + header->dlmLength;

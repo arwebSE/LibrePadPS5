@@ -37,6 +37,9 @@ def main():
         ("usb", ["tests/test_usb.cpp", "port/usb.cpp"], ["-DXBOX_USB_TEST"]),
         ("firmware", ["tests/test_firmware.cpp"], []),
         ("backend", ["tests/test_backend.cpp", "port/backend.cpp"], ["-DXBOX_BACKEND_TEST", '-DFIRMWARE="test-firmware"']),
+        ("radio", ["tests/test_radio.cpp", "vendor/xow/dongle/mt76.cpp", "vendor/xow/dongle/dongle.cpp",
+                   "port/controller.cpp", "vendor/xow/controller/gip.cpp", "port/log.cpp"],
+         ["-DXBOX_USB_TEST", "-DXBOX_RADIO_TEST", '-DFIRMWARE="build/xbox/tests/radio-firmware.bin"']),
     ]
     for name, sources, defines in cases:
         exe = build / (name + (".exe" if sys.platform == "win32" else ""))

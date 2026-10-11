@@ -24,7 +24,7 @@ struct usb_ctl_request {
 #define UGETW(field) (static_cast<unsigned>((field)[0]) | (static_cast<unsigned>((field)[1]) << 8))
 enum { USB_GET_CONFIG = 1, USB_SET_CONFIG, USB_CLAIM_INTERFACE, USB_RELEASE_INTERFACE,
        USB_FS_INIT, USB_FS_OPEN, USB_FS_UNINIT, USB_DO_REQUEST, USB_FS_START,
-       USB_FS_COMPLETE, USB_FS_STOP, USB_GET_DEVICE_DESC };
+       USB_FS_COMPLETE, USB_FS_STOP, USB_GET_DEVICE_DESC, USB_DEVICEENUMERATE };
 enum { USB_ERR_NORMAL_COMPLETION = 0, USB_ERR_SHORT_XFER = 1, USB_ERR_TIMEOUT = 2, USB_ERR_IOERROR = 3 };
 #define USB_FS_FLAG_SINGLE_SHORT_OK 1
 int xbox_test_ioctl(int fd, unsigned long request, void *argument);

@@ -17,6 +17,7 @@ def main():
     parser.add_argument("--sdk", required=True, type=pathlib.Path)
     parser.add_argument("--clang", default="clang", help="Path to clang executable")
     parser.add_argument("--module-only", action="store_true", help="Build the optional static module without a standalone payload")
+    parser.add_argument("--radio-debug", action="store_true", help="Log firmware and radio calibration diagnostics")
     args = parser.parse_args()
     sdk = args.sdk.resolve()
     clang = shutil.which(args.clang)
@@ -42,6 +43,8 @@ def main():
         obj = build / (source.stem + ("_cpp" if cpp else "_c") + ".o")
         extra = ["-x", "c++", "-std=c++11", "-frtti", "-fexceptions", "-isystem", str(sdk / "target/include/c++/v1"),
                  '-DFIRMWARE="/data/pdp-pad/xbox/firmware.bin"'] if cpp else ["-std=c11"]
+        if cpp and args.radio_debug:
+            extra += ["-DDEBUG"]
         print("Compiling", source.relative_to(ROOT), flush=True)
         subprocess.run([str(compiler), *extra, *common, "-c", str(source), "-o", str(obj)], check=True)
         objects.append(str(obj))

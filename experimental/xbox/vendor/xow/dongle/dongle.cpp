@@ -24,7 +24,7 @@ Dongle::Dongle(
 ) : Mt76(std::move(usbDevice)), stopThreads(false)
 {
     Log::info("Dongle initialized");
-
+#ifndef XBOX_RADIO_TEST
     threads.emplace_back(
         &Dongle::readBulkPackets,
         this,
@@ -35,6 +35,7 @@ Dongle::Dongle(
         this,
         MT_EP_READ_PACKET
     );
+#endif
 }
 
 Dongle::~Dongle()
@@ -51,11 +52,13 @@ Dongle::~Dongle()
     }
 }
 
-void Dongle::handleControllerConnect(Bytes address)
+void Dongle::handleControllerConnect(Bytes address, bool reassociation)
 {
     std::lock_guard<std::mutex> lock(controllerMutex);
 
-    uint8_t wcid = associateClient(address);
+    Log::debug("Controller %s request: %s", reassociation ? "reassociation" : "association",
+              Log::formatBytes(address).c_str());
+    uint8_t wcid = associateClient(address, reassociation);
 
     if (wcid == 0)
     {
@@ -72,9 +75,10 @@ void Dongle::handleControllerConnect(Bytes address)
         std::placeholders::_1
     );
 
-    controllers[wcid - 1].reset(new Controller(sendPacket));
-
-    Log::info("Controller '%d' connected", wcid);
+    if (!controllers[wcid - 1]) {
+        controllers[wcid - 1].reset(new Controller(sendPacket));
+        Log::info("Controller '%d' connected", wcid);
+    }
 }
 
 void Dongle::handleControllerDisconnect(uint8_t wcid)
@@ -192,11 +196,35 @@ void Dongle::handleWlanPacket(const Bytes &packet)
         wlanFrame->destination + macAddress.size()
     );
 
+    static_assert(sizeof(RxWi) == 32 && sizeof(WlanFrame) == 24,
+                  "MT76 radio frames require packed GCC bitfields");
+#ifdef DEBUG
+    // Bounded diagnostics for pairing: include frames rejected by destination.
+    if (wlanFrame->frameControl.type == MT_WLAN_MANAGEMENT) {
+        static std::atomic<unsigned> diagnostics(0);
+        if (diagnostics++ < 32)
+            Log::info("WLAN management subtype=%u len=%zu source=%s destination=%s match=%d",
+                      wlanFrame->frameControl.subtype, packet.size(),
+                      Log::formatBytes(source).c_str(), Log::formatBytes(destination).c_str(),
+                      destination == macAddress);
+    }
+#endif
+
     // Packet has wrong destination address
     if (destination != macAddress)
     {
         return;
     }
+#ifdef DEBUG
+    if (wlanFrame->frameControl.type == MT_WLAN_MANAGEMENT) {
+        static std::atomic<unsigned> directedDiagnostics(0);
+        if (directedDiagnostics++ < 64) {
+            const Bytes prefix(packet.raw(), packet.raw() + std::min<size_t>(packet.size(), 96));
+            Log::info("Directed WLAN subtype=%u frame=%s", wlanFrame->frameControl.subtype,
+                      Log::formatBytes(prefix).c_str());
+        }
+    }
+#endif
 
     uint8_t type = wlanFrame->frameControl.type;
     uint8_t subtype = wlanFrame->frameControl.subtype;
@@ -207,6 +235,9 @@ void Dongle::handleWlanPacket(const Bytes &packet)
         {
             case MT_WLAN_ASSOCIATION_REQ:
                 handleControllerConnect(source);
+                break;
+            case MT_WLAN_REASSOCIATION_REQ:
+                handleControllerConnect(source, true);
                 break;
 
             // Only kept for compatibility with 1537 controllers
@@ -250,6 +281,10 @@ void Dongle::handleBulkData(const Bytes &data)
 
     // Skip packet end marker (4 bytes, identical to header)
     const RxInfoGeneric *rxInfo = data.toStruct<RxInfoGeneric>();
+    // Sequence one is a channel-scan command response, not a controller frame.
+    // Its extra metadata otherwise shifts every parsed WLAN address by 4 bytes.
+    if (rxInfo->port == CPU_RX_PORT && data.toStruct<RxInfoCommand>()->sequence == 1)
+        return;
     const Bytes packet(data, sizeof(RxInfoGeneric), sizeof(uint32_t));
 
     if (rxInfo->port == CPU_RX_PORT)
@@ -288,6 +323,9 @@ void Dongle::handleBulkData(const Bytes &data)
 void Dongle::readBulkPackets(uint8_t endpoint)
 {
     FixedBytes<USB_MAX_BULK_TRANSFER_SIZE> buffer;
+#ifdef DEBUG
+    unsigned diagnostics = 0;
+#endif
 
     while (!stopThreads)
     {
@@ -302,6 +340,13 @@ void Dongle::readBulkPackets(uint8_t endpoint)
         if (transferred > 0)
         {
             Bytes data = buffer.toBytes(transferred);
+#ifdef DEBUG
+            if (diagnostics++ < 24) {
+                const Bytes prefix(data.raw(), data.raw() + std::min<size_t>(data.size(), 40));
+                Log::info("USB IN 0x%02x bytes=%d header=%s", endpoint | 0x80,
+                          transferred, Log::formatBytes(prefix).c_str());
+            }
+#endif
 
             handleBulkData(data);
         }
