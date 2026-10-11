@@ -27,8 +27,6 @@ Do not describe this as hardware-supported until console testing passes.
 Rumble, audio, touchpad, motion, custom Xbox remapping, Series-specific features
 and multi-controller support are not implemented by this experiment.
 
-## Build
-
 ## Small integration module
 
 The main project only needs `librepad_xbox.h` (four C functions) and the optional

@@ -28,6 +28,7 @@ int main() {
     librepad_xbox_stop();
     firmware = true;
     assert(librepad_xbox_start());
+    assert(librepad_xbox_start()); // repeated init must not replace a joinable thread
     assert(xbox_sink_connect(&controller, 0x045e, 0x02dd));
     assert(librepad_xbox_is_connected());
     assert(!xbox_sink_connect(&other, 0x045e, 0x02dd));
