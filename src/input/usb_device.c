@@ -1,4 +1,5 @@
 #include "input/usb_device.h"
+#include "input/controller_router.h"
 #include "ps5/virtual_controller.h"
 #include "core/logging.h"
 #include "core/time_utils.h"
@@ -341,7 +342,7 @@ static void *usb_reader_worker(void *arg)
                 st.vid = dev->vid;
                 st.pid = dev->pid;
                 snprintf(st.controller_name, sizeof(st.controller_name), "%s", dev->name);
-                vpad_update(dev->slot, &st);
+                controller_update(dev, &st);
                 last_data_time = cur_time;
 
                 if (st.buttons != last_buttons) {
@@ -362,7 +363,7 @@ static void *usb_reader_worker(void *arg)
                 /* Reject guessed layouts and release any previously held input. */
                 pad_state_neutral(&st);
                 st.conn_type = dev->conn_type;
-                vpad_update(dev->slot, &st);
+                controller_update(dev, &st);
             }
         } else if (n < 0) {
             consecutive_errors++;
@@ -408,7 +409,7 @@ static int is_device_claimed(const char *path)
 static int find_free_slot(void)
 {
     for (int i = 0; i < MAX_SLOTS; i++) {
-        if (!g_usb_hotplug.devices[i].active && vpad_slot_is_free(i)) {
+        if (!g_usb_hotplug.devices[i].active) {
             return i;
         }
     }
@@ -452,6 +453,11 @@ static void probe_usb_devices(void)
             }
 
             /* Never claim or send USB transfers to any other device. */
+            /* The Xbox radio backend owns these receivers, even if a custom
+             * USB profile has accidentally allowlisted one as generic HID. */
+            if (vid == 0x045e && (pid == 0x02e6 || pid == 0x02fe)) {
+                close(fd); continue;
+            }
             if (!freepad_profiles_allowed(vid, pid)) {
                 close(fd);
                 continue;
@@ -470,8 +476,6 @@ static void probe_usb_devices(void)
             }
 
             int slot = find_free_slot();
-            /* The dashboard and protected-profile lifecycle manage slot zero only. */
-            if (slot > 0) { close(fd); continue; }
             if (slot < 0) {
                 log_line("usb_hotplug: No free vpad slot for %s (%04x:%04x)", ctrl_name, vid, pid);
                 close(fd);
@@ -519,6 +523,14 @@ static void probe_usb_devices(void)
 #endif
             sdev->conn_type = CONN_USB_WIRED;
 
+            sdev->slot = controller_attach(sdev, sdev->conn_type,
+                vid == 0x0e6f && pid == 0x0184 ? "PDP Switch controller" : ctrl_name);
+            if (sdev->slot < 0) {
+#ifdef __PROSPERO__
+                struct usb_fs_uninit uninit={0}; ioctl(fd,USB_FS_UNINIT,&uninit);
+#endif
+                close(fd); memset(sdev,0,sizeof(*sdev)); continue;
+            }
             int thread_error=pthread_create(&sdev->thread, NULL, usb_reader_worker, sdev);
             if (thread_error) {
                 log_line("usb_hotplug: Reader creation failed (%d), closing %s", thread_error, path);
@@ -527,10 +539,9 @@ static void probe_usb_devices(void)
 #else
                 for (int e=0; e<6; e++) if (sdev->ep_fd[e]>=0) close(sdev->ep_fd[e]);
 #endif
+                controller_detach(sdev);
                 close(fd); memset(sdev,0,sizeof(*sdev)); continue;
             }
-            if (access(FREEPAD_STATE_DIR "/pause", F_OK) != 0)
-                vpad_add(slot, sdev->conn_type, ctrl_name);
         }
     }
 }
@@ -604,7 +615,7 @@ void usb_hotplug_poll(long now)
             close(g_usb_hotplug.devices[i].fd);
             g_usb_hotplug.devices[i].fd = -1;
         }
-        vpad_remove(i);
+        controller_detach(&g_usb_hotplug.devices[i]);
         memset(&g_usb_hotplug.devices[i], 0, sizeof(usb_slot_device_t));
         pthread_mutex_unlock(&g_usb_hotplug.lock);
     }
@@ -639,7 +650,7 @@ void usb_hotplug_cleanup(void)
                 close(g_usb_hotplug.devices[i].fd);
                 g_usb_hotplug.devices[i].fd = -1;
             }
-            vpad_remove(i);
+            controller_detach(&g_usb_hotplug.devices[i]);
             memset(&g_usb_hotplug.devices[i], 0, sizeof(usb_slot_device_t));
         }
     }

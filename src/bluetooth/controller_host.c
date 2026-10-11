@@ -7,6 +7,7 @@
 #include "core/time_utils.h"
 #include "input/controller_profiles.h"
 #include "input/usb_device.h"
+#include "input/controller_router.h"
 #include "ps5/virtual_controller.h"
 #include "host.h"
 #include "hci_usb.h"
@@ -23,6 +24,7 @@ static unsigned char requested[6], allowed[6];
 static host_t *host;
 static hci_t transport;
 static int enabled, connected_slot = -1, owns_pad;
+static int virtual_slot = -1;
 static pad_info info;
 static pad_conn_type_t connection=CONN_BLUETOOTH_CLASSIC;
 static char status[512] = "{\"enabled\":false,\"connected\":false,\"pairing\":0,\"message\":\"Bluetooth disabled\"}";
@@ -87,9 +89,9 @@ static void idle(void *ud)
 { (void)ud; vpad_poll(now_ms()); }
 static int create_pad(void)
 {
-    if (connected_slot < 0 || access(FREEPAD_STATE_DIR "/pause",F_OK) == 0 ||
-        !vpad_slot_is_free(0)) return 0;
-    owns_pad = vpad_add(0,connection,"LibrePadPS5 Bluetooth gamepad");
+    if (connected_slot < 0) return 0;
+    virtual_slot = controller_attach(&info,connection,"LibrePadPS5 Bluetooth gamepad");
+    owns_pad = virtual_slot >= 0;
     return owns_pad;
 }
 static void on_connect(void *ud, int slot, const pad_info *device)
@@ -125,20 +127,20 @@ static void on_state(void *ud, int slot, const pad_state *input)
     if (input->has_touch) { output.touch_down=input->touch[0].down; output.touch_x=input->touch[0].x; output.touch_y=input->touch[0].y; }
     if (input->has_battery) { output.battery_level=input->battery_pct; output.battery_charging=input->charging; }
     freepad_profiles_remap(output.vid,output.pid,&output);
-    vpad_update(0,&output);
+    controller_update(&info,&output);
 }
 static void on_disconnect(void *ud, int slot)
 {
     (void)ud;
     if (slot != connected_slot) return;
-    if (owns_pad) vpad_remove(0);
+    if (owns_pad) controller_detach(&info);
     owns_pad=0; connected_slot=-1; memset(&info,0,sizeof(info));
 }
 void bluetooth_cleanup(void)
 {
     if (host) { host_close(host); host=NULL; memset(&transport,0,sizeof(transport)); }
     if (transport.ops) { transport.ops->close(transport.ctx); memset(&transport,0,sizeof(transport)); }
-    if (owns_pad) vpad_remove(0);
+    if (owns_pad) controller_detach(&info);
     owns_pad=0; connected_slot=-1; memset(&info,0,sizeof(info));
     publish("Bluetooth disabled");
 }
@@ -151,7 +153,7 @@ void bluetooth_poll(void)
     switch (command) {
     case BT_PAIR: {
         vpad_slot_info_t pad={0}; vpad_get_slot_info(0,&pad);
-        if (usb_hotplug_freepad_connected() || (!host && pad.status != VP_FREE)) {
+        if (usb_hotplug_freepad_connected() || controller_connected(0) || controller_connected(1) || controller_connected(2) || (!host && pad.status != VP_FREE)) {
             publish("Unplug USB controllers and release the virtual pad first"); break;
         }
     if (host) {
@@ -171,9 +173,9 @@ void bluetooth_poll(void)
     case BT_DISABLE: bluetooth_cleanup(); return;
     case BT_FORGET: if (host) host_forget(host,allowed); bluetooth_cleanup(); return;
     case BT_RECONNECT:
-        if (host && connected_slot >= 0 &&
-            (unlink(FREEPAD_STATE_DIR "/pause") == 0 || errno == ENOENT)) {
-            create_pad();
+        if (host && connected_slot >= 0) {
+            if (!owns_pad) create_pad();
+            if (owns_pad) controller_reconnect(virtual_slot);
             pad_state input;
             pad_info device;
             if (host_pad_get(host,connected_slot,&device,&input)) on_state(NULL,connected_slot,&input);

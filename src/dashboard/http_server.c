@@ -5,6 +5,7 @@
 #include "dashboard/http_server.h"
 #include "ps5/virtual_controller.h"
 #include "input/usb_device.h"
+#include "input/controller_router.h"
 #include "core/logging.h"
 #include "input/controller_profiles.h"
 #include "bluetooth/controller_host.h"
@@ -71,7 +72,7 @@ static void escape_json(char *out, size_t size, const char *in)
 
 static void state(int fd)
 {
-    char body[4096], users[2048] = "", name[64], escaped[128];
+    char body[8192], users[2048] = "", slots[3072] = "", name[64], escaped[128];
     size_t used = 0;
     int32_t login[4] = {-1, -1, -1, -1}, foreground = -1;
     uint32_t firmware = 0;
@@ -91,19 +92,32 @@ static void state(int fd)
 #endif
         escape_json(escaped, sizeof(escaped), name);
         int n = snprintf(users + used, sizeof(users) - used,
-            "%s{\"id\":\"%08x\",\"name\":\"%s\",\"foreground\":%s,\"native_connected\":%s,\"protected\":%s}",
+            "%s{\"id\":\"%08x\",\"name\":\"%s\",\"foreground\":%s,\"native_connected\":%s,\"protected\":%s,\"primary_protected\":%s}",
             used ? "," : "", (unsigned)login[i], escaped, login[i] == foreground ? "true" : "false",
-            native_connected < 0 ? "null" : native_connected ? "true" : "false", login[i] == vpad_get_protected_user() ? "true" : "false");
+            native_connected < 0 ? "null" : native_connected ? "true" : "false", vpad_user_is_protected(login[i]) ? "true" : "false", login[i] == vpad_get_protected_user() ? "true" : "false");
         if (n < 0 || (size_t)n >= sizeof(users) - used) break;
+        used += (size_t)n;
+    }
+    used = 0;
+    for (int i = 0; i < MAX_SLOTS; i++) {
+        vpad_slot_info_t pad = {0}; vpad_get_slot_info(i, &pad);
+        controller_name(i, name, sizeof(name)); escape_json(escaped, sizeof(escaped), name);
+        int n = snprintf(slots + used, sizeof(slots) - used,
+            "%s{\"slot\":%d,\"name\":\"%s\",\"usb_connected\":%s,\"live\":%s,\"status\":%d,\"user\":\"%08x\",\"buttons\":%u,\"axes\":[%u,%u,%u,%u],\"frames\":%u,\"paused\":%s}",
+            used ? "," : "", i, escaped, controller_connected(i) ? "true" : "false",
+            pad.status == VP_READY ? "true" : "false", pad.status, (unsigned)pad.user_id,
+            pad.buttons, pad.lx, pad.ly, pad.rx, pad.ry, pad.packets_injected,
+            controller_paused(i) ? "true" : "false");
+        if (n < 0 || (size_t)n >= sizeof(slots) - used) break;
         used += (size_t)n;
     }
     vpad_slot_info_t pad = {0};
     vpad_get_slot_info(0, &pad);
     snprintf(body, sizeof(body),
-        "{\"firmware\":\"%x.%02x\",\"usb_connected\":%s,\"live\":%s,\"status\":%d,\"user\":\"%08x\",\"buttons\":%u,\"axes\":[%u,%u,%u,%u],\"frames\":%u,\"users\":[%s]}",
+        "{\"firmware\":\"%x.%02x\",\"usb_connected\":%s,\"live\":%s,\"status\":%d,\"user\":\"%08x\",\"buttons\":%u,\"axes\":[%u,%u,%u,%u],\"frames\":%u,\"users\":[%s],\"slots\":[%s]}",
         (firmware >> 24) & 255, (firmware >> 16) & 255,
         usb_hotplug_freepad_connected() ? "true" : "false", pad.status == VP_READY ? "true" : "false", pad.status,
-        (unsigned)pad.user_id, pad.buttons, pad.lx, pad.ly, pad.rx, pad.ry, pad.packets_injected, users);
+        (unsigned)pad.user_id, pad.buttons, pad.lx, pad.ly, pad.rx, pad.ry, pad.packets_injected, users, slots);
     reply(fd, 200, "application/json", body);
 }
 
@@ -186,7 +200,8 @@ static int get_route(int fd, const char *path)
     static const struct { const char *path, *type, *body; } assets[] = {
         {"/","text/html; charset=utf-8",PAGE},
         {"/dashboard.css","text/css; charset=utf-8",DASHBOARD_CSS},
-        {"/dashboard.js","text/javascript; charset=utf-8",DASHBOARD_JS}
+        {"/dashboard.js","text/javascript; charset=utf-8",DASHBOARD_JS},
+        {"/favicon.svg","image/svg+xml",FAVICON}
     };
     static const struct { const char *path; void (*handle)(int); } routes[] = {
         {"/api/state",state}, {"/api/profiles",profiles_reply},
@@ -199,6 +214,45 @@ static int get_route(int fd, const char *path)
     for (size_t i = 0; i < sizeof(routes)/sizeof(routes[0]); i++)
         if (!strcmp(path,routes[i].path)) { routes[i].handle(fd); return 1; }
     return 0;
+}
+
+/* Slot/user parameters are accepted only for controller actions; malformed,
+ * duplicate and out-of-range parameters must never fall back to slot zero. */
+static int controller_query(char *path, int *slot, int32_t *user, int *reserved)
+{
+    const char *actions[] = {"/api/home", "/api/release", "/api/reconnect", "/api/rebind", "/api/protect"};
+    char *query = strchr(path, '?');
+    size_t length = query ? (size_t)(query-path) : strlen(path);
+    int action = -1;
+    for (int i = 0; i < 5; i++) if (length == strlen(actions[i]) && !strncmp(path, actions[i], length)) action = i;
+    if (action < 0) return 1;
+    *slot = action == 1 ? -1 : 0; *user = 0; *reserved = -1;
+    int seen_slot = 0, seen_user = 0, seen_reserved = 0;
+    if (query) {
+        *query++ = 0;
+        if (!*query) return 0;
+        while (*query) {
+            char *next = strchr(query, '&'); if (next) *next = 0;
+            char *value = strchr(query, '='); if (!value) return 0;
+            *value++ = 0;
+            char *end = NULL; errno = 0;
+            if (!strcmp(query, "slot") && action != 4) {
+                unsigned long n = strtoul(value, &end, 10);
+                if (seen_slot++ || !isdigit((unsigned char)*value) || errno || *end || n >= MAX_SLOTS) return 0;
+                *slot = (int)n;
+            } else if (!strcmp(query, "user") && (action == 3 || action == 4)) {
+                unsigned long n = strtoul(value, &end, 16);
+                if (seen_user++ || !isxdigit((unsigned char)*value) || errno || *end || !n || n > 0x7fffffffUL) return 0;
+                *user = (int32_t)n;
+            } else if (!strcmp(query, "reserved") && action == 4) {
+                if (seen_reserved++ || strlen(value) != 1 || (*value != '0' && *value != '1')) return 0;
+                *reserved = *value-'0';
+            } else return 0;
+            if (!next) break;
+            query = next+1; if (!*query) return 0;
+        }
+    }
+    return (action != 3 || seen_user) && (action != 4 || (seen_user && seen_reserved));
 }
 
 static void handle(int fd)
@@ -227,6 +281,10 @@ static void handle(int fd)
             reply(fd, 403, "application/json", "{\"message\":\"Missing control header\"}");
             return;
         }
+        int slot = 0, reserved = -1; int32_t user = 0;
+        if (!controller_query(path, &slot, &user, &reserved)) {
+            reply(fd,400,"application/json","{\"message\":\"Invalid controller parameters\"}"); return;
+        }
         int ok = 1;
         const char *message = "Action completed";
         if (!strncmp(path,"/api/bluetooth/pair?address=",28)) {
@@ -238,8 +296,12 @@ static void handle(int fd)
             ok=bluetooth_forget(); message=ok ? "Forget selected controller and shutdown queued" : "Command pending";
         } else if (!strncmp(path, "/api/profiles?data=", 19)) {
             char text[FREEPAD_PROFILE_TEXT_MAX];
-            vpad_slot_info_t pad = {0}; vpad_get_slot_info(0, &pad);
-            if (pad.status != VP_FREE || access(FREEPAD_STATE_DIR "/pause", F_OK) != 0) {
+            int released = 1;
+            for (int i = 0; i < MAX_SLOTS; i++) {
+                vpad_slot_info_t pad = {0}; vpad_get_slot_info(i, &pad);
+                if (pad.status != VP_FREE || !controller_paused(i)) released = 0;
+            }
+            if (!released) {
                 ok = 0; message = "Release the virtual pad and wait until it is removed before saving";
             } else {
                 ok = decode_profile_text(path+19, text) && freepad_profiles_save(text);
@@ -250,41 +312,21 @@ static void handle(int fd)
             freepad_request_stop();
             return;
         } else if (!strcmp(path, "/api/release")) {
-            int pause = open(FREEPAD_STATE_DIR "/pause", O_WRONLY | O_CREAT, 0600);
-            ok = pause >= 0;
-            if (ok) {
-                close(pause);
-                vpad_remove(0);
-            }
-            message = ok ? "Virtual pad released or release pending. Paused until Reconnect." : "Could not persist paused state; no action taken";
+            ok = controller_release(slot);
+            message = ok ? "Virtual pad released. Paused until Reconnect." : "Could not persist paused state";
         } else if (!strcmp(path, "/api/reconnect")) {
-            vpad_slot_info_t pad = {0};
-            vpad_get_slot_info(0, &pad);
-            if (bluetooth_enabled() && pad.status==VP_FREE) {
-                ok=bluetooth_reconnect();
-            } else if (usb_hotplug_freepad_connected() && (pad.status == VP_FREE || pad.status == VP_FAILED)) {
-                /* A failed insertion can still own a device. Release it
-                 * before queuing a replacement rather than leaking it. */
-                if (pad.status == VP_FAILED) vpad_remove(0);
-                ok = unlink(FREEPAD_STATE_DIR "/pause") == 0 || errno == ENOENT;
-#ifdef LIBREPAD_XBOX_EXPERIMENT
-                if (ok) ok = vpad_add(0, CONN_USB_DONGLE_24G, "Xbox One Wireless / LibrePadPS5");
-#else
-                if (ok) ok = vpad_add(0, CONN_USB_WIRED, "LibrePadPS5 controller");
-#endif
-            } else ok = 0;
+            ok = controller_reconnect(slot);
             message = ok ? "Creating virtual pad" : "Controller unavailable or already active";
         } else if (!strcmp(path, "/api/home")) {
-            ok = vpad_is_live(0);
-            if (ok) vpad_press_ps_button(0);
+            ok = vpad_is_live(slot);
+            if (ok) vpad_press_ps_button(slot);
             message = ok ? "Home / PS sent" : "Virtual pad is not active";
-        } else if (!strncmp(path, "/api/rebind?user=", 17)) {
-            char *end = NULL;
-            errno = 0;
-            unsigned long user = strtoul(path + 17, &end, 16);
-            ok = !errno && end != path + 17 && !*end && user > 0 && user <= 0x7fffffffUL;
-            if (ok) ok = vpad_rebind_user(0, (int32_t)user);
-            message = ok ? "Profile assigned" : "Could not bind to that signed-in profile";
+        } else if (!strcmp(path, "/api/rebind")) {
+            ok = vpad_rebind_user(slot, user);
+            message = ok ? "Profile assigned" : "Profile unavailable, reserved, or already used by another gamepad";
+        } else if (!strcmp(path, "/api/protect")) {
+            ok = vpad_protect_user(user, reserved);
+            message = ok ? "Native controller profile reservation saved" : "Could not reserve that profile; release its virtual pad first";
         } else {
             reply(fd, 400, "application/json", "{\"message\":\"Unknown action\"}");
             return;

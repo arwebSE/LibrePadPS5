@@ -3,7 +3,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-/* Optional native backend for virtual slot zero. Use one slot-zero input source.
+/* Optional native backend; the shared controller router reserves its own slot.
  * start is nonblocking; poll runs on the application's controller loop.
  * stop joins the radio worker and releases its pad before application shutdown.
  * Model 1697 / 045e:02e6 is the current experimental target. */

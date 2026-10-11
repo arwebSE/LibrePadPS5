@@ -3,6 +3,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>LibrePadPS5</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/dashboard.css" />
   <main>
     <h1>LibrePadPS5</h1>
@@ -13,20 +14,27 @@
     </div>
     <section id="panel-controller" role="tabpanel" aria-labelledby="tab-controller">
     <div class="card">
+      <h2>Connected gamepads</h2>
+      <p>Each gamepad uses its own virtual pad and console profile. Native DualSense controllers stay on their reserved profiles.</p>
+      <label for="pads">Control gamepad</label>
+      <select id="pads" onchange="refresh()"></select>
+      <div id="pad-summary" class="muted"></div>
+    </div>
+    <div class="card">
       <h2 id="status">Connecting...</h2>
       <p id="profile"></p>
       <p>Plug in a USB gamepad, select Reconnect, then press Home / PS. Use a separate console user from your DualSense.</p>
       <div class="row">
-        <button id="home" onclick='act("home")'>Press Home / PS</button>
-        <button onclick='act("release")'>Release virtual pad</button>
-        <button id="reconnect" onclick='act("reconnect")'>Reconnect</button>
+        <button id="home" onclick='padAct("home")'>Press Home / PS</button>
+        <button onclick='padAct("release")'>Release virtual pad</button>
+        <button id="reconnect" onclick='padAct("reconnect")'>Reconnect</button>
       </div>
       <label for="users">Assign gamepad to console user</label>
       <div class="row">
         <select id="users"></select>
         <button
           id="bind"
-          onclick='act("rebind?user="+document.getElementById("users").value)'
+          onclick='padAct("rebind", "user="+document.getElementById("users").value)'
         >
           Assign user
         </button>
@@ -56,6 +64,7 @@
       <h2>Input &amp; native controllers</h2>
       <p id="input" class="muted"></p>
       <p id="native">Checking...</p>
+      <div id="native-profiles"></div>
       <p>
         Release the virtual pad to check native controller behavior. If a
         DualSense cannot pair, connect it by USB and press PS.
@@ -117,7 +126,7 @@
         <button onclick="saveProfiles()">Save &amp; apply</button>
       </div>
       <p>
-        Release the virtual pad before saving. Save applies atomically; then
+        Release all virtual pads before saving. Save applies atomically; then
         Reconnect. Adding a device may require unplugging/replugging it.
         Resetting mappings does not save until you update the editor and select
         Save.
@@ -134,6 +143,7 @@
     <footer class="card">
       <p id="message" role="status" aria-live="polite"></p>
       <button class="danger" onclick='act("stop")'>Stop payload</button>
+      <button onclick='act("release")'>Release all virtual pads</button>
     </footer>
   </main>
   <script src="/dashboard.js" defer></script>

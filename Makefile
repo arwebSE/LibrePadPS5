@@ -48,6 +48,8 @@ freepad-test:
 	python3 tools/check_style.py
 	python3 tools/embed_dashboard.py
 	@mkdir -p $(BUILD)
+	clang++ -std=c++11 -Wall -Wextra -Werror -pthread -fsanitize=address,undefined -g -Isrc tests/test_controller_router.cpp -o $(BUILD)/test_controller_router
+	./$(BUILD)/test_controller_router
 	clang -std=c11 -Wall -Wextra -Werror -pthread -fsanitize=address,undefined -g -Isrc tests/test_freepad.c src/input/protocol_decoder.c -o $(BUILD)/test_freepad
 	./$(BUILD)/test_freepad
 	clang -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -g -Isrc tests/test_protocols.c src/input/protocol_decoder.c -o $(BUILD)/test_protocols

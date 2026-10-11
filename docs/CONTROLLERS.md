@@ -1,6 +1,6 @@
 # Controller coverage
 
-Code coverage is not hardware verification. All restored drivers and Bluetooth are experimental in LibrePadPS5. Only the original `0e6f:0184` wired gamepad is physically verified on PS5 12.60.
+Code coverage is not hardware verification. All restored drivers and Bluetooth are experimental in LibrePadPS5. The PDP `0e6f:0184` wired gamepad and Xbox One model 1697 through `045e:02e6` are verified on PS5 12.60, including simultaneous active pads assigned to different profiles. Targeted PDP release/reconnect leaves Xbox injection running. Other models and game-specific four-player multiplayer remain unverified.
 
 | Family | USB | Bluetooth |
 |---|---|---|
@@ -14,6 +14,18 @@ Code coverage is not hardware verification. All restored drivers and Bluetooth a
 | Wii Remote, Wii U Pro, standalone Joy-Con | No dedicated driver | Not implemented upstream or here |
 
 The exact Bluetooth ID tables and mappings are in [profiles.c](../vendor/anypad/profiles.c) and [generic.c](../vendor/anypad/generic.c), pinned to the [documented AnyPad commit](../vendor/anypad/README.md). Firmware-dependent Bluetooth layouts remain unverified on actual hardware.
+
+## Xbox Wireless and simultaneous pads
+
+The optional xow-based radio module supports the Microsoft adapter `045e:02e6`
+(hardware verified) and allowlists `045e:02fe` (unverified). It handles one Xbox
+controller alongside USB controllers through the shared three-slot manager.
+Microsoft firmware is supplied separately and is not distributed in the payload.
+See [radio setup and limits](../experimental/xbox/README.md).
+
+Native DualSense USB devices are ignored. Reserve each native user's profile,
+then assign PDP and Xbox to separate other profiles. USB and Xbox do not enable
+the shared Bluetooth host; Bluetooth remains an exclusive opt-in mode.
 
 ## USB detection
 

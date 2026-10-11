@@ -5,6 +5,7 @@
 #endif
 extern "C" {
 #include "ps5/virtual_controller.h"
+#include "input/controller_router.h"
 #include "core/legacy_paths.h"
 #include "core/logging.h"
 }
@@ -22,6 +23,7 @@ static std::atomic<bool> stopping(false), failed(false), connected(false);
 static std::thread worker;
 static std::mutex stateMutex;
 static void *owner = nullptr;
+static void *detachedOwner = nullptr;
 static bool attachPending = false, detachPending = false;
 static pad_state_t latest;
 
@@ -44,12 +46,13 @@ extern "C" void xbox_sink_input(void *controller, const pad_state_t *state) {
         latest = *state;
         // Feed every packet, including Guide edges, through the existing
         // protected-profile lifecycle. Release remains effective until reconnect.
-        if (!attachPending) vpad_update(0, &latest);
+        if (!attachPending) controller_update(owner, &latest);
     }
 }
 extern "C" void xbox_sink_disconnect(void *controller) {
     std::lock_guard<std::mutex> lock(stateMutex);
     if (owner != controller) return;
+    detachedOwner = owner;
     owner = nullptr;
     connected = false;
     detachPending = true;
@@ -93,21 +96,21 @@ extern "C" int librepad_xbox_start() {
 extern "C" int librepad_xbox_is_connected() { return connected; }
 extern "C" void librepad_xbox_poll(long) {
     std::lock_guard<std::mutex> lock(stateMutex);
-    if (detachPending) { vpad_remove(0); detachPending = false; }
+    if (detachPending) { controller_detach(detachedOwner); detachedOwner = nullptr; detachPending = false; }
     if (attachPending) {
-        if (access(FREEPAD_STATE_DIR "/pause", F_OK) != 0) {
-            vpad_add(0, CONN_USB_DONGLE_24G, "Xbox One Wireless / LibrePadPS5");
-            vpad_update(0, &latest);
+        if (controller_attach(owner, CONN_USB_DONGLE_24G, "Xbox One Wireless") >= 0) {
+            controller_update(owner, &latest);
+            attachPending = false;
         }
-        attachPending = false;
     }
 }
 extern "C" void librepad_xbox_stop() {
     stopping = true;
     if (worker.joinable()) worker.join();
     std::lock_guard<std::mutex> lock(stateMutex);
-    owner = nullptr;
+    controller_detach(owner);
+    controller_detach(detachedOwner);
+    owner = detachedOwner = nullptr;
     connected = false;
     attachPending = detachPending = false;
-    vpad_remove(0);
 }

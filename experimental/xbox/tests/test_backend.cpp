@@ -2,6 +2,7 @@
 extern "C" {
 #include "../librepad_xbox.h"
 #include "ps5/virtual_controller.h"
+#include "input/controller_router.h"
 }
 #include <cassert>
 #include <cstring>
@@ -15,11 +16,14 @@ extern "C" int xbox_test_access(const char *path, int) {
 }
 extern "C" void log_line(const char *, ...) {}
 extern "C" int vpad_add(int slot, pad_conn_type_t type, const char *name) {
-    assert(slot == 0 && type == CONN_USB_DONGLE_24G && strstr(name, "LibrePadPS5"));
+    assert(slot == 0 && type == CONN_USB_DONGLE_24G && name);
     ++adds; return 1;
 }
 extern "C" void vpad_remove(int slot) { assert(slot == 0); ++removes; }
 extern "C" void vpad_update(int slot, const pad_state_t *state) { assert(slot == 0); ++updates; received = *state; }
+extern "C" int controller_attach(void *, pad_conn_type_t type, const char *name) { if (!paused) vpad_add(0,type,name); return 0; }
+extern "C" void controller_update(void *, const pad_state_t *state) { vpad_update(0,state); }
+extern "C" void controller_detach(void *owner) { if (owner) vpad_remove(0); }
 int main() {
     int controller, other;
     firmware = false;

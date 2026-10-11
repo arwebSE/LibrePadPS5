@@ -2,13 +2,14 @@
 
 Native PS5 port experiment for Xbox One controller model **1697** and the original
 Xbox Wireless Adapter **045e:02e6**. The slim **045e:02fe** is also allowlisted;
-it has not been tested here. This optional module and separate test payload are
-rebased onto LibrePadPS5 main `914cbf6`, including its reorganized source tree and
-current dashboard. Work remains isolated from the other agent's checkout.
+it has not been tested here. The optional module integrates with the main payload
+through four C functions and a shared controller router. A separate Xbox-only
+payload is retained for radio diagnostics.
 
 **Status: model 1697 paired through adapter 045e:02e6 on PS5 firmware 12.60.
-The user confirmed working controller input and PS5 navigation.** Five host
-test suites pass with ASan/UBSan. This is still an optional experimental backend.
+The user confirmed working controller input and PS5 navigation.** Five Xbox host
+test suites and the shared-router suite pass with ASan/UBSan. This is still an
+optional experimental backend.
 
 ## What is implemented
 
@@ -22,7 +23,7 @@ test suites pass with ASan/UBSan. This is still an optional experimental backend
 - A controller sink replacing Linux uinput: Xbox A/B/X/Y become
   Cross/Circle/Square/Triangle; Menu/View become Options/Create; Guide becomes
   PS. Sticks, D-pad, bumpers, stick clicks and analog triggers are mapped.
-- One controller in virtual slot zero. The existing protected-user lifecycle,
+- One Xbox controller with a dynamically allocated virtual slot. The existing protected-user lifecycle,
   process lock and persisted Release/paused state are reused. Additional
   controllers are ignored; they cannot replace the first controller.
 - The current LibrePadPS5 dashboard on port **8096**. The standalone Xbox payload
@@ -31,7 +32,7 @@ test suites pass with ASan/UBSan. This is still an optional experimental backend
   PC relay, driver replacement on Windows, or generic HID parsing is used.
 
 Rumble, audio, touchpad, motion, custom Xbox remapping, Series-specific features
-and multi-controller support are not implemented by this experiment.
+and multiple Xbox controllers on one adapter are not implemented by this experiment.
 
 ## Small integration module
 
@@ -43,9 +44,9 @@ behind the interface and can stay disabled in normal builds.
 ```c
 #include "librepad_xbox.h"
 
-/* After vpad_init(), when Xbox is the selected input backend: */
+/* After vpad_init(), alongside the USB backend: */
 librepad_xbox_start();
-/* In the normal controller loop, alongside vpad_poll(): */
+/* In the normal controller loop, alongside USB and vpad_poll(): */
 librepad_xbox_poll(now);
 /* Dashboard connection status: */
 int connected = librepad_xbox_is_connected();
@@ -53,9 +54,9 @@ int connected = librepad_xbox_is_connected();
 librepad_xbox_stop();
 ```
 
-This version manages slot zero. Choose either the existing Switch backend or the
-Xbox backend for that slot; do not feed both into the same virtual pad. A future
-shared device coordinator can arbitrate multiple controller sources. Link with
+The module uses `src/input/controller_router.c` to reserve a separate slot from
+USB controllers. Link that shared router along with the main virtual-pad layer.
+PDP and Xbox can run together; a released controller retains its own slot. Link with
 the SDK's C++ linker, or add its libc++/libc++abi/unwind libraries to the existing
 link step; the rest of LibrePadPS5 can remain C.
 
@@ -69,6 +70,21 @@ python experimental/xbox/build.py --sdk /path/to/ps5-payload-sdk --clang /path/t
 when linking the module into the main application. Also exclude
 `port/standalone_bluetooth.c`: normal builds retain their existing Bluetooth
 implementation. The startup/reconnect guards are only for the standalone build.
+
+## Combined main payload
+
+The standard `freepad.mk` build includes the optional radio archive by default.
+Use `WITH_XBOX=0` for a USB/Bluetooth-only build. On Windows, the portable builder
+also builds the standard combined output:
+
+```sh
+python experimental/xbox/build.py --combined --sdk /path/to/ps5-payload-sdk --clang /path/to/clang
+```
+
+This produces `dist/LibrePadPS5.elf`, preserving normal USB drivers and opt-in
+Bluetooth. USB and Xbox use different shared slots; Bluetooth pairing still
+requires other gamepads to be disconnected. Reserve each native DualSense user
+and assign each virtual gamepad to a separate profile in the dashboard.
 
 ## Standalone test build
 
@@ -169,6 +185,18 @@ The fifth suite exercises MT76/Dongle/GIP together: pairing responses, associati
 and reassociation subtypes, repeated requests retaining one controller, client
 removal/reuse, malformed radio packets and warm startup without DMA re-upload.
 All five host suites passed with ASan/UBSan on Windows.
+The shared-router suite additionally checks concurrent PDP/Xbox input isolation,
+released-slot ownership, capacity, targeted reconnect and persisted pause migration.
+Lifecycle, dashboard and Bluetooth adapter regression suites passed using mock
+pad/HCI APIs in disposable PS5 SDK executables with a separate test state directory.
+The combined payload was built warning-free and its UTF-8 dashboard assets were
+compared byte-for-byte against the live PS5 responses.
+On PS5 12.60, PDP and Xbox were active simultaneously with distinct profile
+assignments. Releasing/reconnecting PDP preserved the Xbox's live status,
+profile and advancing injection counter. Reserved/duplicate profile assignments
+and malformed slot parameters were rejected. The user reported both pads working
+after the combined restart. A full two-DualSense plus PDP/Xbox game test remains
+unverified; the console login list exposed only three profiles during this test.
 The tests use mock USB ioctls and pad services; they do not verify the console's
 USB implementation. On Windows they compile with packed GCC bitfield layout,
 matching the PS5 target. Unix host runs also enable ASan/UBSan.

@@ -5,6 +5,9 @@
 #include "dashboard/http_server.h"
 #include "input/controller_profiles.h"
 #include "bluetooth/controller_host.h"
+#ifdef LIBREPAD_WITH_XBOX
+#include "../../experimental/xbox/librepad_xbox.h"
+#endif
 
 #include <signal.h>
 #include <stdatomic.h>
@@ -60,6 +63,8 @@ int main(void)
     log_init(FREEPAD_LOG_PATH);
 #ifdef LIBREPAD_XBOX_EXPERIMENT
     log_line("LibrePadPS5 Xbox experimental: native Xbox Wireless Adapter / MT76 / GIP");
+#elif defined(LIBREPAD_WITH_XBOX)
+    log_line("LibrePadPS5: USB and Xbox Wireless; opt-in Bluetooth; shared virtual slots");
 #else
     log_line("LibrePadPS5 development build; USB and opt-in Bluetooth; no autoload");
 #endif
@@ -86,6 +91,9 @@ int main(void)
         return 1;
     }
     usb_hotplug_init();
+#ifdef LIBREPAD_WITH_XBOX
+    librepad_xbox_start();
+#endif
     if (!freepad_web_init(8096)) log_line("LibrePadPS5 dashboard failed to start");
     log_line("Ready. Stop by creating " STOP_FLAG " or sending SIGTERM.");
     while (running && !atomic_load(&stop_requested)) {
@@ -93,6 +101,9 @@ int main(void)
         vpad_poll(now);
         bluetooth_poll();
         usb_hotplug_poll(now);
+#ifdef LIBREPAD_WITH_XBOX
+        librepad_xbox_poll(now);
+#endif
         if (access(STOP_FLAG, F_OK) == 0) {
             unlink(STOP_FLAG);
             running = 0;
@@ -102,6 +113,9 @@ int main(void)
     freepad_web_cleanup();
     bluetooth_cleanup();
     usb_hotplug_cleanup();
+#ifdef LIBREPAD_WITH_XBOX
+    librepad_xbox_stop();
+#endif
     vpad_cleanup_all();
     log_line("LibrePadPS5 stopped cleanly");
     log_close();

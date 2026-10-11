@@ -62,6 +62,7 @@ typedef struct {
     int             consecutive_insert_errors;
     int             ps_pending_on_ready;
     long            ps_until;
+    uint32_t        previous_buttons;
 } internal_slot_t;
 
 static internal_slot_t g_slots[MAX_SLOTS];
@@ -73,6 +74,7 @@ static int g_ready = 0;
 static int32_t g_active_user = -1;
 static int32_t g_protected_user;
 static int32_t g_controller_user;
+static int32_t g_reserved_users[4];
 
 /* Log reader state */
 static int g_pending = -1;
@@ -81,7 +83,6 @@ static int g_matches = 0;
 static uint64_t g_match_dev = 0;
 static int g_klog_handle = -1;
 static int g_log_fd = -1;
-static int g_log_is_dev = 0;
 static char g_line[LINE_MAX_LEN];
 static size_t g_line_len = 0;
 
@@ -124,79 +125,29 @@ static int is_user_logged_in(int32_t uid)
     return 0;
 }
 
+static int user_protected(int32_t user)
+{
+    if (user <= 0) return 0;
+    if (user == g_protected_user) return 1;
+    for (int i = 0; i < 4; i++) if (g_reserved_users[i] == user) return 1;
+    return 0;
+}
+static int user_in_use(int slot, int32_t user)
+{
+    for (int i = 0; i < MAX_SLOTS; i++)
+        if (i != slot && g_slots[i].status != VP_FREE && g_slots[i].user_id == user) return 1;
+    return 0;
+}
+static int native_controller_connected(int32_t user);
 static int32_t get_user_id_for_slot(int slot)
 {
-#ifdef __PROSPERO__
-    if (g_controller_user > 0) {
-        if (g_controller_user == g_protected_user || !is_user_logged_in(g_controller_user) ||
-            vpad_native_controller_connected(g_controller_user) == 1) return -1;
-        return g_controller_user;
-    }
-    int32_t fg_user = -1;
-    sceUserServiceGetForegroundUser(&fg_user);
-
-    int32_t list[4] = {-1, -1, -1, -1};
-    sceUserServiceGetLoginUserIdList(list);
-
-    int32_t init_user = -1;
-    sceUserServiceGetInitialUser(&init_user);
-
-    /* Check if the foreground user already has an active physical DualSense */
-    int native_pad_on_fg = 0;
-    if (fg_user > 0 && is_user_logged_in(fg_user)) {
-        native_pad_on_fg = fg_user == g_protected_user || vpad_native_controller_connected(fg_user) == 1;
-    }
-
-    /* Do not replace the native controller's profile assignment. A cached
-     * handle alone is not proof that a native controller is connected. */
-    if (native_pad_on_fg) {
-        for (int i = 0; i < 4; i++) {
-            if (list[i] > 0 && list[i] != fg_user && list[i] != g_protected_user && is_user_logged_in(list[i]) &&
-                vpad_native_controller_connected(list[i]) != 1) return list[i];
-        }
-        log_line("LibrePadPS5: native controller occupies foreground profile; no free signed-in profile");
-        return -1;
-    }
-
-    /* Slot 0:
-     * If a native controller is already active on the foreground user,
-     * assign Slot 0 to list[1] (Player 2) so it does not hijack the DualSense!
-     * If no native controller on fg_user, Slot 0 takes fg_user (Player 1).
-     */
-    if (slot == 0) {
-        if (native_pad_on_fg && list[1] > 0 && is_user_logged_in(list[1])) {
-            log_line("vpad: slot 0 -> user 0x%08x (Player 2, native pad active on fg 0x%08x)",
-                     (unsigned)list[1], (unsigned)fg_user);
-            return list[1];
-        }
-        if (fg_user > 0 && is_user_logged_in(fg_user)) {
-            log_line("vpad: slot 0 assigned to active foreground user 0x%08x", (unsigned)fg_user);
-            return fg_user;
-        }
-        if (list[0] > 0 && is_user_logged_in(list[0])) {
-            log_line("vpad: slot 0 assigned to login user list[0] 0x%08x", (unsigned)list[0]);
-            return list[0];
-        }
-        if (init_user > 0 && is_user_logged_in(init_user)) {
-            log_line("vpad: slot 0 assigned to initial user 0x%08x", (unsigned)init_user);
-            return init_user;
-        }
-        log_line("vpad: slot 0 no user logged in: interactive profile assignment required");
-        return -1;
-    }
-
-    /* Multi-slot (Slots 1..3):
-     * If native pad is on foreground user, shift indexes by 1: Slot 1 -> list[2], Slot 2 -> list[3]...
-     * Otherwise: Slot 1 -> list[1], Slot 2 -> list[2]...
-     */
-    int target_idx = native_pad_on_fg ? (slot + 1) : slot;
-    if (target_idx < 4 && list[target_idx] > 0 && is_user_logged_in(list[target_idx])) {
-        log_line("vpad: slot %d assigned to login user 0x%08x (index %d)",
-                 slot, (unsigned)list[target_idx], target_idx);
-        return list[target_idx];
-    }
-#endif
-    return -1;
+    /* Only the explicitly configured legacy preference can bind automatically.
+     * Extra pads wait for their own explicit dashboard assignment. Unknown
+     * native connection state must not lead to guessing another player's user. */
+    if (slot != 0 || g_controller_user <= 0 || user_protected(g_controller_user) ||
+        !is_user_logged_in(g_controller_user) || user_in_use(slot, g_controller_user) ||
+        native_controller_connected(g_controller_user) == 1) return -1;
+    return g_controller_user;
 }
 
 static int open_kernel_log(void)
@@ -211,7 +162,6 @@ static int open_kernel_log(void)
         sin.sin_addr.s_addr = inet_addr("127.0.0.1");
         if (connect(fd, (struct sockaddr *)&sin, sizeof(sin)) == 0) {
             fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
-            g_log_is_dev = 0;
             return fd;
         }
         close(fd);
@@ -220,7 +170,6 @@ static int open_kernel_log(void)
     /* Fallback directly to FreeBSD /dev/klog */
     fd = open("/dev/klog", O_RDONLY | O_NONBLOCK);
     if (fd >= 0) {
-        g_log_is_dev = 1;
         return fd;
     }
 
@@ -350,7 +299,22 @@ int vpad_init(void)
 
     g_protected_user = read_user_config(FREEPAD_NATIVE_USER_PATH);
     g_controller_user = read_user_config(FREEPAD_CONTROLLER_USER_PATH);
-    if (g_protected_user < 0 || g_controller_user < 0 || (g_controller_user > 0 && g_controller_user == g_protected_user)) {
+    memset(g_reserved_users, 0, sizeof(g_reserved_users));
+    FILE *reserved = fopen(FREEPAD_NATIVE_USERS_PATH, "r");
+    if (reserved) {
+        char line[32]; int count = 0, invalid = 0;
+        while (fgets(line, sizeof(line), reserved)) {
+            char *end; errno = 0;
+            unsigned long user = strtoul(line, &end, 16);
+            while (*end && isspace((unsigned char)*end)) end++;
+            if (errno || end == line || *end || !user || user > 0x7fffffffUL || count == 4) { invalid = 1; break; }
+            g_reserved_users[count++] = (int32_t)user;
+        }
+        if (ferror(reserved)) invalid = 1;
+        fclose(reserved);
+        if (invalid) { log_line("LibrePadPS5: invalid native-users configuration"); return 0; }
+    }
+    if (g_protected_user < 0 || g_controller_user < 0 || (g_controller_user > 0 && user_protected(g_controller_user))) {
         log_line("LibrePadPS5: invalid/conflicting profile configuration; refusing to initialize");
         return 0;
     }
@@ -542,6 +506,7 @@ static void finish_identification(long now)
          * profile picker can sign in the separate controller user; never bind
          * to the protected DualSense user just to get input working. */
         s->status = VP_READY;
+        if (s->ps_pending_on_ready) s->ps_until = now + 150;
         log_line("LibrePadPS5: virtual pad waiting unbound; press Home and choose the separate controller profile");
         return;
     }
@@ -557,6 +522,7 @@ static void finish_identification(long now)
         return;
     }
     s->status = VP_READY;
+    if (s->ps_pending_on_ready) s->ps_until = now + 150;
     log_line("vpad: LibrePadPS5 ready (handle %d)", s->handle);
 }
 
@@ -585,14 +551,16 @@ void vpad_poll(long now)
     if (now - last_binding_check > 500) {
         last_binding_check = now;
         pthread_mutex_lock(&g_vpad_mutex);
-        internal_slot_t *s = &g_slots[0];
-        if (s->status == VP_READY && s->user_id <= 0 && s->device_id && g_bind) {
-            int32_t target = get_user_id_for_slot(0);
-            if (target > 0) {
-                int32_t result = g_bind(s->device_id, target);
-                if (result == 0) s->user_id = target;
-                else s->status = VP_FAILED;
-                log_line("LibrePadPS5: delayed profile bind user 0x%08x -> 0x%08x", (unsigned)target, (unsigned)result);
+        for (int slot = 0; slot < MAX_SLOTS; slot++) {
+            internal_slot_t *s = &g_slots[slot];
+            if (s->status == VP_READY && s->user_id <= 0 && s->device_id && g_bind) {
+                int32_t target = get_user_id_for_slot(slot);
+                if (target > 0) {
+                    int32_t result = g_bind(s->device_id, target);
+                    if (result == 0) s->user_id = target;
+                    else s->status = VP_FAILED;
+                    log_line("LibrePadPS5: delayed profile bind user 0x%08x -> 0x%08x", (unsigned)target, (unsigned)result);
+                }
             }
         }
         pthread_mutex_unlock(&g_vpad_mutex);
@@ -718,12 +686,10 @@ void vpad_update(int slot, const pad_state_t *st)
 {
     if (!st || slot < 0 || slot >= MAX_SLOTS) return;
 
-    static uint32_t s_prev_btn[MAX_SLOTS] = {0};
-    uint32_t prev = s_prev_btn[slot];
-    int ps_pressed = (st->buttons & PAD_BTN_PS) && !(prev & PAD_BTN_PS);
-    s_prev_btn[slot] = st->buttons;
-
     pthread_mutex_lock(&g_vpad_mutex);
+    uint32_t prev = g_slots[slot].previous_buttons;
+    int ps_pressed = (st->buttons & PAD_BTN_PS) && !(prev & PAD_BTN_PS);
+    g_slots[slot].previous_buttons = st->buttons;
     vpad_status_t status = g_slots[slot].status;
     int32_t handle = g_slots[slot].handle;
     int32_t uid = g_slots[slot].user_id;
@@ -802,7 +768,7 @@ int vpad_rebind_user(int slot, int32_t user_id)
         pthread_mutex_unlock(&g_vpad_mutex);
         return 0;
     }
-    if (target_user == g_protected_user || vpad_native_controller_connected(target_user) == 1) {
+    if (user_protected(target_user) || user_in_use(slot, target_user) || native_controller_connected(target_user) == 1) {
         pthread_mutex_unlock(&g_vpad_mutex);
         log_line("LibrePadPS5: refusing to bind over a connected native controller");
         return 0;
@@ -835,10 +801,12 @@ void vpad_cleanup_all(void)
     g_ready = 0;
 }
 
-int vpad_native_controller_connected(int32_t user)
+static int native_controller_connected(int32_t user)
 {
 #ifdef __PROSPERO__
     int32_t handle = scePadGetHandle(user, 0, 0);
+    for (int i = 0; i < MAX_SLOTS; i++)
+        if (handle > 0 && (g_slots[i].handle == handle || g_slots[i].alt_handle == handle)) return 0;
     PadData data = {0};
     if (handle <= 0 || scePadReadState(handle, &data) != 0) return -1;
     return data.connected != 0;
@@ -848,8 +816,50 @@ int vpad_native_controller_connected(int32_t user)
 #endif
 }
 
+int vpad_native_controller_connected(int32_t user)
+{
+    pthread_mutex_lock(&g_vpad_mutex);
+    int connected = native_controller_connected(user);
+    pthread_mutex_unlock(&g_vpad_mutex); return connected;
+}
+
 int32_t vpad_get_protected_user(void)
 {
     return g_protected_user;
 }
 
+
+int vpad_user_is_protected(int32_t user)
+{
+    pthread_mutex_lock(&g_vpad_mutex);
+    int result = user_protected(user);
+    pthread_mutex_unlock(&g_vpad_mutex); return result;
+}
+int vpad_protect_user(int32_t user, int protect)
+{
+    if (user <= 0) return 0;
+    pthread_mutex_lock(&g_vpad_mutex);
+    if (user == g_protected_user) { pthread_mutex_unlock(&g_vpad_mutex); return protect != 0; }
+    if (protect && (user_in_use(-1, user) || user == g_controller_user)) { pthread_mutex_unlock(&g_vpad_mutex); return 0; }
+    int32_t next[4]; memcpy(next, g_reserved_users, sizeof(next));
+    int index = -1, free_index = -1;
+    for (int i = 0; i < 4; i++) {
+        if (next[i] == user) index = i;
+        if (!next[i]) free_index = i;
+    }
+    if (protect && index < 0) {
+        if (free_index < 0) { pthread_mutex_unlock(&g_vpad_mutex); return 0; }
+        next[free_index] = user;
+    } else if (!protect && index >= 0) next[index] = 0;
+    FILE *file = fopen(FREEPAD_NATIVE_USERS_PATH ".tmp", "w");
+    int ok = file != NULL;
+    if (file) {
+        for (int i = 0; i < 4; i++) if (next[i] && fprintf(file, "%08x\n", (unsigned)next[i]) < 0) ok = 0;
+        if (fflush(file) || fsync(fileno(file))) ok = 0;
+        if (fclose(file)) ok = 0;
+        if (ok) ok = rename(FREEPAD_NATIVE_USERS_PATH ".tmp", FREEPAD_NATIVE_USERS_PATH) == 0;
+        if (!ok) unlink(FREEPAD_NATIVE_USERS_PATH ".tmp");
+    }
+    if (ok) memcpy(g_reserved_users, next, sizeof(next));
+    pthread_mutex_unlock(&g_vpad_mutex); return ok;
+}

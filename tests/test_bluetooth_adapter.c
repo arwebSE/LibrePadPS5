@@ -21,6 +21,13 @@ void vpad_remove(int slot) { assert(slot==0); removed++; virtual_pad.status=VP_F
 void vpad_update(int slot, const pad_state_t *state) {
     assert(slot==0 && state->vid==0x054c && state->pid==0x05c4); updates++;
 }
+int controller_attach(void *owner, pad_conn_type_t type, const char *name) {
+    (void)owner; if (access(FREEPAD_STATE_DIR "/pause",F_OK)) vpad_add(0,type,name); return 0;
+}
+void controller_update(void *owner, const pad_state_t *state) { (void)owner; if (virtual_pad.status!=VP_FREE) vpad_update(0,state); }
+void controller_detach(void *owner) { (void)owner; if (virtual_pad.status!=VP_FREE) vpad_remove(0); }
+int controller_connected(int slot) { (void)slot; return 0; }
+int controller_reconnect(int slot) { return vpad_add(slot,CONN_BLUETOOTH_CLASSIC,"Mock Bluetooth gamepad"); }
 static void run(int milliseconds) {
     long end=sim_now()+milliseconds;
     while (sim_now()<end) { bluetooth_poll(); host_poll(host,5); }
@@ -49,7 +56,7 @@ int main(void)
     simulator=sim_new(&pad);
     int pause=open(FREEPAD_STATE_DIR "/pause",O_CREAT|O_WRONLY,0600); assert(pause>=0); close(pause);
     assert(bluetooth_pair_address("06:05:04:03:02:01")); bluetooth_poll(); run(10000);
-    assert(bluetooth_enabled() && connected_slot==0 && !added && !owns_pad);
+    assert(bluetooth_enabled() && connected_slot==0 && !added && owns_pad);
     assert(bluetooth_reconnect()); bluetooth_poll(); run(1000);
     assert(added==1 && updates>0 && owns_pad);
     assert(bluetooth_disable()); bluetooth_poll();
@@ -58,4 +65,5 @@ int main(void)
     /* No owned Bluetooth pad means shutdown must not remove a native/USB pad. */
     virtual_pad.status=VP_READY; bluetooth_cleanup(); assert(removed==1);
     puts("Bluetooth adapter ownership, pause, queue and address tests passed");
+    return 0;
 }

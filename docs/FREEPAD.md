@@ -6,7 +6,7 @@ Use a USB or Bluetooth gamepad on a jailbroken PS5. Added drivers and Bluetooth 
 
 ## Supported hardware
 
-- **Hardware verified:** PDP Faceoff Deluxe+ Audio Wired Switch controller, USB ID `0e6f:0184`. Development builds also accept configurable HID layouts; other controllers are not physically verified.
+- **Hardware verified:** PDP Faceoff Deluxe+ Audio Wired Switch controller, USB ID `0e6f:0184`. Development builds also accept configurable HID layouts; Xbox One model 1697 with Xbox Wireless Adapter `045e:02e6` is also verified individually on firmware 12.60; the adapter needs separately staged firmware.
 - Tested on **PS5 firmware 12.60**: sticks, buttons, D-pad, dashboard and separate-profile assignment. Individual games/emulators and other firmware are not explicitly verified.
 - No game-driven rumble, motion forwarding, controller audio or touchpad movement. Dedicated drivers preserve analog triggers where available; the 8-byte preset has digital triggers.
 
@@ -23,6 +23,32 @@ Requires an existing jailbreak, ELF loader or Payload Manager and FTP access.
 5. Click **Reconnect**, press **Home** or the dashboard's **Press Home / PS**, and select **`Gamepad`** in the console's user picker. Check both controllers.
 
 Optional: save the gamepad user's ID in `pdp-user` in the same directory for automatic assignment. Settings are read on startup; restart after editing. Never copy IDs from another console. Invalid or identical protected/preferred IDs prevent startup. Protection does not override the console's own user picker.
+
+### Multiple controllers
+
+USB and Xbox Wireless share three virtual slots. Native DualSense controllers
+remain native and do not consume these slots. For two DualSense controllers plus
+PDP and Xbox, use four separate signed-in profiles:
+
+1. Reserve both native profiles in **Advanced / Input & native controllers**.
+   The original `native-user` reservation remains protected. Additional IDs are
+   saved atomically, one hexadecimal ID per line, in `native-users`.
+2. Connect the PDP and Xbox receiver. Stage the Xbox firmware as described in
+   [the radio module guide](../experimental/xbox/README.md#firmware).
+3. Select each pad in **Control gamepad** and **Assign user** to its own signed-in
+   profile. A profile already assigned to another virtual pad is refused.
+4. Join a game with local multiplayer support and verify each player's input.
+
+**Release virtual pad** and **Reconnect** affect the selected pad. A released
+physical device retains its slot, preventing another transport from taking it.
+Release persists across reloads/replugging using `pause-N` files.
+**Release all virtual pads** also preserves the legacy `pause` file; reconnecting
+one pad leaves the other slots paused. Disconnecting or stopping cleans up only
+owned virtual handles. Controller creation/identification remains serialized.
+
+Unknown native connection status requires explicit reservations. Extra slots
+wait unbound until assigned; the legacy `pdp-user` preference applies only to the
+first virtual slot. Reservations do not override the console's own user picker.
 
 Payload Manager: place the ELF and [metadata](../payload/LibrePadPS5.elf.json) together in `/data/pldmgr/payloads/LibrePadPS5/`. Older releases download under the previous ELF filename; rename the downloaded ELF to `LibrePadPS5.elf`. Keep one installed entry and stop the old instance before loading a replacement.
 
@@ -64,12 +90,12 @@ If native controllers stop working, stop the payload and fully reboot. Do not up
 
 ## Controller profiles & remapping (preview)
 
-Requires the development build, not the older stable download. One controller at a time. Custom layouts are host-tested only; keep the previous release available.
+Requires the development build, not the older stable download. Release every virtual pad before saving shared mappings. Custom layouts are host-tested only; keep the previous release available.
 
 1. Enter the controller’s four-digit hexadecimal VID/PID.
 2. Choose a dedicated driver, Generic USB HID, Bluetooth button mapping, or `switch8` for the tested layout. For custom raw USB, enter report length, report ID, hat and axis byte offsets and click **Use custom layout**. Offsets include the report-ID byte. Use `-1` to disable a field.
 3. Select each named PS5 input's output for driver profiles. Custom raw USB uses source bit numbers instead. **Default mapping** restores the tested 8-byte preset, without saving.
-4. Click **Add / update in editor**, **Release virtual pad**, then **Save & apply** after removal. Click **Reconnect**; newly added devices may need replugging.
+4. Click **Add / update in editor**, **Release all virtual pads**, then **Save & apply** after removal. Click **Reconnect**; newly added devices may need replugging.
 
 Import/export operates on the editor contents. Up to eight profiles are saved atomically in `controllers.conf` in the state directory. Invalid settings leave the previous configuration unchanged; invalid files refuse startup. A missing file uses the tested default.
 

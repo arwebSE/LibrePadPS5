@@ -35,7 +35,7 @@ int32_t scePadVirtualDeviceAddDevice(void *param, int32_t type)
 { (void)param; (void)type; assert(!"Tests must not create actual devices"); return -1; }
 int32_t scePadVirtualDeviceInsertData(int32_t handle, const void *raw)
 {
-    assert(handle == OWN_HANDLE);
+    assert(handle == OWN_HANDLE || handle == OWN_HANDLE+1);
     const PadData *data = raw;
     assert(data->connected && data->orient_w == 1.0f);
     insertions++; inserted_buttons = data->buttons; return 0;
@@ -45,7 +45,7 @@ int32_t scePadVirtualDeviceDeleteDevice(int32_t handle)
 uint64_t sceKernelGetProcessTime(void) { return 0; }
 static int32_t bind_pad(uint64_t dev, int32_t user)
 {
-    assert(dev == OWN_HANDLE && user != NATIVE_USER);
+    assert((dev == OWN_HANDLE || dev == OWN_HANDLE+1) && user != NATIVE_USER && user != 101);
     binds++; bound_user = user; return bind_result;
 }
 static int32_t disconnect_pad(uint64_t dev)
@@ -102,6 +102,25 @@ int main(void)
     pending(2); finish_identification(now_ms());
     assert(g_slots[0].status == VP_FAILED && deletes == 2 && binds == previous_binds);
     assert(insertions > 0);
+    /* Two native users plus two independent virtual players. */
+    memset(g_slots,0,sizeof(g_slots));
+    users[2]=101; users[3]=201; g_reserved_users[0]=101;
+    g_slots[0].status=VP_READY; g_slots[0].handle=OWN_HANDLE;
+    g_slots[0].device_id=OWN_HANDLE; g_slots[0].user_id=CONTROLLER_USER;
+    g_slots[1].status=VP_READY; g_slots[1].handle=OWN_HANDLE+1;
+    g_slots[1].device_id=OWN_HANDLE+1; g_slots[1].user_id=-1;
+    assert(vpad_user_is_protected(NATIVE_USER) && vpad_user_is_protected(101));
+    assert(get_user_id_for_slot(1)==-1);
+    assert(!vpad_rebind_user(1,CONTROLLER_USER));
+    assert(!vpad_rebind_user(1,101));
+    assert(vpad_rebind_user(1,201));
+    assert(g_slots[0].user_id==CONTROLLER_USER && g_slots[1].user_id==201);
+    input.buttons=PAD_BTN_CROSS; vpad_update(0,&input);
+    input.buttons=PAD_BTN_CIRCLE; vpad_update(1,&input);
+    assert(g_slots[0].pad_state.buttons==PAD_BTN_CROSS && g_slots[1].pad_state.buttons==PAD_BTN_CIRCLE);
+    pending(1); input.buttons=PAD_BTN_PS; vpad_update(0,&input);
+    finish_identification(now_ms());
+    assert(g_slots[0].status==VP_READY && g_slots[0].ps_until > now_ms());
     puts("LibrePadPS5 lifecycle tests passed");
     return 0;
 }

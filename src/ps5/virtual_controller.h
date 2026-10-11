@@ -42,5 +42,7 @@ int vpad_rebind_user(int slot, int32_t user_id);
 void vpad_cleanup_all(void);
 int vpad_native_controller_connected(int32_t user);
 int32_t vpad_get_protected_user(void);
+int vpad_user_is_protected(int32_t user);
+int vpad_protect_user(int32_t user, int protect);
 
 #endif /* PS5_VPAD_H */

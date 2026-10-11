@@ -24,16 +24,51 @@ dashboardTabs.forEach((tab, index) => {
     dashboardTabs[next].focus();
   });
 });
+function updateOptions(id, options, selected) {
+  const select = el(id);
+  const signature = JSON.stringify(options);
+  if (select.dataset.options !== signature) {
+    select.replaceChildren();
+    for (const item of options) {
+      const option = document.createElement("option");
+      option.value = item.value; option.textContent = item.text; option.disabled = !!item.disabled;
+      select.append(option);
+    }
+    select.dataset.options = signature;
+  }
+  select.value = selected;
+}
+let nativeProfilesSignature = "";
 async function refresh() {
   if (stopped) return;
   try {
     let r = await fetch("/api/state", { cache: "no-store" }),
       s = await r.json();
+    const pads = s.slots || [{...s, slot: 0, name: "Gamepad"}];
+    let selectedPad = Number(el("pads").value || 0);
+    updateOptions("pads", pads.map(pad => ({value:pad.slot,
+      text:"Pad " + (pad.slot + 1) + ": " + (pad.name || "Empty") + (pad.live ? " (active)" : pad.usb_connected ? " (connected)" : "")})), selectedPad);
+    const users = s.users;
+    s = {...s, ...(pads.find(pad => pad.slot === selectedPad) || pads[0]), users};
+    el("pad-summary").textContent = pads.filter(pad => pad.usb_connected).length + " gamepad(s) connected. " + pads.filter(pad => pad.live).length + " virtual pad(s) active.";
+    const nativeSignature = JSON.stringify(users.map(user => [user.id,user.name,user.protected,user.primary_protected]));
+    if (nativeSignature !== nativeProfilesSignature) {
+      nativeProfilesSignature = nativeSignature;
+      el("native-profiles").replaceChildren();
+      for (const user of users) {
+        const label = document.createElement("label"), checkbox = document.createElement("input");
+        checkbox.type = "checkbox"; checkbox.checked = user.protected;
+        checkbox.disabled = user.primary_protected;
+        checkbox.addEventListener("change", () => act("protect?user=" + user.id + "&reserved=" + (checkbox.checked ? 1 : 0)));
+        label.append(checkbox, " Reserve " + user.name + " for a native DualSense");
+        el("native-profiles").append(label);
+      }
+    }
     const bt = await (await fetch("/api/bluetooth", { cache: "no-store" })).json();
     el("bt-status").textContent = bt.message + (bt.pairing ? " · " + bt.pairing + " seconds remaining" : "") +
       (bt.connected ? " · USB ID " + bt.vid.toString(16).padStart(4,"0") + ":" + bt.pid.toString(16).padStart(4,"0") : "");
     el("fw").textContent = "· FW " + s.firmware;
-    el("status").textContent = (s.usb_connected || bt.connected)
+    el("status").textContent = s.usb_connected
       ? s.live
         ? "Controller active"
         : "Controller connected · virtual pad released or unavailable"
@@ -57,27 +92,19 @@ async function refresh() {
       " · Buttons 0x" +
       s.buttons.toString(16);
     let selected = el("users").value;
-    el("users").replaceChildren();
-    for (let u of s.users) {
-      let o = document.createElement("option");
-      o.value = u.id;
-      o.textContent =
-        u.name +
-        (u.foreground ? " (active)" : "") +
-        (u.protected ? " (reserved for DualSense)" : "");
-      o.disabled = u.protected;
-      el("users").append(o);
-    }
-    if (s.users.some((u) => u.id === selected && !u.protected))
-      el("users").value = selected;
-    else if (s.users.some((u) => u.id === s.user && !u.protected))
-      el("users").value = s.user;
+    const occupied = id => pads.some(pad => pad.slot !== selectedPad && pad.live && pad.user === id);
+    const eligible = user => !user.protected && !occupied(user.id);
+    if (!s.users.some(user => user.id === selected && eligible(user)))
+      selected = s.users.find(user => user.id === s.user && eligible(user))?.id || s.users.find(eligible)?.id || "";
+    updateOptions("users", s.users.map(user => ({value:user.id,
+      text:user.name + (user.foreground ? " (active)" : "") + (user.protected ? " (reserved for DualSense)" : occupied(user.id) ? " (assigned to another gamepad)" : ""),
+      disabled:!eligible(user)})), selected);
     el("home").disabled = !s.live;
     let target = s.users.find((u) => u.id === el("users").value);
     el("bind").disabled =
-      !s.live || !target || target.protected || target.native_connected;
+      !s.live || !target || target.protected || target.native_connected || pads.some(pad => pad.slot !== selectedPad && pad.live && pad.user === target.id);
     el("reconnect").disabled =
-      !(s.usb_connected || bt.connected) || s.status === 1 || s.status === 2 || s.live;
+      !s.usb_connected || s.status === 1 || s.status === 2 || s.live;
     let native = s.users.filter((u) => u.native_connected === true),
       unknown = s.users.some((u) => u.native_connected === null);
     el("native").textContent =
@@ -86,11 +113,14 @@ async function refresh() {
         : unknown
           ? "Native connection status unavailable from this payload process."
           : "No connected native controller reported.") +
-      " Protected profile: " +
-      (s.users.find((u) => u.protected)?.name || "not configured");
+      " Reserved profiles: " +
+      (s.users.filter((u) => u.protected).map(u => u.name).join(", ") || "not configured");
   } catch (e) {
     el("status").textContent = "Dashboard offline";
   }
+}
+function padAct(action, query = "") {
+  return act(action + "?slot=" + el("pads").value + (query ? "&" + query : ""));
 }
 async function act(path) {
   try {
