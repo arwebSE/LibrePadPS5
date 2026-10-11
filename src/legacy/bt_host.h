@@ -1,7 +1,7 @@
 #ifndef BT_HOST_H
 #define BT_HOST_H
 
-#include "pad_types.h"
+#include "core/controller_state.h"
 #include <stdint.h>
 
 int bt_host_init(void);

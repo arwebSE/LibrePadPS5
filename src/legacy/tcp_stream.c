@@ -1,8 +1,8 @@
-#include "tcp_stream.h"
-#include "ps5_vpad.h"
-#include "pad_types.h"
-#include "log.h"
-#include "util.h"
+#include "legacy/tcp_stream.h"
+#include "ps5/virtual_controller.h"
+#include "core/controller_state.h"
+#include "core/logging.h"
+#include "core/time_utils.h"
 
 #include <stdio.h>
 #include <string.h>

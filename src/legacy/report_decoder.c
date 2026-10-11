@@ -1,7 +1,7 @@
-#include "usb_controllers.h"
-#include "pad_types.h"
-#include "log.h"
-#include "util.h"
+#include "legacy/report_decoder.h"
+#include "core/controller_state.h"
+#include "core/logging.h"
+#include "core/time_utils.h"
 
 #include <stdio.h>
 #include <string.h>

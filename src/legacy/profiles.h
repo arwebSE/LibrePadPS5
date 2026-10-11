@@ -1,7 +1,7 @@
 #ifndef PROFILES_H
 #define PROFILES_H
 
-#include "pad_types.h"
+#include "core/controller_state.h"
 #include <stdint.h>
 #include <stddef.h>
 

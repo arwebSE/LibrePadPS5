@@ -1,8 +1,7 @@
 /* Host-only regression tests for the FreePad virtual-pad lifecycle. */
 #define _DEFAULT_SOURCE
-#define FREEPAD_ONLY
 #define __PROSPERO__
-#include "../src/ps5_vpad.c"
+#include "../src/ps5/virtual_controller.c"
 #include <assert.h>
 
 enum { NATIVE_USER = 100, CONTROLLER_USER = 200, OWN_HANDLE = 0x4030d };

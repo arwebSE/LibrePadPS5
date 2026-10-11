@@ -1,8 +1,8 @@
 #define _DEFAULT_SOURCE
 #define _BSD_SOURCE
 
-#include "util.h"
-#include "log.h"
+#include "core/time_utils.h"
+#include "core/logging.h"
 
 #include <stdio.h>
 #include <stdlib.h>

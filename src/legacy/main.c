@@ -1,12 +1,12 @@
-#include "version.h"
-#include "pad_types.h"
-#include "ps5_vpad.h"
-#include "usb_hotplug.h"
-#include "web.h"
-#include "tcp_stream.h"
-#include "shellui_inject.h"
-#include "log.h"
-#include "util.h"
+#include "legacy/version.h"
+#include "core/controller_state.h"
+#include "ps5/virtual_controller.h"
+#include "input/usb_device.h"
+#include "legacy/web.h"
+#include "legacy/tcp_stream.h"
+#include "ps5/system_bridge.h"
+#include "core/logging.h"
+#include "core/time_utils.h"
 
 #include <stdio.h>
 #include <stdlib.h>

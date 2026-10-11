@@ -6,7 +6,7 @@
 #include <sys/types.h>
 #include <assert.h>
 
-#include "../src/pad_types.h"
+#include "../src/core/controller_state.h"
 
 /* Replicate static helpers for unit testing */
 static inline int plausible_handle(int32_t h)

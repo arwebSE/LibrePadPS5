@@ -1,12 +1,9 @@
-#include "usb_hotplug.h"
-#include "usb_controllers.h"
-#include "ps5_vpad.h"
-#include "log.h"
-#include "util.h"
-#include "freepad_compat.h"
-#ifdef FREEPAD_ONLY
-#include "freepad_profiles.h"
-#endif
+#include "input/usb_device.h"
+#include "ps5/virtual_controller.h"
+#include "core/logging.h"
+#include "core/time_utils.h"
+#include "core/legacy_paths.h"
+#include "input/controller_profiles.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,7 +29,6 @@ typedef struct {
     int                   fd;        /* /dev/ugenX.Y control device */
     char                  dev_path[32];
     uint16_t              vid, pid;
-    usb_controller_type_t type;
     const char           *name;
     pad_conn_type_t       conn_type;
     pthread_t             thread;
@@ -41,14 +37,11 @@ typedef struct {
 #ifdef __PROSPERO__
     struct usb_fs_endpoint endpoints[4];
     uint8_t               in_index;
-    uint8_t               out_index;
-    int                   has_out;
     int                   use_fs;
     int                   in_pending;
     void                 *fs_frame[4];
     uint32_t              fs_len[4];
     uint8_t               rx_buf[64];
-    uint8_t               tx_buf[64];
 #else
     int                   ep_fd[6];
 #endif
@@ -65,65 +58,29 @@ static uint32_t s_last_seen[6][21] = {{0}};
 
 #ifdef __PROSPERO__
 
-static void find_usb_endpoints(int fd, usb_controller_type_t type, uint16_t vid, uint16_t pid, uint8_t *in_addr, uint8_t *out_addr)
+/* Prefer endpoint 0x81, otherwise use the first advertised input endpoint.
+ * No controller-specific output or wake-up commands are issued. */
+static uint8_t find_usb_input_endpoint(int fd)
 {
-    *in_addr = 0;
-    *out_addr = 0;
-    struct usb_gen_descriptor desc;
-    uint8_t raw[512];
-    memset(&desc, 0, sizeof(desc));
-    memset(raw, 0, sizeof(raw));
-    desc.ugd_data = raw;
-    desc.ugd_maxlen = sizeof(raw);
-    if (ioctl(fd, USB_GET_FULL_DESC, &desc) != 0) return;
-    int len = desc.ugd_actlen;
-    if (len <= 0 || len > (int)sizeof(raw)) len = (int)sizeof(raw);
-
-    uint8_t ins[8], outs[8];
-    int in_cnt = 0, out_cnt = 0;
-    int offset = 0;
-    while (offset + 2 <= len) {
+    struct usb_gen_descriptor desc = {0};
+    uint8_t raw[512] = {0}, first = 0;
+    desc.ugd_data = raw; desc.ugd_maxlen = sizeof(raw);
+    if (ioctl(fd,USB_GET_FULL_DESC,&desc) != 0) return 0;
+    int length = desc.ugd_actlen;
+    if (length <= 0 || length > (int)sizeof(raw)) return 0;
+    for (int offset = 0; offset+2 <= length;) {
         int entry = raw[offset];
-        if (entry < 2 || offset + entry > len) break;
-        uint8_t bDescriptorType = raw[offset + 1];
-        if (bDescriptorType == 0x05 && entry >= 5) { /* Endpoint descriptor */
-            uint8_t ep_addr = raw[offset + 2];
-            uint8_t ep_attr = raw[offset + 3] & 0x03;
-            if (ep_attr == 0x03 || ep_attr == 0x02) { /* Interrupt or Bulk */
-                if ((ep_addr & 0x80) && in_cnt < 8) ins[in_cnt++] = ep_addr;
-                else if (!(ep_addr & 0x80) && out_cnt < 8) outs[out_cnt++] = ep_addr;
+        if (entry < 2 || offset+entry > length) break;
+        if (raw[offset+1] == 5 && entry >= 7) {
+            uint8_t address = raw[offset+2], type = raw[offset+3] & 3;
+            if ((address & 0x80) && (type == 3 || type == 2)) {
+                if (address == 0x81) return address;
+                if (!first) first = address;
             }
         }
         offset += entry;
     }
-
-    int is_xbox_one = (type == CTRL_XBOX_XINPUT && vid == 0x045e && pid != 0x028e);
-
-    if (is_xbox_one) {
-        /* Only Xbox One / Series X|S (GIP) uses EP 0x82 IN and 0x02 OUT */
-        for (int i = 0; i < in_cnt; i++) {
-            if (ins[i] == 0x82) { *in_addr = 0x82; break; }
-        }
-        for (int i = 0; i < out_cnt; i++) {
-            if (outs[i] == 0x02) { *out_addr = 0x02; break; }
-        }
-    } else {
-        /* Xbox 360, Machenike G5 Pro, ShanWan, Switch, DS4, DS3 all use EP 0x81 IN */
-        for (int i = 0; i < in_cnt; i++) {
-            if (ins[i] == 0x81) { *in_addr = 0x81; break; }
-        }
-        for (int i = 0; i < out_cnt; i++) {
-            if (outs[i] == 0x02) { *out_addr = 0x02; break; }
-        }
-        if (*out_addr == 0) {
-            for (int i = 0; i < out_cnt; i++) {
-                if (outs[i] == 0x01) { *out_addr = 0x01; break; }
-            }
-        }
-    }
-
-    if (*in_addr == 0 && in_cnt > 0) *in_addr = ins[0];
-    if (*out_addr == 0 && out_cnt > 0) *out_addr = outs[0];
+    return first;
 }
 
 static int usb_fs_setup_device(usb_slot_device_t *sdev)
@@ -137,22 +94,14 @@ static int usb_fs_setup_device(usb_slot_device_t *sdev)
         ioctl(sdev->fd, USB_SET_CONFIG, &config);
     }
 
-    uint8_t in_addr = 0, out_addr = 0;
-    find_usb_endpoints(sdev->fd, sdev->type, sdev->vid, sdev->pid, &in_addr, &out_addr);
-
-    int is_xbox_one = (sdev->type == CTRL_XBOX_XINPUT && sdev->vid == 0x045e && sdev->pid != 0x028e);
-    if (in_addr == 0) {
-        in_addr = is_xbox_one ? 0x82 : 0x81;
-    }
-    if (out_addr == 0 && (sdev->type == CTRL_XBOX_XINPUT)) {
-        out_addr = is_xbox_one ? 0x02 : 0x01;
-    }
+    uint8_t in_addr = find_usb_input_endpoint(sdev->fd);
+    if (!in_addr) return 0;
 
     struct usb_fs_init init;
     memset(sdev->endpoints, 0, sizeof(sdev->endpoints));
     memset(&init, 0, sizeof(init));
     init.pEndpoints = sdev->endpoints;
-    init.ep_index_max = 2;
+    init.ep_index_max = 1;
 
     if (ioctl(sdev->fd, USB_FS_INIT, &init) != 0) {
         if (errno != ENOTTY && errno != ENXIO && errno != EIO && errno != EBADF) {
@@ -164,7 +113,7 @@ static int usb_fs_setup_device(usb_slot_device_t *sdev)
     sdev->in_index = 0;
     struct usb_fs_open open_in;
     int in_opened = 0;
-    uint8_t try_ins[] = { in_addr, 0x81, 0x82, 0x83, 0x84 };
+    uint8_t try_ins[] = { in_addr };
     for (size_t i = 0; i < sizeof(try_ins); i++) {
         if (try_ins[i] == 0) continue;
         memset(&open_in, 0, sizeof(open_in));
@@ -183,24 +132,6 @@ static int usb_fs_setup_device(usb_slot_device_t *sdev)
         return 0;
     }
 
-    sdev->has_out = 0;
-    uint8_t try_outs[] = { out_addr, 0x02, 0x01, 0x03, 0x04 };
-    for (size_t i = 0; i < sizeof(try_outs); i++) {
-        if (try_outs[i] == 0) continue;
-        sdev->out_index = 1;
-        struct usb_fs_open open_out;
-        memset(&open_out, 0, sizeof(open_out));
-        open_out.max_bufsize = 64;
-        open_out.max_frames = 1;
-        open_out.ep_index = sdev->out_index;
-        open_out.ep_no = try_outs[i];
-        if (ioctl(sdev->fd, USB_FS_OPEN, &open_out) == 0) {
-            out_addr = try_outs[i];
-            sdev->has_out = 1;
-            break;
-        }
-    }
-
     sdev->fs_frame[0] = sdev->rx_buf;
     sdev->fs_len[0] = sizeof(sdev->rx_buf);
     sdev->endpoints[0].ppBuffer = &sdev->fs_frame[0];
@@ -208,16 +139,9 @@ static int usb_fs_setup_device(usb_slot_device_t *sdev)
     sdev->endpoints[0].nFrames = 1;
     sdev->endpoints[0].flags = USB_FS_FLAG_SINGLE_SHORT_OK;
 
-    sdev->fs_frame[1] = sdev->tx_buf;
-    sdev->fs_len[1] = sizeof(sdev->tx_buf);
-    sdev->endpoints[1].ppBuffer = &sdev->fs_frame[1];
-    sdev->endpoints[1].pLength = &sdev->fs_len[1];
-    sdev->endpoints[1].nFrames = 1;
-    sdev->endpoints[1].flags = USB_FS_FLAG_SINGLE_SHORT_OK;
-
     sdev->use_fs = 1;
-    log_line("usb_hotplug: %s claimed via USB_FS (IN=0x%02x, OUT=0x%02x)",
-             sdev->name, in_addr, out_addr);
+    log_line("usb_hotplug: %s claimed via USB_FS (IN=0x%02x)",
+             sdev->name, in_addr);
     return 1;
 }
 
@@ -225,12 +149,13 @@ static int usb_fs_recv_packet(usb_slot_device_t *dev, uint8_t *buffer, uint32_t 
 {
     if (!dev->use_fs) return -1;
     struct usb_fs_endpoint *ep = &dev->endpoints[dev->in_index];
-#ifdef FREEPAD_ONLY
     (void)timeout_ms;
     /* Do not restart a transfer before consuming its completion. The old
      * short-timeout loop could discard press/release reports between calls. */
     if (!dev->in_pending) {
-        dev->fs_len[dev->in_index] = 8;
+        size_t report_size = freepad_profiles_report_size(dev->vid, dev->pid);
+        if (!report_size || report_size > length) return -1;
+        dev->fs_len[dev->in_index] = (uint32_t)report_size;
         ep->nFrames = 1;
         ep->timeout = 1000;
         struct usb_fs_start start = {0};
@@ -255,103 +180,6 @@ static int usb_fs_recv_packet(usb_slot_device_t *dev, uint8_t *buffer, uint32_t 
     struct timeval wait = {0, 10000};
     select(dev->fd + 1, &reads, NULL, NULL, &wait);
     return 0;
-#endif
-    uint32_t ask_len = length > 64 ? 64 : length;
-    dev->fs_len[dev->in_index] = ask_len;
-    ep->timeout = (uint16_t)timeout_ms;
-
-    struct usb_fs_start start;
-    memset(&start, 0, sizeof(start));
-    start.ep_index = dev->in_index;
-    if (ioctl(dev->fd, USB_FS_START, &start) != 0) {
-        if (errno != EBUSY) return -1;
-    }
-
-    int spins = timeout_ms / 4 + 1;
-    while (spins-- > 0) {
-        struct usb_fs_complete complete;
-        memset(&complete, 0, sizeof(complete));
-        complete.ep_index = dev->in_index;
-        if (ioctl(dev->fd, USB_FS_COMPLETE, &complete) == 0) {
-            if (ep->status == USB_ERR_NORMAL_COMPLETION || ep->status == USB_ERR_SHORT_XFER) {
-                uint32_t n = dev->fs_len[dev->in_index];
-                if (n > length) n = length;
-                memcpy(buffer, dev->rx_buf, n);
-                return (int)n;
-            }
-            return 0;
-        }
-        if (errno == EBUSY || errno == ETIMEDOUT || errno == EAGAIN || errno == EWOULDBLOCK) {
-            /* Transfer still in progress or waiting for packet — continue select loop */
-        } else {
-            return -1;
-        }
-
-        struct timeval wait;
-        fd_set rset, wset;
-        FD_ZERO(&rset);
-        FD_ZERO(&wset);
-        FD_SET(dev->fd, &rset);
-        FD_SET(dev->fd, &wset);
-        wait.tv_sec = 0;
-        wait.tv_usec = 4000;
-        select(dev->fd + 1, &rset, &wset, NULL, &wait);
-    }
-    return 0;
-}
-
-static int usb_fs_send_packet(usb_slot_device_t *dev, const uint8_t *buffer, uint32_t length, int timeout_ms)
-{
-    if (!dev->use_fs || !dev->has_out) return -1;
-    struct usb_fs_endpoint *ep = &dev->endpoints[dev->out_index];
-    uint32_t send_len = length > 64 ? 64 : length;
-    memcpy(dev->tx_buf, buffer, send_len);
-    dev->fs_len[dev->out_index] = send_len;
-    ep->timeout = (uint16_t)timeout_ms;
-
-    struct usb_fs_start start;
-    memset(&start, 0, sizeof(start));
-    start.ep_index = dev->out_index;
-    if (ioctl(dev->fd, USB_FS_START, &start) != 0) {
-        if (errno != EBUSY) return -1;
-    }
-
-    int spins = timeout_ms / 5 + 1;
-    while (spins-- > 0) {
-        struct usb_fs_complete complete;
-        memset(&complete, 0, sizeof(complete));
-        complete.ep_index = dev->out_index;
-        if (ioctl(dev->fd, USB_FS_COMPLETE, &complete) == 0) {
-            return (ep->status == USB_ERR_NORMAL_COMPLETION || ep->status == USB_ERR_SHORT_XFER) ? (int)send_len : -1;
-        }
-        if (errno != EBUSY) return -1;
-        usleep(4000);
-    }
-    return -1;
-}
-
-static void ack_gip_packet(usb_slot_device_t *dev, const uint8_t *report, int count)
-{
-    if (!dev->has_out || !report || count < 4) return;
-    size_t offset = 0;
-    while (offset + 4 <= (size_t)count) {
-        const uint8_t *msg = report + offset;
-        size_t payload = msg[3];
-        if ((msg[3] & 0x80) || payload < 2 || payload > 60 || offset + 4 + payload > (size_t)count) break;
-        offset += 4 + payload;
-        if ((msg[1] & 0x10) == 0) continue;
-        uint8_t client = (uint8_t)((msg[1] & 0x0f) | 0x20);
-        uint8_t ack[13];
-        memset(ack, 0, sizeof(ack));
-        ack[0] = 0x01;
-        ack[1] = client;
-        ack[2] = msg[2];
-        ack[3] = 0x09;
-        ack[5] = msg[0];
-        ack[6] = client;
-        ack[7] = (uint8_t)payload;
-        usb_fs_send_packet(dev, ack, sizeof(ack), 40);
-    }
 }
 
 #endif /* __PROSPERO__ */
@@ -363,54 +191,20 @@ static void *usb_reader_worker(void *arg)
     pad_state_t st;
     
     long last_data_time = now_ms();
-    long last_led_time = 0;
     long last_log_t = 0;
     int consecutive_errors = 0;
-#ifdef FREEPAD_ONLY
     uint32_t last_buttons = UINT32_MAX;
-#endif
 
     log_line("usb_hotplug: Reader thread started for slot %d (%s on %s)",
              dev->slot, dev->name, dev->dev_path);
 
-#ifdef __PROSPERO__
-    int is_xbox_one = (dev->type == CTRL_XBOX_XINPUT && dev->vid == 0x045e && dev->pid != 0x028e);
-    int is_genuine_x360 = (dev->type == CTRL_XBOX_XINPUT && dev->vid == 0x045e && dev->pid == 0x028e);
-    if (dev->use_fs && dev->has_out && is_xbox_one) {
-        static const uint8_t power_on[] = {0x05, 0x20, 0x00, 0x01, 0x00};
-        static const uint8_t s_init[] = {
-            0x05, 0x20, 0x00, 0x0f, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x55, 0x53, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-        };
-        static const uint8_t led_on[] = {0x0a, 0x20, 0x00, 0x03, 0x00, 0x01, 0x14};
-        usb_fs_send_packet(dev, power_on, sizeof(power_on), 80);
-        usleep(10000);
-        usb_fs_send_packet(dev, s_init, sizeof(s_init), 80);
-        usleep(10000);
-        usb_fs_send_packet(dev, led_on, sizeof(led_on), 80);
-        log_line("usb_hotplug: GIP power/s_init/led sent on slot %d", dev->slot);
-    }
-#endif
-
     while (!dev->stop_thread) {
         long cur_time = now_ms();
-
-#ifdef __PROSPERO__
-        /* Send periodic Player 1 LED / keepalive ONLY for genuine Microsoft Xbox 360 controller */
-        if (dev->use_fs && dev->has_out && is_genuine_x360 && (cur_time - last_led_time > 1500)) {
-            last_led_time = cur_time;
-            uint8_t x360_led[] = { 0x01, 0x03, 0x06 };
-            usb_fs_send_packet(dev, x360_led, sizeof(x360_led), 40);
-        }
-#endif
 
         int n = 0;
 #ifdef __PROSPERO__
         if (dev->use_fs) {
             n = usb_fs_recv_packet(dev, report, sizeof(report), 15);
-            if (n > 0 && is_xbox_one) {
-                ack_gip_packet(dev, report, n);
-            }
         }
 #else
         for (int i = 0; i < 6; i++) {
@@ -427,34 +221,19 @@ static void *usb_reader_worker(void *arg)
 
         if (n > 0) {
             consecutive_errors = 0;
-#ifdef FREEPAD_ONLY
             int parsed = freepad_profiles_parse(dev->vid, dev->pid, report, (size_t)n, &st);
-#else
-            int parsed = usb_parse_input_report(dev->type, report, (size_t)n, &st);
-            if (!parsed) {
-                parsed = usb_parse_input_report(CTRL_GENERIC_HID, report, (size_t)n, &st);
-            }
-#endif
             if (parsed) {
                 st.conn_type = dev->conn_type;
                 st.vid = dev->vid;
                 st.pid = dev->pid;
                 snprintf(st.controller_name, sizeof(st.controller_name), "%s", dev->name);
-                /* If 2.4G dongle was in standby / slot freed, re-arm the virtual pad */
-                if (dev->conn_type == CONN_USB_DONGLE_24G && vpad_slot_is_free(dev->slot)) {
-                    log_line("usb_hotplug: slot %d 2.4G controller active — re-arming virtual pad", dev->slot);
-                    vpad_add(dev->slot, dev->conn_type, dev->name);
-                }
                 vpad_update(dev->slot, &st);
                 last_data_time = cur_time;
 
-#ifdef FREEPAD_ONLY
                 if (st.buttons != last_buttons) {
-                    log_line("FreePad: raw buttons=%02x%02x hat=%x -> PS buttons=0x%08x",
-                             report[1], report[0], report[2] & 0x0f, (unsigned)st.buttons);
+                    log_line("FreePad: report bytes=%d -> PS buttons=0x%08x", n, (unsigned)st.buttons);
                     last_buttons = st.buttons;
                 }
-#endif
 
                 if (st.buttons != 0 && (cur_time - last_log_t > 300)) {
                     last_log_t = cur_time;
@@ -463,17 +242,14 @@ static void *usb_reader_worker(void *arg)
                 }
             } else if (cur_time - last_log_t > 2000) {
                 last_log_t = cur_time;
-                log_line("usb_hotplug: slot %d unparsed %d bytes: %02x %02x %02x %02x %02x %02x",
-                         dev->slot, n, report[0], report[1], report[2], report[3], report[4], report[5]);
+                log_line("usb_hotplug: slot %d rejected report length/layout (%d bytes)", dev->slot, n);
             }
-#ifdef FREEPAD_ONLY
             if (!parsed) {
                 /* Reject guessed layouts and release any previously held input. */
                 pad_state_neutral(&st);
                 st.conn_type = dev->conn_type;
                 vpad_update(dev->slot, &st);
             }
-#endif
         } else if (n < 0) {
             consecutive_errors++;
             if (consecutive_errors >= 50) {
@@ -486,18 +262,8 @@ static void *usb_reader_worker(void *arg)
             last_log_t = cur_time;
             log_line("usb_hotplug: slot %d idle/standby (n=%d, use_fs=%d)",
                      dev->slot, n, dev->use_fs);
-            /* If 2.4G dongle receives no packets for > 60 seconds (1 minute), release vpad to free user profile */
-            if (dev->conn_type == CONN_USB_DONGLE_24G && (cur_time - last_data_time > 60000)) {
-                if (!vpad_slot_is_free(dev->slot)) {
-                    log_line("usb_hotplug: slot %d 2.4G dongle idle for 60s — releasing virtual pad to standby", dev->slot);
-                    vpad_remove(dev->slot);
-                }
-            }
         }
 
-#ifndef FREEPAD_ONLY
-        usleep(4000); /* ~250 Hz polling tick */
-#endif
     }
 
 
@@ -535,43 +301,6 @@ static int find_free_slot(void)
     return -1;
 }
 
-#ifndef FREEPAD_ONLY
-static usb_controller_type_t usb_inspect_descriptors(int fd, const char **name_out)
-{
-#ifdef __PROSPERO__
-    struct usb_gen_descriptor desc;
-    uint8_t raw[512];
-    memset(&desc, 0, sizeof(desc));
-    memset(raw, 0, sizeof(raw));
-    desc.ugd_data = raw;
-    desc.ugd_maxlen = sizeof(raw);
-    if (ioctl(fd, USB_GET_FULL_DESC, &desc) != 0) return CTRL_UNKNOWN;
-    int len = desc.ugd_actlen;
-    if (len <= 0 || len > (int)sizeof(raw)) len = (int)sizeof(raw);
-
-    int offset = 0;
-    while (offset + 2 <= len) {
-        int entry = raw[offset];
-        if (entry < 2 || offset + entry > len) break;
-        uint8_t bDescriptorType = raw[offset + 1];
-        if (bDescriptorType == 0x04 && entry >= 9) { /* Interface descriptor */
-            uint8_t if_class = raw[offset + 5];
-            uint8_t if_subclass = raw[offset + 6];
-
-            /* Xbox 360 / XInput interface (Class 0xFF, SubClass 0x5D) */
-            if (if_class == 0xFF && if_subclass == 0x5D) {
-                if (name_out) *name_out = "XInput Compatible Controller";
-                return CTRL_XBOX_XINPUT;
-            }
-        }
-        offset += entry;
-    }
-#else
-    (void)fd; (void)name_out;
-#endif
-    return CTRL_UNKNOWN;
-}
-#endif
 
 static void probe_usb_devices(void)
 {
@@ -608,47 +337,27 @@ static void probe_usb_devices(void)
                 continue;
             }
 
-#ifdef FREEPAD_ONLY
             /* Never claim or send USB transfers to any other device. */
             if (!freepad_profiles_allowed(vid, pid)) {
                 close(fd);
                 continue;
             }
-#endif
 
             const char *ctrl_name = NULL;
-#ifdef FREEPAD_ONLY
-            usb_controller_type_t ctype = CTRL_PDP_FACEOFF;
-            ctrl_name = "FreePad USB switch8";
-#else
-            usb_controller_type_t ctype = usb_identify_controller(vid, pid, &ctrl_name);
-
-            /* If not found by VID/PID, inspect raw USB descriptors for XInput or HID classes */
-            if (ctype == CTRL_UNKNOWN) {
-                ctype = usb_inspect_descriptors(fd, &ctrl_name);
-            }
-#endif
+            ctrl_name = "FreePad USB controller";
 
             if (vid != 0 || pid != 0) {
                 uint32_t packed = ((uint32_t)vid << 16) | pid;
                 if (s_last_seen[bus][dev] != packed) {
                     s_last_seen[bus][dev] = packed;
-                    log_line("usb_hotplug: Device discovered on %s (VID 0x%04x, PID 0x%04x, type %d: %s)",
-                             path, vid, pid, (int)ctype, ctrl_name ? ctrl_name : "unrecognized");
+                    log_line("usb_hotplug: Device discovered on %s (VID 0x%04x, PID 0x%04x: %s)",
+                             path, vid, pid, ctrl_name);
                 }
             }
 
-            /* Skip non-gamepad / unrecognized devices (flash drives, keyboards, SSDs) */
-            if (ctype == CTRL_UNKNOWN) {
-                close(fd);
-                continue;
-            }
-
             int slot = find_free_slot();
-#ifdef FREEPAD_ONLY
             /* The dashboard and protected-profile lifecycle manage slot zero only. */
             if (slot > 0) { close(fd); continue; }
-#endif
             if (slot < 0) {
                 log_line("usb_hotplug: No free vpad slot for %s (%04x:%04x)", ctrl_name, vid, pid);
                 close(fd);
@@ -657,8 +366,6 @@ static void probe_usb_devices(void)
 
             log_line("usb_hotplug: Claiming %s on %s (slot %d)", ctrl_name, path, slot);
 
-            /* Perform controller-specific wake-up / LED handshake */
-            usb_init_controller_handshake(fd, ctype);
 
             usb_slot_device_t *sdev = &g_usb_hotplug.devices[slot];
             memset(sdev, 0, sizeof(usb_slot_device_t));
@@ -668,7 +375,6 @@ static void probe_usb_devices(void)
             snprintf(sdev->dev_path, sizeof(sdev->dev_path), "%s", path);
             sdev->vid = vid;
             sdev->pid = pid;
-            sdev->type = ctype;
             sdev->name = ctrl_name;
             sdev->stop_thread = 0;
 
@@ -686,24 +392,9 @@ static void probe_usb_devices(void)
                 sdev->ep_fd[ep - 1] = open(ep_path, O_RDONLY | O_NONBLOCK);
             }
 #endif
-            int is_dongle = (vid == 0x045e && pid == 0x0719) ||
-                            (vid == 0x045e && (pid == 0x02e6 || pid == 0x02fe)) ||
-                            (vid == 0x1a34) ||
-                            (vid == 0x2345 && pid == 0xe02f) ||
-                            (vid == 0x2dc8) ||
-                            (ctrl_name && (strstr(ctrl_name, "Dongle") != NULL ||
-                                           strstr(ctrl_name, "Adapter") != NULL ||
-                                           strstr(ctrl_name, "Receiver") != NULL));
-#ifdef FREEPAD_ONLY
-            (void)is_dongle;
             sdev->conn_type = CONN_USB_WIRED;
-#else
-            sdev->conn_type = is_dongle ? CONN_USB_DONGLE_24G : CONN_USB_WIRED;
-#endif
 
-#ifdef FREEPAD_ONLY
             if (access(FREEPAD_STATE_DIR "/pause", F_OK) != 0)
-#endif
                 vpad_add(slot, sdev->conn_type, ctrl_name);
             pthread_create(&sdev->thread, NULL, usb_reader_worker, sdev);
         }
@@ -724,11 +415,7 @@ int usb_hotplug_freepad_connected(void)
     pthread_mutex_lock(&g_usb_hotplug.lock);
     for (int i = 0; i < MAX_SLOTS; i++) {
         if (g_usb_hotplug.devices[i].active && !g_usb_hotplug.devices[i].stop_thread &&
-#ifdef FREEPAD_ONLY
             freepad_profiles_allowed(g_usb_hotplug.devices[i].vid, g_usb_hotplug.devices[i].pid))
-#else
-            g_usb_hotplug.devices[i].vid == 0x0e6f && g_usb_hotplug.devices[i].pid == 0x0184)
-#endif
             connected = 1;
     }
     pthread_mutex_unlock(&g_usb_hotplug.lock);

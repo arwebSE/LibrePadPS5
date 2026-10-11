@@ -1,6 +1,6 @@
 /* Host-only HTTP tests. Controller/console APIs are mocked; no hardware touched.
  * Run in the disposable SDK container, not on a console. */
-#include "../src/web_freepad.c"
+#include "../src/dashboard/http_server.c"
 #include <assert.h>
 #include <signal.h>
 #include <sys/stat.h>
@@ -69,6 +69,9 @@ int main(void)
     request("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n", 200, "Release virtual pad", 1);
     assert(strstr(PAGE, "<title>FreePad USB</title>"));
     assert(!strstr(PAGE, "PDP"));
+    assert(!strstr(PAGE, "Switch controller"));
+    request("GET /dashboard.css HTTP/1.1\r\nHost: localhost\r\n\r\n", 200, "text/css", 0);
+    request("GET /dashboard.js HTTP/1.1\r\nHost: localhost\r\n\r\n", 200, "customLayout", 0);
     assert(control_header("POST /api/home HTTP/1.1\r\nX-FreePad-Control: 1\r\n\r\n"));
     assert(control_header("POST /api/home HTTP/1.1\r\nx-freepad-control:\t1\r\n\r\n"));
     assert(!control_header("POST /api/home HTTP/1.1\r\nX-FreePad-Control: 10\r\n\r\n"));

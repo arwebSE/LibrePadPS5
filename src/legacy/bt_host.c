@@ -1,9 +1,9 @@
-#include "bt_host.h"
-#include "bt_hci_usb.h"
-#include "ps5_vpad.h"
-#include "profiles.h"
-#include "log.h"
-#include "util.h"
+#include "legacy/bt_host.h"
+#include "legacy/bt_hci_usb.h"
+#include "ps5/virtual_controller.h"
+#include "legacy/profiles.h"
+#include "core/logging.h"
+#include "core/time_utils.h"
 
 #include <stdio.h>
 #include <stdlib.h>

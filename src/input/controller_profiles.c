@@ -1,6 +1,5 @@
 #define _DEFAULT_SOURCE
-#include "freepad_profiles.h"
-#include "usb_controllers.h"
+#include "input/controller_profiles.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
@@ -9,15 +8,25 @@
 #include <string.h>
 #include <unistd.h>
 
-typedef struct { uint16_t vid, pid; uint8_t map[14]; } controller_profile;
+typedef struct {
+    uint16_t vid, pid, bits[14];
+    uint8_t map[14];
+    int length, report_id, hat, neutral, axes[4], custom;
+} controller_profile;
+static const uint32_t hats[8] = {
+    PAD_DPAD_UP, PAD_DPAD_UP|PAD_DPAD_RIGHT, PAD_DPAD_RIGHT,
+    PAD_DPAD_RIGHT|PAD_DPAD_DOWN, PAD_DPAD_DOWN,
+    PAD_DPAD_DOWN|PAD_DPAD_LEFT, PAD_DPAD_LEFT, PAD_DPAD_LEFT|PAD_DPAD_UP
+};
 static const char *const targets[] = {
     "none", "cross", "circle", "square", "triangle", "l1", "r1", "l2", "r2",
-    "create", "options", "l3", "r3", "ps", "touchpad"
+    "create", "options", "l3", "r3", "ps", "touchpad", "up", "right", "down", "left"
 };
 static const uint32_t masks[] = {
     0, PAD_BTN_CROSS, PAD_BTN_CIRCLE, PAD_BTN_SQUARE, PAD_BTN_TRIANGLE,
     PAD_BTN_L1, PAD_BTN_R1, PAD_BTN_L2, PAD_BTN_R2, PAD_BTN_SHARE,
-    PAD_BTN_OPTIONS, PAD_BTN_L3, PAD_BTN_R3, PAD_BTN_PS, PAD_BTN_TOUCHPAD
+    PAD_BTN_OPTIONS, PAD_BTN_L3, PAD_BTN_R3, PAD_BTN_PS, PAD_BTN_TOUCHPAD,
+    PAD_DPAD_UP, PAD_DPAD_RIGHT, PAD_DPAD_DOWN, PAD_DPAD_LEFT
 };
 /* switch8 source bits: X,A,B,Y,L,R,ZL,ZR,Minus,Plus,L3,R3,Home,Capture. */
 static const uint8_t defaults[14] = {4,2,1,3,5,6,7,8,9,10,11,12,13,14};
@@ -41,6 +50,48 @@ static int hex4(const char *s, uint16_t *value)
     return result != 0;
 }
 
+/* Offsets are absolute bytes/bits, including a real report ID if present. */
+static void preset(controller_profile *p)
+{
+    p->length = 8; p->report_id = -1; p->hat = 2; p->neutral = 15;
+    for (int i = 0; i < 4; i++) p->axes[i] = i+3;
+    for (int i = 0; i < 14; i++) p->bits[i] = (uint16_t)i;
+}
+static int decimal(const char *text, int low, int high, int *out)
+{
+    if (!text || !*text) return 0;
+    for (const char *c = text; *c; c++)
+        if (!(*c >= '0' && *c <= '9') && !(c == text && *c == '-')) return 0;
+    char *end;
+    errno = 0;
+    long value = strtol(text, &end, 10);
+    if (errno || *end || value < low || value > high) return 0;
+    *out = (int)value;
+    return 1;
+}
+static int layout(char *text, controller_profile *p)
+{
+    preset(p);
+    if (!strcmp(text, "switch8")) return 1;
+    if (strncmp(text, "hid:", 4)) return 0;
+    int *fields[] = {&p->length,&p->report_id,&p->hat,&p->neutral,
+                    &p->axes[0],&p->axes[1],&p->axes[2],&p->axes[3]};
+    const int low[] = {1,-1,-1,8,-1,-1,-1,-1};
+    const int high[] = {64,255,63,15,63,63,63,63};
+    char *field = text+4;
+    for (int i = 0; i < 8; i++) {
+        char *colon = strchr(field, ':');
+        if ((i < 7) != (colon != NULL)) return 0;
+        if (colon) *colon = 0;
+        if (!decimal(field,low[i],high[i],fields[i])) return 0;
+        if (colon) field = colon+1;
+    }
+    if (p->hat >= p->length) return 0;
+    for (int i = 0; i < 4; i++) if (p->axes[i] >= p->length) return 0;
+    p->custom = 1;
+    return 1;
+}
+
 static int parse_text(const char *text, controller_profile *out, size_t *count)
 {
     if (!text || strlen(text) >= FREEPAD_PROFILE_TEXT_MAX) return 0;
@@ -52,18 +103,30 @@ static int parse_text(const char *text, controller_profile *out, size_t *count)
         size_t length = strlen(line);
         if (length && line[length-1] == '\r') line[--length] = 0;
         if (!length || line[0] == '#') continue;
-        if (used == FREEPAD_PROFILE_MAX || length < 18 || line[4] != ':' ||
-            strncmp(line+9, " switch8 ", 9)) return 0;
+        if (used == FREEPAD_PROFILE_MAX || length < 12 || line[4] != ':' || line[9] != ' ') return 0;
         controller_profile *p = &out[used];
+        memset(p, 0, sizeof(*p));
+        char *mapping = strchr(line+10, ' ');
+        if (!mapping) return 0;
+        *mapping++ = 0;
+        if (!layout(line+10, p)) return 0;
         if (!hex4(line, &p->vid) || !hex4(line+5, &p->pid) || p->vid == 0x054c) return 0;
         for (size_t i = 0; i < used; i++)
             if (out[i].vid == p->vid && out[i].pid == p->pid) return 0;
         /* Deliberately no strtok for fields: empty/trailing fields are invalid. */
-        char *field = line + 18;
+        char *field = mapping;
         for (int i = 0; i < 14; i++) {
             char *comma = strchr(field, ',');
             if ((i < 13) != (comma != NULL)) return 0;
             if (comma) *comma = 0;
+            char *at = strchr(field, '@');
+            if (p->custom && !at) return 0;
+            if (at) {
+                *at++ = 0;
+                int bit;
+                if (!p->custom || !decimal(at,0,p->length*8-1,&bit)) return 0;
+                p->bits[i] = (uint16_t)bit;
+            }
             int found = -1;
             for (size_t j = 0; j < sizeof(targets)/sizeof(targets[0]); j++)
                 if (!strcmp(field, targets[j])) { found = (int)j; break; }
@@ -82,6 +145,7 @@ int freepad_profiles_init(const char *path)
 {
     if (!path || strlen(path) >= sizeof(config_path)-16) return 0;
     controller_profile next[FREEPAD_PROFILE_MAX] = {{.vid=0x0e6f,.pid=0x0184}};
+    preset(&next[0]);
     memcpy(next[0].map, defaults, sizeof(defaults));
     size_t count = 1;
     FILE *file = fopen(path, "rb");
@@ -118,11 +182,17 @@ int freepad_profiles_export(char *out, size_t size)
     if (size) out[0] = 0;
     pthread_mutex_lock(&lock);
     for (size_t i = 0; i < profile_count && ok; i++) {
-        int n = snprintf(out+used, size-used, "%04x:%04x switch8 ", profiles[i].vid, profiles[i].pid);
+        controller_profile *p = &profiles[i];
+        char format[100] = "switch8";
+        if (p->custom) snprintf(format,sizeof(format),"hid:%d:%d:%d:%d:%d:%d:%d:%d",
+            p->length,p->report_id,p->hat,p->neutral,p->axes[0],p->axes[1],p->axes[2],p->axes[3]);
+        int n = snprintf(out+used, size-used, "%04x:%04x %s ", p->vid, p->pid, format);
         if (n < 0 || (size_t)n >= size-used) { ok = 0; break; }
         used += (size_t)n;
         for (int j = 0; j < 14; j++) {
-            n = snprintf(out+used, size-used, "%s%s", targets[profiles[i].map[j]], j == 13 ? "\n" : ",");
+            char bit[12] = "";
+            if (p->custom) snprintf(bit,sizeof(bit),"@%u",p->bits[j]);
+            n = snprintf(out+used, size-used, "%s%s%s", targets[p->map[j]], bit, j == 13 ? "\n" : ",");
             if (n < 0 || (size_t)n >= size-used) { ok = 0; break; }
             used += (size_t)n;
         }
@@ -161,12 +231,12 @@ int freepad_profiles_parse(uint16_t vid, uint16_t pid, const uint8_t *data,
 {
     if (!data || !state) return 0;
     pad_state_neutral(state);
-    uint8_t map[14];
+    controller_profile selected = {0};
     int found = 0;
     pthread_mutex_lock(&lock);
     for (size_t i = 0; i < profile_count; i++)
         if (profiles[i].vid == vid && profiles[i].pid == pid) {
-            memcpy(map, profiles[i].map, sizeof(map)); found = 1; break;
+            selected = profiles[i]; found = 1; break;
         }
     if (found) {
         size_t pos = (size_t)snprintf(last_report, sizeof(last_report), "%04x:%04x bytes=%zu report=", vid, pid, len);
@@ -175,14 +245,23 @@ int freepad_profiles_parse(uint16_t vid, uint16_t pid, const uint8_t *data,
         snprintf(last_report+pos, sizeof(last_report)-pos, "%s\n", len > 64 ? "..." : "");
     }
     pthread_mutex_unlock(&lock);
-    if (!found || !(len == 8 || (len == 9 && data[0] == 0))) return 0;
-    size_t off = len == 9 ? 1 : 0;
-    unsigned hat = data[off+2] & 15;
-    if (hat > 7 && hat != 15) return 0;
-    if (!usb_parse_input_report(CTRL_PDP_FACEOFF, data, len, state)) return 0;
-    uint32_t old = state->buttons;
-    state->buttons &= PAD_DPAD_UP | PAD_DPAD_RIGHT | PAD_DPAD_DOWN | PAD_DPAD_LEFT;
-    for (int i = 0; i < 14; i++) if (old & masks[defaults[i]]) state->buttons |= masks[map[i]];
+    if (!found) return 0;
+    const uint8_t *report = data;
+    if (!selected.custom && len == 9 && data[0] == 0) { report++; len--; }
+    if (len != (size_t)selected.length ||
+        (selected.report_id >= 0 && report[0] != selected.report_id)) return 0;
+    if (selected.hat >= 0) {
+        unsigned hat = report[selected.hat] & 15;
+        if (hat > 7 && hat != (unsigned)selected.neutral) return 0;
+        if (hat < 8) state->buttons = hats[hat];
+    }
+    uint8_t *axes[] = {&state->lx,&state->ly,&state->rx,&state->ry};
+    for (int i = 0; i < 4; i++)
+        if (selected.axes[i] >= 0) *axes[i] = report[selected.axes[i]];
+    for (int i = 0; i < 14; i++) {
+        unsigned bit = selected.bits[i];
+        if (report[bit/8] & (1u << (bit%8))) state->buttons |= masks[selected.map[i]];
+    }
     state->l2 = (state->buttons & PAD_BTN_L2) ? 255 : 0;
     state->r2 = (state->buttons & PAD_BTN_R2) ? 255 : 0;
     return 1;
@@ -193,4 +272,13 @@ void freepad_profiles_report(char *out, size_t size)
     pthread_mutex_lock(&lock);
     snprintf(out, size, "%s", last_report);
     pthread_mutex_unlock(&lock);
+}
+size_t freepad_profiles_report_size(uint16_t vid, uint16_t pid)
+{
+    size_t size = 0;
+    pthread_mutex_lock(&lock);
+    for (size_t i = 0; i < profile_count; i++)
+        if (profiles[i].vid == vid && profiles[i].pid == pid) size = (size_t)profiles[i].length;
+    pthread_mutex_unlock(&lock);
+    return size;
 }

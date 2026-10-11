@@ -3,9 +3,9 @@
 #include <string.h>
 #include <assert.h>
 
-#include "../src/pad_types.h"
-#include "../src/usb_controllers.h"
-#include "../src/profiles.h"
+#include "../src/core/controller_state.h"
+#include "../src/legacy/report_decoder.h"
+#include "../src/legacy/profiles.h"
 
 static void test_ds4_usb_parsing(void)
 {

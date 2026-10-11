@@ -1,0 +1,88 @@
+body {
+  margin: 0;
+  background: #111722;
+  color: #e8eef7;
+  font: 16px system-ui;
+}
+main {
+  max-width: 760px;
+  margin: auto;
+  padding: 28px 18px;
+}
+h1 {
+  margin: 0;
+  font-size: 30px;
+}
+p {
+  line-height: 1.5;
+  color: #b4c2d6;
+}
+.card {
+  background: #1b2535;
+  border: 1px solid #34445b;
+  border-radius: 14px;
+  padding: 20px;
+  margin-top: 18px;
+}
+.row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+button,
+select {
+  font: inherit;
+  border: 1px solid #58718e;
+  border-radius: 8px;
+  padding: 10px;
+  background: #243951;
+  color: #fff;
+  cursor: pointer;
+}
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.danger {
+  background: #5a2934;
+}
+pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 300px;
+  overflow: auto;
+  font-size: 12px;
+}
+textarea,
+input {
+  font: inherit;
+  background: #111722;
+  color: #e8eef7;
+  border: 1px solid #58718e;
+  border-radius: 6px;
+  padding: 8px;
+}
+textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 100px;
+}
+input {
+  width: 100px;
+}
+.maps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+.ok {
+  color: #7ae5b2;
+}
+.muted {
+  color: #b4c2d6;
+}
+label {
+  display: block;
+  margin: 12px 0 8px;
+}

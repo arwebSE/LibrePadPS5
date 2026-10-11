@@ -1,7 +1,7 @@
 #ifndef PS5_VPAD_H
 #define PS5_VPAD_H
 
-#include "pad_types.h"
+#include "core/controller_state.h"
 #include <stdint.h>
 
 typedef enum {

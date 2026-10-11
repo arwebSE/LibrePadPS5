@@ -1,7 +1,7 @@
 /* Host-only profile tests: disposable container, no console access. */
 #define _DEFAULT_SOURCE
-#include "freepad_profiles.h"
-#include "usb_controllers.h"
+#include "input/controller_profiles.h"
+#include "legacy/report_decoder.h"
 #include <assert.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -74,6 +74,25 @@ int main(void)
     for (int i = 0; i < 30; i++) assert(freepad_profiles_save(i%2 ? normal : remapped));
     pthread_join(thread,NULL);
     freepad_profiles_report(text,sizeof(text)); assert(strstr(text,"0e6f:0184 bytes=8 report="));
+    /* Custom layout: 12-byte report with ID 7, button in byte 8, no hat. */
+    const char custom[] = "1234:5678 hid:12:7:-1:15:4:5:6:7 cross@64,up@65,right@66,down@67,left@68,none@69,none@70,none@71,none@72,none@73,none@74,none@75,none@76,none@77\n";
+    assert(freepad_profiles_save(custom));
+    assert(freepad_profiles_report_size(0x1234,0x5678) == 12);
+    assert(freepad_profiles_report_size(0x0e6f,0x0184) == 0);
+    uint8_t generic[12] = {7,0,0,0,10,20,30,40,3,0,0,0};
+    assert(freepad_profiles_parse(0x1234,0x5678,generic,12,&st));
+    assert(st.buttons == (PAD_BTN_CROSS|PAD_DPAD_UP) && st.lx == 10 && st.ry == 40);
+    generic[0] = 8;
+    assert(!freepad_profiles_parse(0x1234,0x5678,generic,12,&st) && st.buttons == 0);
+    generic[0] = 7;
+    assert(!freepad_profiles_parse(0x1234,0x5678,generic,11,&st));
+    assert(freepad_profiles_export(text,sizeof(text)) && !strcmp(text,custom));
+    assert(freepad_profiles_init(path));
+    assert(freepad_profiles_parse(0x1234,0x5678,generic,12,&st));
+    assert(!freepad_profiles_save("1234:5678 hid:0:7:-1:15:4:5:6:7 cross@64"));
+    assert(!freepad_profiles_save("1234:5678 hid:12:7:12:15:4:5:6:7 cross@64"));
+    assert(!freepad_profiles_save("1234:5678 hid:12:7:-1:15:4:5:6:7 cross@96,up@65,right@66,down@67,left@68,none@69,none@70,none@71,none@72,none@73,none@74,none@75,none@76,none@77"));
+    assert(freepad_profiles_export(text,sizeof(text)) && !strcmp(text,custom));
     /* Invalid file must fail closed, rather than silently re-enabling IDs. */
     FILE *file = fopen(path,"wb"); assert(file); fputs("bad",file); fclose(file);
     assert(!freepad_profiles_init(path));

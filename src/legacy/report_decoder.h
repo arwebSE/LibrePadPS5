@@ -1,7 +1,7 @@
-#ifndef USB_CONTROLLERS_H
-#define USB_CONTROLLERS_H
+#ifndef LEGACY_REPORT_DECODER_H
+#define LEGACY_REPORT_DECODER_H
 
-#include "pad_types.h"
+#include "core/controller_state.h"
 #include <stdint.h>
 #include <stddef.h>
 

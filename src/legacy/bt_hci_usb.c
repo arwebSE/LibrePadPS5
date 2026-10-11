@@ -1,6 +1,6 @@
-#include "bt_hci_usb.h"
-#include "log.h"
-#include "util.h"
+#include "legacy/bt_hci_usb.h"
+#include "core/logging.h"
+#include "core/time_utils.h"
 
 #include <stdio.h>
 #include <stdlib.h>

@@ -1,9 +1,9 @@
-#include "web.h"
-#include "ps5_vpad.h"
-#include "shellui_inject.h"
-#include "version.h"
-#include "log.h"
-#include "util.h"
+#include "legacy/web.h"
+#include "ps5/virtual_controller.h"
+#include "ps5/system_bridge.h"
+#include "legacy/version.h"
+#include "core/logging.h"
+#include "core/time_utils.h"
 
 #include <stdio.h>
 #include <stdlib.h>

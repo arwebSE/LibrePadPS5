@@ -1,12 +1,12 @@
 # FreePad USB setup and reference
 
-Use a supported wired Switch controller on a jailbroken PS5. USB only; no Bluetooth.
+Use a supported wired USB controller on a jailbroken PS5. USB only; no Bluetooth.
 
 **[Download ELF](https://github.com/arwebSE/freepad-usb-ps5/releases/latest/download/FreePad-USB.elf)** · [Releases](https://github.com/arwebSE/freepad-usb-ps5/releases) · [Issues](https://github.com/arwebSE/freepad-usb-ps5/issues)
 
 ## Supported hardware
 
-- **Hardware verified:** PDP Faceoff Deluxe+ Audio Wired Switch controller, USB ID `0e6f:0184`. Preview profiles can explicitly allow other IDs using the same `switch8` layout, but they are not physically verified.
+- **Hardware verified:** PDP Faceoff Deluxe+ Audio Wired Switch controller, USB ID `0e6f:0184`. Development builds also accept configurable HID layouts; other controllers are not physically verified.
 - Tested on **PS5 firmware 12.60**: sticks, buttons, D-pad, dashboard and separate-profile assignment. Individual games/emulators and other firmware are not explicitly verified.
 - No rumble, motion, controller audio or touchpad movement. Triggers are digital.
 
@@ -14,7 +14,7 @@ Use a supported wired Switch controller on a jailbroken PS5. USB only; no Blueto
 
 Requires an existing jailbreak, ELF loader or Payload Manager and FTP access.
 
-**Use a separate PS5 user for the Switch controller**, such as `SwitchCtl`. Do not assign it to your DualSense user.
+**Use a separate PS5 user for the USB controller**, such as `SwitchCtl`. Do not assign it to your DualSense user.
 
 1. Confirm your DualSense works. Stop AnyPad, OmniPad and older controller payloads.
 2. Through FTP, create the state directory listed in [upgrade compatibility](#troubleshooting--upgrades) and upload an empty file named `pause` into it.
@@ -22,7 +22,7 @@ Requires an existing jailbreak, ELF loader or Payload Manager and FTP access.
 4. Protect your DualSense user: open `/api/state` at that address, find its eight-digit user `id`, put only that ID in a plain-text file named `native-user`, and upload it into the state directory. Click **Stop payload**, then reload the ELF.
 5. Click **Reconnect**, press **Home** or the dashboard's **Press Home / PS**, and select **`SwitchCtl`** in the console's user picker. Check both controllers.
 
-Optional: save the Switch user's ID in `pdp-user` in the same directory for automatic assignment. Settings are read on startup; restart after editing. Never copy IDs from another console. Invalid or identical protected/preferred IDs prevent startup. Protection does not override the console's own user picker.
+Optional: save the USB controller user's ID in `pdp-user` in the same directory for automatic assignment. Settings are read on startup; restart after editing. Never copy IDs from another console. Invalid or identical protected/preferred IDs prevent startup. Protection does not override the console's own user picker.
 
 Payload Manager: place the ELF and [metadata](../payload/FreePad-USB.elf.json) together in `/data/pldmgr/payloads/FreePad-USB/`. Keep one installed entry and stop the old instance before loading a replacement.
 
@@ -48,26 +48,33 @@ Native connection status **unavailable** does not mean your DualSense is disconn
 
 ## Controller profiles & remapping (preview)
 
-Requires **v0.4.0-preview**, not the older stable download. One controller at a time. New behavior is host-tested only; keep the previous release available for recovery.
+Requires the development build, not the older stable download. One controller at a time. Custom layouts are host-tested only; keep the previous release available.
 
-1. Open **Controller profiles** in the dashboard. Select an existing profile, or enter your controller's four-digit hexadecimal **VID/PID**.
-2. Choose the outputs for **B/A/Y/X** or any of the other ten buttons. `none` disables a button; duplicate outputs are allowed. **Default mapping** restores the dropdowns only.
-3. Click **Add / update in editor**. To remove a profile, delete its entire line from the editor.
-4. Click **Release virtual pad** and wait for removal, then **Save & apply**. Validation/save failures leave existing profiles unchanged. Click **Reconnect** after saving; unplug/replug a newly added device if needed.
+1. Enter the controller’s four-digit hexadecimal VID/PID.
+2. Choose `switch8` for the tested layout, or enter report length, report ID, hat and axis byte offsets and click **Use custom layout**. Offsets include any real report-ID byte. Use `-1` to disable a field.
+3. Set each input’s source bit and PS5 output. **Default mapping** restores the tested preset, without saving.
+4. Click **Add / update in editor**, **Release virtual pad**, then **Save & apply** after removal. Click **Reconnect**; newly added devices may need replugging.
 
-**Export file** downloads the editor contents. **Import file** loads a `.conf` into the editor without applying it; review it, then Save. **Reload saved** discards editor changes. Up to eight ID-specific profiles are stored atomically in `controllers.conf` in the state directory. Missing file uses the original controller/default mapping; invalid files refuse startup. Removing this new file while the payload is stopped restores defaults on the next load.
+Import/export operates on the editor contents. Up to eight profiles are saved atomically in `controllers.conf` in the state directory. Invalid settings leave the previous configuration unchanged; invalid files refuse startup. A missing file uses the tested default.
 
-Only `switch8` is implemented: raw button bits **X,A,B,Y,L,R,ZL,ZR,Minus,Plus,L3,R3,Home,Capture**, followed by a hat at byte 2 (0–7; neutral 15), four unsigned axes at bytes 3–6 and padding at byte 7. No controller-specific initialization is sent. Other report formats need a decoder; do not add an ID merely to try arbitrary data. Sony vendor ID `054c` is rejected. Explicit configuration is not a guarantee that a third-party device cannot interfere with native input.
-
-Profile line format (mapping order is the raw-bit order above, not the dashboard display order):
+`switch8` preserves the original 8-byte format: 14 bits X,A,B,Y,L,R,ZL,ZR,Minus,Plus,L3,R3,Home,Capture; hat byte 2 (0–7, neutral 15); unsigned axes in bytes 3–6.
 
 ```text
 0e6f:0184 switch8 triangle,circle,cross,square,l1,r1,l2,r2,create,options,l3,r3,ps,touchpad
 ```
 
-Targets: `none,cross,circle,square,triangle,l1,r1,l2,r2,create,options,l3,r3,ps,touchpad`. Strict IDs, supported format, exactly 14 targets and unique ID pairs are required. D-pad/axes are not remapped. Digital trigger values follow the mapped L2/R2 outputs.
+Custom format: `hid:length:reportID:hatByte:neutralHat:lxByte:lyByte:rxByte:ryByte`.
+Each of the 14 bindings is `output@absoluteBit`. Bits are least-significant-first in each byte. Report lengths are 1–64 bytes; ID `-1` means no ID. Hat uses the low nibble; neutral must be 8–15. Axes are unsigned 8-bit. Buttons are active-high.
 
-**View latest raw report** shows recent bytes from an explicitly configured, claimed device, even while its virtual pad is released. It does not capture unknown or native controllers. USB reads request eight bytes for this format; this is not automatic HID-layout detection. For other layouts, capture reports on a PC with `python tools/usb_report_probe.py --vid 1234 --pid 5678` (requires `hidapi`) and implement/test a separate decoder first.
+Example only (not a verified controller): 12 bytes, report ID 7, no hat, axes bytes 4–7, Cross at byte 8 bit 0 and D-pad at the following bits:
+
+```text
+1234:5678 hid:12:7:-1:15:4:5:6:7 cross@64,up@65,right@66,down@67,left@68,none@69,none@70,none@71,none@72,none@73,none@74,none@75,none@76,none@77
+```
+
+Outputs: `none,cross,circle,square,triangle,l1,r1,l2,r2,create,options,l3,r3,ps,touchpad,up,right,down,left`. Digital trigger values follow L2/R2 outputs. No automatic layout detection, signed/16-bit axes or proprietary initialization. Those protocols require a dedicated driver.
+
+**View latest raw report** shows bytes from an explicitly configured device, even while paused. For initial investigation, capture on a PC using `python tools/usb_report_probe.py --vid 1234 --pid 5678` (requires `hidapi`). Do not guess layouts on the console. Sony VID `054c` is blocked; explicit configuration is not proof that a third-party device cannot interfere with native input.
 
 The original protected-user settings and native-device ownership checks still apply. New IDs remain disallowed unless saved in a valid profile. There is no generic-parser fallback.
 
@@ -75,10 +82,10 @@ The original protected-user settings and native-device ownership checks still ap
 
 - **Inactive pad:** click Reconnect, check the log and USB ID. If unassigned, press Home and select the separate user. For game focus, try Home/PS; game-specific behavior is not verified.
 - **Skipped D-pad taps:** use the current release and stop older instances. Report recurring problems with logs.
-- **DualSense cannot connect:** stop FreePad, unplug the Switch controller and fully shut down the console—not Rest Mode. A development-session failure required a full reboot; its cause remains unconfirmed. If needed, [reset the DualSense](https://www.playstation.com/en-us/support/hardware/troubleshoot-dualsense/) and reconnect with a USB data cable. Do not update firmware just to troubleshoot.
+- **DualSense cannot connect:** stop FreePad, unplug the USB controller and fully shut down the console—not Rest Mode. A development-session failure required a full reboot; its cause remains unconfirmed. If needed, [reset the DualSense](https://www.playstation.com/en-us/support/hardware/troubleshoot-dualsense/) and reconnect with a USB data cable. Do not update firmware just to troubleshoot.
 - **Dashboard offline:** check the console IP, HTTP and port `8096`. It closes when the payload stops.
 - **Stop through FTP:** upload an empty file named `stop` into the state directory.
-- **Upgrade compatibility:** the on-console state directory is still `/data/pdp-pad/`; keep it and your profile files. The legacy `pdp-user` filename and lock remain compatible with previous builds. These paths are centralized in [freepad_compat.h](../src/freepad_compat.h); changing them without migration would lose profile protection and allow old/new instances to use separate locks. Historical releases keep their original assets.
+- **Upgrade compatibility:** the on-console state directory is still `/data/pdp-pad/`; keep it and your profile files. The legacy `pdp-user` filename and lock remain compatible with previous builds. These paths are centralized in [legacy_paths.h](../src/core/legacy_paths.h); changing them without migration would lose profile protection and allow old/new instances to use separate locks. Historical releases keep their original assets.
 
 The payload manages its own virtual pad; no Bluetooth scanning, shell-process injection, native-handle fallback or autoload. It still uses elevated credentials and shared controller services: crashes/service issues remain possible. Do not run competing controller payloads.
 
@@ -91,18 +98,11 @@ docker build -t freepad-usb-builder .
 docker run --rm -v "$PWD:/work" -w /work freepad-usb-builder
 ```
 
-PowerShell: use `"${PWD}:/work"` for the volume. Output: `dist/FreePad-USB.elf`. Builder uses **PS5 Payload SDK v0.43**. With the SDK installed: `make -f freepad.mk`. Inherited `make ps5` builds upstream OmniPad, not FreePad.
+PowerShell: use `"${PWD}:/work"` for the volume. Output: `dist/FreePad-USB.elf`. Builder uses **PS5 Payload SDK v0.43**. With the SDK installed: `make -f freepad.mk`. Dashboard assets are generated from `web/` during the build; no extra files need uploading.
 
 Host tests (run inside a disposable builder container; they create the legacy state directory and do not contact a PS5):
 
-Run all four suites with `make test`, or individually:
-
-```sh
-clang -std=c11 -Wall -Wextra -Werror -Isrc tests/test_freepad.c src/usb_controllers.c -o /tmp/parser-test && /tmp/parser-test
-clang -std=c11 -Wall -Wextra -Werror -pthread -fsanitize=address,undefined -g -Isrc tests/test_freepad_profiles.c src/freepad_profiles.c src/usb_controllers.c -o /tmp/profile-test && /tmp/profile-test
-clang -std=c11 -Wall -Wextra -Werror -pthread -fsanitize=address,undefined -g -Isrc tests/test_freepad_dashboard.c src/freepad_profiles.c src/usb_controllers.c -o /tmp/dashboard-test && /tmp/dashboard-test
-clang -std=c11 -Wall -Wextra -Werror -pthread -fsanitize=address,undefined -g -Isrc tests/test_freepad_lifecycle.c src/util.c -ldl -o /tmp/lifecycle-test && /tmp/lifecycle-test
-```
+Run all four sanitizer-enabled suites with `make test`. This also generates the dashboard assets. Use the disposable container, not the live console.
 
 ## Credits
 

@@ -1,10 +1,10 @@
 #define _DEFAULT_SOURCE
-#include "freepad_compat.h"
-#include "web_freepad.h"
-#include "ps5_vpad.h"
-#include "usb_hotplug.h"
-#include "log.h"
-#include "freepad_profiles.h"
+#include "core/legacy_paths.h"
+#include "dashboard/http_server.h"
+#include "ps5/virtual_controller.h"
+#include "input/usb_device.h"
+#include "core/logging.h"
+#include "input/controller_profiles.h"
 
 #include <arpa/inet.h>
 #include <ctype.h>
@@ -34,45 +34,7 @@ static int server = -1;
 static pthread_t thread;
 static atomic_int running;
 
-static const char PAGE[] =
-"<!doctype html><html lang='en'><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
-"<title>FreePad USB</title><style>body{margin:0;background:#111722;color:#e8eef7;font:16px system-ui}main{max-width:760px;margin:auto;padding:28px 18px}"
-"h1{margin:0;font-size:30px}p{line-height:1.5;color:#b4c2d6}.card{background:#1b2535;border:1px solid #34445b;border-radius:14px;padding:20px;margin-top:18px}"
-".row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}button,select{font:inherit;border:1px solid #58718e;border-radius:8px;padding:10px;background:#243951;color:#fff;cursor:pointer}"
-"button:disabled{opacity:.45;cursor:default}.danger{background:#5a2934}pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:300px;overflow:auto;font-size:12px}"
-"textarea,input{font:inherit;background:#111722;color:#e8eef7;border:1px solid #58718e;border-radius:6px;padding:8px}textarea{box-sizing:border-box;width:100%;min-height:100px}input{width:100px}.maps{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}"
-".ok{color:#7ae5b2}.muted{color:#b4c2d6}label{display:block;margin:12px 0 8px}</style><main><h1>FreePad USB</h1><p>Wired Switch controllers, liberated for PS5. <span id='fw'></span></p>"
-"<div class='card'><h2 id='status'>Connecting...</h2><p id='profile'></p><p id='input' class='muted'></p><div class='row'>"
-"<button id='home' onclick='act(\"home\")'>Press Home / PS</button><button onclick='act(\"release\")'>Release virtual pad</button>"
-"<button id='reconnect' onclick='act(\"reconnect\")'>Reconnect</button></div><label for='users'>Assign Switch controller to profile</label>"
-"<div class='row'><select id='users'></select><button id='bind' onclick='act(\"rebind?user=\"+document.getElementById(\"users\").value)'>Assign profile</button></div></div>"
-"<div class='card'><h2>Native controllers</h2><p id='native'>Checking...</p><p>Release the virtual pad to check native controller behavior. If a DualSense cannot pair, connect it by USB and press PS.</p></div>"
-"<div class='card'><h2>Controller profiles</h2><p>Only switch8 reports are supported: 14 button bits, hat, four 8-bit axes, no USB report ID. A matching USB ID does not prove a matching layout. Sony USB IDs are blocked.</p>"
-"<label for='controllers'>Saved controller</label><select id='controllers' onchange='editProfile()'></select><div class='row'><label>VID <input id='vid' maxlength='4' value='0e6f'></label><label>PID <input id='pid' maxlength='4' value='0184'></label></div>"
-"<div class='maps' id='maps'></div><div class='row'><button onclick='defaults()'>Default mapping</button><button onclick='stageProfile()'>Add / update in editor</button></div>"
-"<label for='profiletext'>Import / export (up to 8 profiles)</label><textarea id='profiletext' spellcheck='false'></textarea>"
-"<div class='row'><button onclick='loadProfiles()'>Reload saved</button><button onclick='exportProfiles()'>Export file</button><label>Import file <input type='file' id='importfile' accept='.conf,.txt' onchange='importProfiles(this)'></label><button onclick='saveProfiles()'>Save &amp; apply</button></div>"
-"<p>Release the virtual pad before saving. Save applies atomically; then Reconnect. Adding a device may require unplugging/replugging it. Resetting mappings does not save until you update the editor and select Save.</p>"
-"<button onclick='rawReport()'>View latest raw report</button><pre id='rawreport'></pre></div>"
-"<div class='card'><div class='row'><button onclick='logs()'>Refresh log</button><button class='danger' onclick='act(\"stop\")'>Stop payload</button></div><p id='message' role='status'></p><pre id='log'></pre></div></main>"
-"<script>let stopped=false;const el=id=>document.getElementById(id);async function refresh(){if(stopped)return;try{let r=await fetch('/api/state',{cache:'no-store'}),s=await r.json();"
-"el('fw').textContent='· FW '+s.firmware;el('status').textContent=s.usb_connected?(s.live?'Controller active':'USB connected · virtual pad released or unavailable'):'Controller unplugged';"
-"el('status').className=s.live?'ok':'';let u=s.users.find(u=>u.id===s.user);el('profile').textContent=s.live?(s.user==='ffffffff'?'Unassigned: press Home and choose the separate controller profile.':'Assigned to '+(u?u.name:s.user)):'Select Reconnect to create the virtual pad.';"
-"el('input').textContent='L stick '+s.axes[0]+', '+s.axes[1]+' · R stick '+s.axes[2]+', '+s.axes[3]+' · Buttons 0x'+s.buttons.toString(16);"
-"let selected=el('users').value;el('users').replaceChildren();for(let u of s.users){let o=document.createElement('option');o.value=u.id;o.textContent=u.name+(u.foreground?' (active)':'')+(u.protected?' (reserved for DualSense)':'');o.disabled=u.protected;el('users').append(o);}"
-"if(s.users.some(u=>u.id===selected&&!u.protected))el('users').value=selected;else if(s.users.some(u=>u.id===s.user&&!u.protected))el('users').value=s.user;el('home').disabled=!s.live;let target=s.users.find(u=>u.id===el('users').value);el('bind').disabled=!s.live||!target||target.protected||target.native_connected;el('reconnect').disabled=!s.usb_connected||s.status===1||s.status===2||s.live;"
-"let native=s.users.filter(u=>u.native_connected===true),unknown=s.users.some(u=>u.native_connected===null);el('native').textContent=(native.length?'Connected: '+native.map(u=>u.name).join(', '):unknown?'Native connection status unavailable from this payload process.':'No connected native controller reported.')+' Protected profile: '+(s.users.find(u=>u.protected)?.name||'not configured');}"
-"catch(e){el('status').textContent='Dashboard offline';}}async function act(path){try{let r=await fetch('/api/'+path,{method:'POST',headers:{'X-FreePad-Control':'1'}});let j=await r.json();el('message').textContent=j.message;"
-"if(path==='stop'&&r.ok){stopped=true;el('status').textContent='Payload stopped';return;}await refresh();}catch(e){el('message').textContent='Request failed: '+e.message;}}"
-"async function logs(){try{el('log').textContent=await(await fetch('/api/log',{cache:'no-store'})).text();}catch(e){el('message').textContent=e.message;}}"
-"const sources=['X','A','B','Y','L','R','ZL','ZR','Minus','Plus','L3','R3','Home','Capture'],targets=['none','cross','circle','square','triangle','l1','r1','l2','r2','create','options','l3','r3','ps','touchpad'],defaultMap=['triangle','circle','cross','square','l1','r1','l2','r2','create','options','l3','r3','ps','touchpad'];"
-"for(let i of [2,1,3,0,4,5,6,7,8,9,10,11,12,13]){let l=document.createElement('label');l.textContent=sources[i]+' → ';let s=document.createElement('select');s.id='map'+i;for(let t of targets){let o=document.createElement('option');o.value=t;o.textContent=t;s.append(o);}l.append(s);el('maps').append(l);}"
-"function defaults(){defaultMap.forEach((t,i)=>el('map'+i).value=t);}function editProfile(){let row=el('controllers').value.split(' ');if(row.length!==3)return;let ids=row[0].split(':');el('vid').value=ids[0];el('pid').value=ids[1];row[2].split(',').forEach((t,i)=>{if(i<14)el('map'+i).value=t;});}"
-"async function loadProfiles(){try{let r=await fetch('/api/profiles',{cache:'no-store'});if(!r.ok)throw Error('Load failed');let text=await r.text();el('profiletext').value=text;el('controllers').replaceChildren();for(let row of text.trim().split('\\n')){let o=document.createElement('option');o.value=row;o.textContent=row.split(' ')[0]+' · switch8';el('controllers').append(o);}editProfile();}catch(e){el('message').textContent=e.message;}}"
-"function stageProfile(){let vid=el('vid').value.toLowerCase(),pid=el('pid').value.toLowerCase();if(!/^[0-9a-f]{4}$/.test(vid)||!/^[0-9a-f]{4}$/.test(pid)){el('message').textContent='Use four hexadecimal digits for each ID';return;}let id=vid+':'+pid,row=id+' switch8 '+sources.map((_,i)=>el('map'+i).value).join(',');let rows=el('profiletext').value.split('\\n').filter(r=>r.trim()&&!r.startsWith(id+' '));rows.push(row);el('profiletext').value=rows.join('\\n')+'\\n';el('message').textContent='Staged in editor. Release pad, then Save & apply.';}"
-"async function saveProfiles(){try{let text=el('profiletext').value;if(text.length>=2048)throw Error('Profiles too large');let r=await fetch('/api/profiles?data='+encodeURIComponent(text),{method:'POST',headers:{'X-FreePad-Control':'1'}}),j=await r.json();el('message').textContent=j.message;if(r.ok)await loadProfiles();}catch(e){el('message').textContent=e.message;}}"
-"function exportProfiles(){let url=URL.createObjectURL(new Blob([el('profiletext').value],{type:'text/plain'})),a=document.createElement('a');a.href=url;a.download='controllers.conf';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}async function importProfiles(input){try{if(!input.files[0])return;if(input.files[0].size>=2048)throw Error('Profiles too large');el('profiletext').value=await input.files[0].text();el('message').textContent='Imported to editor; not saved yet.';}catch(e){el('message').textContent=e.message;}}"
-"async function rawReport(){try{el('rawreport').textContent=await(await fetch('/api/report',{cache:'no-store'})).text();}catch(e){el('message').textContent=e.message;}}defaults();loadProfiles();refresh();setInterval(refresh,1000);</script></html>";
+#include "dashboard/assets.h"
 
 static void reply(int fd, int status, const char *type, const char *body)
 {
@@ -183,6 +145,54 @@ static int decode_profile_text(const char *in, char out[FREEPAD_PROFILE_TEXT_MAX
     return 1;
 }
 
+
+static void profiles_reply(int fd)
+{
+    char text[FREEPAD_PROFILE_TEXT_MAX];
+    if (freepad_profiles_export(text,sizeof(text))) reply(fd,200,"text/plain; charset=utf-8",text);
+    else reply(fd,409,"text/plain","Profiles unavailable");
+}
+static void report_reply(int fd)
+{
+    char text[256];
+    freepad_profiles_report(text,sizeof(text));
+    reply(fd,200,"text/plain; charset=utf-8",text);
+}
+static void log_reply(int fd)
+{
+        char log[12001] = {0};
+        FILE *file = fopen(FREEPAD_LOG_PATH, "r");
+        if (file) {
+            fseek(file, 0, SEEK_END);
+            long size = ftell(file);
+            fseek(file, size > 12000 ? size - 12000 : 0, SEEK_SET);
+            fread(log, 1, sizeof(log) - 1, file);
+            fclose(file);
+        }
+        reply(fd, 200, "text/plain; charset=utf-8", log);
+
+}
+/* Data-driven routing; validation and ownership checks stay explicit. */
+static int get_route(int fd, const char *path)
+{
+    static const struct { const char *path, *type, *body; } assets[] = {
+        {"/","text/html; charset=utf-8",PAGE},
+        {"/dashboard.css","text/css; charset=utf-8",DASHBOARD_CSS},
+        {"/dashboard.js","text/javascript; charset=utf-8",DASHBOARD_JS}
+    };
+    static const struct { const char *path; void (*handle)(int); } routes[] = {
+        {"/api/state",state}, {"/api/profiles",profiles_reply},
+        {"/api/report",report_reply}, {"/api/log",log_reply}
+    };
+    for (size_t i = 0; i < sizeof(assets)/sizeof(assets[0]); i++)
+        if (!strcmp(path,assets[i].path)) {
+            reply(fd,200,assets[i].type,assets[i].body); return 1;
+        }
+    for (size_t i = 0; i < sizeof(routes)/sizeof(routes[0]); i++)
+        if (!strcmp(path,routes[i].path)) { routes[i].handle(fd); return 1; }
+    return 0;
+}
+
 static void handle(int fd)
 {
     char request[8192] = {0}, method[8], path[6400], version[16];
@@ -202,28 +212,8 @@ static void handle(int fd)
     }
     if (sscanf(request, "%7s %6399s %15s", method, path, version) != 3 ||
         (strcmp(version, "HTTP/1.1") && strcmp(version, "HTTP/1.0"))) return;
-    if (!strcmp(method, "GET") && !strcmp(path, "/")) {
-        reply(fd, 200, "text/html; charset=utf-8", PAGE);
-    } else if (!strcmp(method, "GET") && !strcmp(path, "/api/state")) {
-        state(fd);
-    } else if (!strcmp(method, "GET") && !strcmp(path, "/api/profiles")) {
-        char text[FREEPAD_PROFILE_TEXT_MAX];
-        if (freepad_profiles_export(text, sizeof(text))) reply(fd, 200, "text/plain; charset=utf-8", text);
-        else reply(fd, 409, "text/plain", "Profiles unavailable");
-    } else if (!strcmp(method, "GET") && !strcmp(path, "/api/report")) {
-        char text[256]; freepad_profiles_report(text, sizeof(text));
-        reply(fd, 200, "text/plain; charset=utf-8", text);
-    } else if (!strcmp(method, "GET") && !strcmp(path, "/api/log")) {
-        char log[12001] = {0};
-        FILE *file = fopen(FREEPAD_LOG_PATH, "r");
-        if (file) {
-            fseek(file, 0, SEEK_END);
-            long size = ftell(file);
-            fseek(file, size > 12000 ? size - 12000 : 0, SEEK_SET);
-            fread(log, 1, sizeof(log) - 1, file);
-            fclose(file);
-        }
-        reply(fd, 200, "text/plain; charset=utf-8", log);
+    if (!strcmp(method, "GET")) {
+        if (!get_route(fd,path)) reply(fd,400,"application/json","{\"message\":\"Unknown request\"}");
     } else if (!strcmp(method, "POST")) {
         if (!control_header(request)) {
             reply(fd, 403, "application/json", "{\"message\":\"Missing control header\"}");
@@ -260,7 +250,7 @@ static void handle(int fd)
                  * before queuing a replacement rather than leaking it. */
                 if (pad.status == VP_FAILED) vpad_remove(0);
                 ok = unlink(FREEPAD_STATE_DIR "/pause") == 0 || errno == ENOENT;
-                if (ok) ok = vpad_add(0, CONN_USB_WIRED, "FreePad USB switch8");
+                if (ok) ok = vpad_add(0, CONN_USB_WIRED, "FreePad USB controller");
             } else ok = 0;
             message = ok ? "Creating virtual pad" : "Controller unavailable or already active";
         } else if (!strcmp(path, "/api/home")) {

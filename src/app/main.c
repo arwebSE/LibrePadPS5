@@ -1,9 +1,9 @@
-#include "ps5_vpad.h"
-#include "usb_hotplug.h"
-#include "log.h"
-#include "util.h"
-#include "web_freepad.h"
-#include "freepad_profiles.h"
+#include "ps5/virtual_controller.h"
+#include "input/usb_device.h"
+#include "core/logging.h"
+#include "core/time_utils.h"
+#include "dashboard/http_server.h"
+#include "input/controller_profiles.h"
 
 #include <signal.h>
 #include <stdatomic.h>
@@ -17,7 +17,7 @@
 #include <ps5/kernel.h>
 #endif
 
-#include "freepad_compat.h"
+#include "core/legacy_paths.h"
 #define STATE_DIR FREEPAD_STATE_DIR
 #define STOP_FLAG STATE_DIR "/stop"
 
@@ -50,7 +50,7 @@ int main(void)
         return 1;
     }
     log_init(FREEPAD_LOG_PATH);
-    log_line("FreePad USB v0.4.0-preview; controller profiles and remapping; no Bluetooth or autoload");
+    log_line("FreePad USB development build; configurable USB report layouts; no Bluetooth or autoload");
     if (!freepad_profiles_init(FREEPAD_PROFILES_PATH)) {
         log_line("Invalid/unreadable controller profiles; refusing startup");
         log_close();

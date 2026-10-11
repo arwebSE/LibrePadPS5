@@ -1,4 +1,4 @@
-#include "log.h"
+#include "core/logging.h"
 
 #include <stdio.h>
 #include <stdarg.h>
@@ -62,11 +62,7 @@ void log_line(const char *fmt, ...)
     pthread_mutex_unlock(&g_log_mutex);
 
 #ifdef __PROSPERO__
-#ifdef FREEPAD_ONLY
     klog_printf("[FreePad-USB] %s\n", buf);
-#else
-    klog_printf("[OmniPad] %s\n", buf);
-#endif
 #endif
 }
 

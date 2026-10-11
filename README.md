@@ -1,20 +1,20 @@
 # FreePad USB
 
-Wired Switch controller support for jailbroken PS5. No Bluetooth.
+Configurable wired USB controller support for jailbroken PS5. No Bluetooth.
 
 **[Download FreePad-USB.elf](https://github.com/arwebSE/freepad-usb-ps5/releases/latest/download/FreePad-USB.elf)** · [Releases](https://github.com/arwebSE/freepad-usb-ps5/releases) · [Issues](https://github.com/arwebSE/freepad-usb-ps5/issues)
 
-[Controller profiles & remapping preview](https://github.com/arwebSE/freepad-usb-ps5/releases/tag/v0.4.0-preview): custom USB IDs for the existing `switch8` format, 14 button dropdowns, defaults, import/export and raw reports. Host/UI tested; not yet tested on PS5. [Usage](docs/FREEPAD.md#controller-profiles--remapping-preview).
+The development build adds custom USB IDs, report layouts and button mappings. Host-tested only; not yet tested on PS5. [Configuration](docs/FREEPAD.md#controller-profiles--remapping-preview).
 
 ## Compatibility
 
-- **Hardware verified:** PDP Faceoff Deluxe+ Audio Wired Switch controller, USB ID **`0e6f:0184`**. Preview custom profiles only support the same `switch8` report format; changing IDs does not add a decoder for other layouts.
+- **Hardware verified:** PDP Faceoff Deluxe+ Audio Wired Switch controller, USB ID **`0e6f:0184`**. Custom layouts are experimental; other hardware is not physically verified.
 - **Tested:** PS5 **12.60**, buttons, sticks, D-pad and profile assignment. Individual games/emulators and other firmware are not explicitly verified.
 - No rumble, motion, audio or touchpad movement. Digital triggers only.
 
 ## Setup
 
-1. Create a **separate PS5 user** for the Switch controller. Keep your DualSense on its own user.
+1. Create a **separate PS5 user** for the USB controller. Keep your DualSense on its own user.
 2. Stop other controller payloads. Follow the [first-time profile protection setup](docs/FREEPAD.md#setup) before enabling input.
 3. Load **`FreePad-USB.elf`** and plug in the controller.
 4. Open **`http://<PS5_IP>:8096/`**, click **Reconnect**, press **Home / PS**, then select the separate user.
@@ -33,11 +33,15 @@ Sticks, D-pad, shoulders and stick clicks map normally.
 
 ## Problems?
 
-Inactive pad: **Reconnect**, then check its profile and the log. DualSense connection failure: stop the payload, unplug the Switch controller and **fully reboot** the console—not Rest Mode. Do not update firmware just to troubleshoot. Native status marked *unavailable* does not mean disconnected.
+Inactive pad: **Reconnect**, then check its profile and the log. DualSense connection failure: stop the payload, unplug the USB controller and **fully reboot** the console—not Rest Mode. Do not update firmware just to troubleshoot. Native status marked *unavailable* does not mean disconnected.
 
 [Full setup, Payload Manager, troubleshooting and build instructions](docs/FREEPAD.md)
 
 Uses elevated credentials and shared controller services; crashes/service issues remain possible. No Bluetooth scanning, shell-process injection or autoload. Do not run competing controller payloads.
+
+## Source
+
+`src/app`, `core`, `input`, `ps5`, `dashboard` separate startup, shared types, USB input, console integration and HTTP handling. Edit the dashboard in `web/`; it is embedded during the build. [Source map](src/README.md).
 
 ## Credits
 

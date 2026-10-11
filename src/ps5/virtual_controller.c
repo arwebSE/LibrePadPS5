@@ -1,8 +1,8 @@
-#include "ps5_vpad.h"
-#include "shellui_inject.h"
-#include "log.h"
-#include "util.h"
-#include "freepad_compat.h"
+#include "ps5/virtual_controller.h"
+#include "ps5/system_bridge.h"
+#include "core/logging.h"
+#include "core/time_utils.h"
+#include "core/legacy_paths.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -102,82 +102,17 @@ static void mbus_disconnect_device(uint64_t device_id, int32_t user_id)
         log_line("vpad: local sceMbusDisconnectDevice(0x%llx) -> %d",
                  (unsigned long long)device_id, (int)r);
     }
-    int r_remote = shellui_remote_disconnect_device(device_id);
-    log_line("vpad: remote shellui disconnect(0x%llx) -> %d",
-             (unsigned long long)device_id, r_remote);
 #else
     (void)device_id;
 #endif
 }
 
-#ifndef FREEPAD_ONLY
-static void purge_all_virtual_pads(void)
-{
-#ifdef __PROSPERO__
-    int32_t list[4] = {-1, -1, -1, -1};
-    sceUserServiceGetLoginUserIdList(list);
 
-    for (int u = 0; u < 4; u++) {
-        if (list[u] <= 0) continue;
-        for (int idx = 0; idx < 4; idx++) {
-            int h = scePadGetHandle(list[u], VIRTUAL_DEVICE_DUALSENSE, idx);
-            if (h > 0) {
-                log_line("vpad: sweeping user 0x%08x virtual pad handle %d", (unsigned)list[u], h);
-                scePadVirtualDeviceDeleteDevice(h);
-            }
-        }
-    }
-#endif
-}
-#endif
-
-#ifndef FREEPAD_ONLY
-static void vpad_recycle_slot_locked(int slot)
-{
-    if (slot < 0 || slot >= MAX_SLOTS) return;
-    internal_slot_t *s = &g_slots[slot];
-    int32_t old_h = s->handle;
-    int32_t old_alt = s->alt_handle;
-    uint64_t old_dev = s->device_id;
-    int32_t old_uid = s->user_id;
-    char saved_name[64];
-    pad_conn_type_t saved_type = s->conn_type;
-    int pending_ps = s->ps_pending_on_ready;
-    snprintf(saved_name, sizeof(saved_name), "%s", s->name);
-
-#ifdef __PROSPERO__
-    if (old_dev > 0) {
-        mbus_disconnect_device(old_dev, old_uid);
-    }
-    if (old_h > 0) {
-        scePadVirtualDeviceDeleteDevice(old_h);
-    }
-    if (old_alt > 0 && old_alt != old_h) {
-        scePadVirtualDeviceDeleteDevice(old_alt);
-    }
-#endif
-
-    s->status = VP_QUEUED;
-    s->handle = -1;
-    s->alt_handle = -1;
-    s->device_id = 0;
-    s->user_id = -1;
-    s->consecutive_insert_errors = 0;
-    s->ps_pending_on_ready = pending_ps;
-    s->conn_type = saved_type;
-    snprintf(s->name, sizeof(s->name), "%s", saved_name);
-    pad_state_neutral(&s->pad_state);
-
-    log_line("vpad: slot %d recycled (old h=%d dev=0x%llx uid=0x%08x) -> QUEUED for re-registration",
-             slot + 1, old_h, (unsigned long long)old_dev, (unsigned)old_uid);
-}
-#endif
 
 static int is_user_logged_in(int32_t uid)
 {
     if (uid <= 0) return 0;
 #ifdef __PROSPERO__
-#ifdef FREEPAD_ONLY
     /* Use the login list rather than assuming a firmware-specific status enum. */
     int32_t users[4] = {-1, -1, -1, -1};
     if (sceUserServiceGetLoginUserIdList(users) != 0) return 0;
@@ -185,12 +120,6 @@ static int is_user_logged_in(int32_t uid)
         if (users[i] == uid) return 1;
     }
     return 0;
-#else
-    int32_t status = 0;
-    if (sceUserServiceGetUserStatus(uid, &status) == 0) {
-        return status == 1; /* SCE_USER_SERVICE_USER_STATUS_LOGGED_IN */
-    }
-#endif
 #endif
     return 0;
 }
@@ -198,13 +127,11 @@ static int is_user_logged_in(int32_t uid)
 static int32_t get_user_id_for_slot(int slot)
 {
 #ifdef __PROSPERO__
-#ifdef FREEPAD_ONLY
     if (g_controller_user > 0) {
         if (g_controller_user == g_protected_user || !is_user_logged_in(g_controller_user) ||
             vpad_native_controller_connected(g_controller_user) == 1) return -1;
         return g_controller_user;
     }
-#endif
     int32_t fg_user = -1;
     sceUserServiceGetForegroundUser(&fg_user);
 
@@ -217,15 +144,9 @@ static int32_t get_user_id_for_slot(int slot)
     /* Check if the foreground user already has an active physical DualSense */
     int native_pad_on_fg = 0;
     if (fg_user > 0 && is_user_logged_in(fg_user)) {
-#ifdef FREEPAD_ONLY
         native_pad_on_fg = fg_user == g_protected_user || vpad_native_controller_connected(fg_user) == 1;
-#else
-        int h_native = scePadGetHandle(fg_user, 0, 0);
-        if (h_native > 0) native_pad_on_fg = 1;
-#endif
     }
 
-#ifdef FREEPAD_ONLY
     /* Do not replace the native controller's profile assignment. A cached
      * handle alone is not proof that a native controller is connected. */
     if (native_pad_on_fg) {
@@ -236,7 +157,6 @@ static int32_t get_user_id_for_slot(int slot)
         log_line("FreePad: native controller occupies foreground profile; no free signed-in profile");
         return -1;
     }
-#endif
 
     /* Slot 0:
      * If a native controller is already active on the foreground user,
@@ -275,33 +195,6 @@ static int32_t get_user_id_for_slot(int slot)
                  slot, (unsigned)list[target_idx], target_idx);
         return list[target_idx];
     }
-#endif
-    return -1;
-}
-
-static int scan_vpad_handle(int32_t user_id, int slot)
-{
-    (void)slot;
-#ifdef __PROSPERO__
-    int users[4];
-    int count = 0;
-    int foreground = 0;
-    if (user_id > 0) users[count++] = user_id;
-    if (sceUserServiceGetForegroundUser(&foreground) == 0 && foreground > 0 && foreground != user_id)
-        users[count++] = foreground;
-    users[count++] = 1;
-    users[count++] = 0x10000000;
-
-    for (int u = 0; u < count; u++) {
-        for (int idx = 0; idx < 4; idx++) {
-            int h = scePadGetHandle(users[u], VIRTUAL_DEVICE_DUALSENSE, idx);
-            if (plausible_handle(h)) return h;
-            h = scePadGetHandle(users[u], 0, idx);
-            if (plausible_handle(h)) return h;
-        }
-    }
-#else
-    (void)user_id;
 #endif
     return -1;
 }
@@ -391,9 +284,7 @@ static uint64_t parse_device_id_from_klog(const char *line)
             return 0;
         }
     }
-#ifdef FREEPAD_ONLY
     else return 0; /* Never identify an untyped native device as ours. */
-#endif
 
     const char *p = find_word(line, "DeviceId");
     if (!p) p = find_word(line, "deviceId");
@@ -457,7 +348,6 @@ int vpad_init(void)
 {
     if (g_ready) return 1;
 
-#ifdef FREEPAD_ONLY
     g_protected_user = read_user_config(FREEPAD_NATIVE_USER_PATH);
     g_controller_user = read_user_config(FREEPAD_CONTROLLER_USER_PATH);
     if (g_protected_user < 0 || g_controller_user < 0 || (g_controller_user > 0 && g_controller_user == g_protected_user)) {
@@ -465,7 +355,6 @@ int vpad_init(void)
         return 0;
     }
     log_line("FreePad: protected native user 0x%08x; preferred controller user 0x%08x", (unsigned)g_protected_user, (unsigned)g_controller_user);
-#endif
 
     if (!elevate_privileges()) {
         log_line("vpad: failed to elevate privileges");
@@ -487,13 +376,9 @@ int vpad_init(void)
     }
 
     if (!g_bind) {
-#ifdef FREEPAD_ONLY
         log_line("vpad: local MBus unavailable; refusing virtual pad creation");
         restore_privileges();
         return 0;
-#else
-        log_line("vpad: local libSceMbus unavailable, SceShellCore remote injection will be used");
-#endif
     }
 
     int r = scePadInit();
@@ -507,9 +392,6 @@ int vpad_init(void)
     scePadSetProcessPrivilege(1);
 
     /* The dedicated FreePad payload must not delete pads owned by other payloads. */
-#ifndef FREEPAD_ONLY
-    purge_all_virtual_pads();
-#endif
 #endif
 
     g_active_user = get_user_id_for_slot(0);
@@ -567,11 +449,9 @@ static void start_identification(int slot)
     param.size = (int32_t)sizeof(param);
     g_slots[slot].user_id = get_user_id_for_slot(slot);
     param.user_id = (g_slots[slot].user_id > 0) ? g_slots[slot].user_id : 1;
-#ifdef FREEPAD_ONLY
     /* This field is a device creation flag, not the user's account ID.
      * Bind the identified device to the account through MBus afterwards. */
     param.user_id = 1;
-#endif
     for (int i = 0; i < 6; i++) param.pad[i] = sentinel;
     elevate_privileges();
 
@@ -590,12 +470,10 @@ static void start_identification(int slot)
         g_line_len = 0;
     } else {
         log_line("vpad: slot %d warning: klog unavailable, proceeding directly", slot);
-#ifdef FREEPAD_ONLY
         /* No AddDevice means no unidentified orphan and no native-handle
          * fallback when ownership cannot be established. */
         g_slots[slot].status = VP_FAILED;
         return;
-#endif
     }
 
     g_matches = 0;
@@ -622,38 +500,14 @@ static void start_identification(int slot)
         }
     }
 
-    /* If local add failed with non-pending error, try SceShellCore remote VDA */
-    if (handle <= 0 && (uint32_t)ret != 0x803B0006u) {
-        int code = 0;
-        int remote_h = shellcore_vda(&code);
-        if (plausible_handle(remote_h)) {
-            handle = remote_h;
-            log_line("vpad: slot %d remote SceShellCore AddDevice returned handle %d", slot, handle);
-        }
-    }
-
     g_slots[slot].handle = handle;
     g_slots[slot].alt_handle = -1;
 
-    if (g_log_fd >= 0) {
-        g_pending = slot;
-        g_t_add = now_ms();
-        g_slots[slot].status = VP_PENDING;
-
-        if ((uint32_t)ret == 0x803B0006u) {
-            log_line("vpad: slot %d assignment pending (0x803B0006), awaiting device_id to complete MBus bind", slot);
-        }
-    } else {
-        if (handle <= 0) {
-            handle = scan_vpad_handle(g_slots[slot].user_id, slot);
-            g_slots[slot].handle = handle;
-        }
-        if (handle > 0) {
-            g_slots[slot].status = VP_READY;
-            notify_ps5("OmniPad: %s connected (Slot %d)", g_slots[slot].name[0] ? g_slots[slot].name : "Controller", slot + 1);
-        } else {
-            g_slots[slot].status = VP_FAILED;
-        }
+    g_pending = slot;
+    g_t_add = now_ms();
+    g_slots[slot].status = VP_PENDING;
+    if ((uint32_t)ret == 0x803B0006u) {
+        log_line("vpad: assignment pending; awaiting owned device identification");
     }
 }
 
@@ -668,7 +522,6 @@ static void finish_identification(long now)
     g_pending = -1;
     close_kernel_log();
 
-#ifdef FREEPAD_ONLY
     /* Only submit data to a device uniquely observed during our AddDevice. */
     if (g_matches != 1) {
         log_line("vpad: FreePad device identification failed (%d matches)", g_matches);
@@ -705,74 +558,6 @@ static void finish_identification(long now)
     }
     s->status = VP_READY;
     log_line("vpad: FreePad ready (handle %d)", s->handle);
-    return;
-#endif
-
-    if (g_matches == 1) {
-        s->device_id = g_match_dev;
-    } else {
-        log_line("vpad: slot %d device_id not uniquely resolved in klog (%d matches)", slot, g_matches);
-    }
-
-    /* Handle resolution:
-     * 1. If s->handle is not plausible, check klog handle.
-     * 2. If still not plausible, scan via scePadGetHandle.
-     * 3. Set alt_handle if device_id <= 0x7FFFFFFF.
-     */
-    if (!plausible_handle(s->handle)) {
-        if (plausible_handle(g_klog_handle)) {
-            s->handle = g_klog_handle;
-            log_line("vpad: slot %d using klog handle %d", slot, s->handle);
-        } else {
-            int sc = scan_vpad_handle(s->user_id, slot);
-            if (plausible_handle(sc)) {
-                s->handle = sc;
-                log_line("vpad: slot %d resolved via scePadGetHandle: %d", slot, s->handle);
-            }
-        }
-    }
-
-    if (s->device_id > 0 && s->device_id <= 0x7FFFFFFF) {
-        /* On FW 13.60, the device_id in system log is the exact handle InsertData accepts */
-        s->alt_handle = s->handle;
-        s->handle = (int32_t)s->device_id;
-        log_line("vpad: slot %d using device_id as primary handle: %d (alt: %d)",
-                 slot, s->handle, s->alt_handle);
-    }
-
-    if (s->remove_when_found) {
-#ifdef __PROSPERO__
-        if (s->handle > 0) scePadVirtualDeviceDeleteDevice(s->handle);
-        if (s->alt_handle > 0 && s->alt_handle != s->handle) scePadVirtualDeviceDeleteDevice(s->alt_handle);
-#endif
-        memset(s, 0, sizeof(*s));
-        return;
-    }
-
-    s->status = VP_READY;
-    s->consecutive_insert_errors = 0;
-    notify_ps5("OmniPad: %s connected (Slot %d)", s->name[0] ? s->name : "Controller", slot + 1);
-
-    /* Bind device to user in SceShellUI only if the user is confirmed logged in */
-    if (s->device_id > 0 && s->user_id > 0 && is_user_logged_in(s->user_id)) {
-        int32_t bound = -1;
-        if (g_bind) bound = g_bind(s->device_id, s->user_id);
-        if (bound != 0) bound = shellui_remote_bind_device(s->device_id, s->user_id);
-        log_line("vpad: slot %d MBus bind dev 0x%llx user 0x%08x -> %d",
-                 slot, (unsigned long long)s->device_id, (unsigned)s->user_id, (int)bound);
-    } else {
-        log_line("vpad: slot %d no logged-in user at sync time — skipping MBus bind to leave profile picker clean", slot);
-    }
-
-    /* ALWAYS trigger PS button inside SceShellUI to ensure profile dialog activation */
-    if (s->handle > 0) {
-        log_line("vpad: slot %d activating handle %d via ShellUI PS button", slot + 1, s->handle);
-        shellui_press_ps_button(s->handle);
-    }
-    s->ps_pending_on_ready = 0;
-
-    log_line("vpad: slot %d ready (handle %d, alt %d, dev 0x%llx, user 0x%08x)",
-             slot, s->handle, s->alt_handle, (unsigned long long)s->device_id, (unsigned)s->user_id);
 }
 
 void vpad_poll(long now)
@@ -795,36 +580,7 @@ void vpad_poll(long now)
         pthread_mutex_unlock(&g_vpad_mutex);
     }
 
-#if defined(__PROSPERO__) && !defined(FREEPAD_ONLY)
-    /* Dynamic profile sync: detect when a user logs in and resolve active libScePad handle */
-    static long s_last_user_sync = 0;
-    if (now - s_last_user_sync > 500) {
-        s_last_user_sync = now;
-        for (int i = 0; i < MAX_SLOTS; i++) {
-            pthread_mutex_lock(&g_vpad_mutex);
-            if (g_slots[i].status == VP_READY) {
-                int32_t fg = -1;
-                if (sceUserServiceGetForegroundUser(&fg) == 0 && fg > 0 && is_user_logged_in(fg)) {
-                    if (g_slots[i].user_id <= 0 || (i == 0 && g_slots[i].user_id != fg)) {
-                        g_slots[i].user_id = fg;
-                        log_line("vpad: slot %d profile sync: user 0x%08x logged in", i, (unsigned)fg);
-                    }
-                    /* Scan libScePad handle for this user */
-                    int h_user = scePadGetHandle(g_slots[i].user_id, VIRTUAL_DEVICE_DUALSENSE, 0);
-                    if (plausible_handle(h_user) && h_user != g_slots[i].handle) {
-                        log_line("vpad: slot %d dynamically synchronized with libScePad user handle %d (alt was %d, handle %d)",
-                                 i, h_user, g_slots[i].alt_handle, g_slots[i].handle);
-                        g_slots[i].alt_handle = g_slots[i].handle;
-                        g_slots[i].handle = h_user;
-                    }
-                }
-            }
-            pthread_mutex_unlock(&g_vpad_mutex);
-        }
-    }
-#endif
 
-#ifdef FREEPAD_ONLY
     static long last_binding_check;
     if (now - last_binding_check > 500) {
         last_binding_check = now;
@@ -841,18 +597,12 @@ void vpad_poll(long now)
         }
         pthread_mutex_unlock(&g_vpad_mutex);
     }
-#endif
 
     /* Continuous 250Hz injection of the last known state for all READY pads */
     for (int i = 0; i < MAX_SLOTS; i++) {
         pthread_mutex_lock(&g_vpad_mutex);
         if (g_slots[i].status == VP_READY && (g_slots[i].handle > 0 || g_slots[i].alt_handle > 0)) {
             /* Reset latched state to neutral if no updates received for > 500ms (avoids stuck buttons on sleep) */
-#ifndef FREEPAD_ONLY
-            if (now - g_slots[i].last_update_time > 500) {
-                pad_state_neutral(&g_slots[i].pad_state);
-            }
-#endif
 
             if (g_slots[i].handle <= 0 && g_slots[i].alt_handle > 0) {
                 g_slots[i].handle = g_slots[i].alt_handle;
@@ -861,14 +611,9 @@ void vpad_poll(long now)
             PadData d;
             uint64_t pad_time = 0;
 #ifdef __PROSPERO__
-#ifdef FREEPAD_ONLY
             struct timespec ts;
             clock_gettime(CLOCK_MONOTONIC, &ts);
             pad_time = (uint64_t)ts.tv_sec * 1000000u + (uint64_t)ts.tv_nsec / 1000u;
-#else
-            pad_time = sceKernelGetProcessTime();
-            if (pad_time > 1000) pad_time -= 1000;
-#endif
 #else
             pad_time = (uint64_t)now * 1000ULL;
 #endif
@@ -876,36 +621,14 @@ void vpad_poll(long now)
             if (now < g_slots[i].ps_until) d.buttons |= PAD_BTN_PS;
 
             int32_t handle = g_slots[i].handle;
-#if !defined(FREEPAD_ONLY) || !defined(__PROSPERO__)
+#ifndef __PROSPERO__
             int32_t alt_handle = g_slots[i].alt_handle;
 #endif
             g_slots[i].packets_injected++;
-#ifndef FREEPAD_ONLY
-            pthread_mutex_unlock(&g_vpad_mutex);
-#endif
 
 #ifdef __PROSPERO__
             int r = scePadVirtualDeviceInsertData(handle, &d);
-#ifndef FREEPAD_ONLY
-            if (r != 0 && alt_handle > 0) {
-                int r2 = scePadVirtualDeviceInsertData(alt_handle, &d);
-                if (r2 == 0) {
-                    /* alt_handle accepted! Switch handles dynamically */
-                    pthread_mutex_lock(&g_vpad_mutex);
-                    g_slots[i].handle = alt_handle;
-                    g_slots[i].alt_handle = handle;
-                    g_slots[i].consecutive_insert_errors = 0;
-                    pthread_mutex_unlock(&g_vpad_mutex);
-                    log_line("vpad: slot %d switched to alt_handle %d (primary %d failed 0x%08x)",
-                             i, alt_handle, handle, (unsigned)r);
-                    r = 0;
-                }
-            }
-#endif
 
-#ifndef FREEPAD_ONLY
-            pthread_mutex_lock(&g_vpad_mutex);
-#endif
             if (r == 0) {
                 g_slots[i].consecutive_insert_errors = 0;
             } else {
@@ -918,22 +641,14 @@ void vpad_poll(long now)
                 }
                 /* If handle fails repeatedly for > 250 consecutive ticks (~1000ms), handle is dead */
                 if (g_slots[i].consecutive_insert_errors >= 250) {
-#ifdef FREEPAD_ONLY
                     log_line("vpad: FreePad input rejected; stopping this virtual pad");
                     g_slots[i].status = VP_FAILED;
-#else
-                    log_line("vpad: slot %d persistent InsertData error (0x%08x) — recycling virtual device",
-                             i + 1, (unsigned)r);
-                    vpad_recycle_slot_locked(i);
-#endif
                 }
             }
             pthread_mutex_unlock(&g_vpad_mutex);
 #else
             (void)handle; (void)alt_handle;
-#ifdef FREEPAD_ONLY
             pthread_mutex_unlock(&g_vpad_mutex);
-#endif
 #endif
         } else {
             pthread_mutex_unlock(&g_vpad_mutex);
@@ -959,9 +674,6 @@ void vpad_remove(int slot)
     int32_t uid = s->user_id;
     int had_device = (s->status != VP_FREE);
     memset(s, 0, sizeof(*s));
-#ifndef FREEPAD_ONLY
-    pthread_mutex_unlock(&g_vpad_mutex);
-#endif
 
 #ifdef __PROSPERO__
     if (had_device) {
@@ -978,12 +690,10 @@ void vpad_remove(int slot)
         }
         log_line("vpad: slot %d removed (handle %d, dev 0x%llx, uid 0x%08x)",
                  slot, handle, (unsigned long long)dev_id, (unsigned)uid);
-        notify_ps5("OmniPad: Controller disconnected (Slot %d)", slot + 1);
+        notify_ps5("FreePad: Controller disconnected (Slot %d)", slot + 1);
     }
 #endif
-#ifdef FREEPAD_ONLY
     pthread_mutex_unlock(&g_vpad_mutex);
-#endif
 }
 
 int vpad_is_live(int slot)
@@ -1023,7 +733,7 @@ void vpad_update(int slot, const pad_state_t *st)
             log_line("vpad: physical PS button pressed on slot %d (handle %d, user 0x%08x)",
                      slot + 1, handle, (unsigned)uid);
             pthread_mutex_unlock(&g_vpad_mutex);
-            shellui_press_ps_button(handle);
+            vpad_press_ps_button(slot);
             pthread_mutex_lock(&g_vpad_mutex);
         } else if (status == VP_QUEUED || status == VP_PENDING) {
             log_line("vpad: slot %d PS pressed while identifying — queuing pending press", slot + 1);
@@ -1048,28 +758,9 @@ void vpad_update(int slot, const pad_state_t *st)
 void vpad_press_ps_button(int slot)
 {
     if (slot < 0 || slot >= MAX_SLOTS) return;
-#ifdef FREEPAD_ONLY
     pthread_mutex_lock(&g_vpad_mutex);
     if (g_slots[slot].status == VP_READY) g_slots[slot].ps_until = now_ms() + 150;
     pthread_mutex_unlock(&g_vpad_mutex);
-    return;
-#endif
-    pthread_mutex_lock(&g_vpad_mutex);
-    int32_t handle = g_slots[slot].handle;
-    pthread_mutex_unlock(&g_vpad_mutex);
-
-    /* 1. Remote press inside SceShellUI */
-    shellui_press_ps_button(handle);
-
-    /* 2. Also inject via local vpad for 100ms */
-    pad_state_t st;
-    pad_state_neutral(&st);
-    st.buttons = PAD_BTN_PS;
-    vpad_update(slot, &st);
-    usleep(100000);
-    pad_state_neutral(&st);
-    vpad_update(slot, &st);
-    log_line("vpad: Synthesized PS button pressed on slot %d", slot + 1);
 }
 
 void vpad_get_slot_info(int slot, vpad_slot_info_t *out)
@@ -1107,7 +798,6 @@ int vpad_rebind_user(int slot, int32_t user_id)
     }
 
     int32_t target_user = user_id;
-#ifdef FREEPAD_ONLY
     if (!is_user_logged_in(target_user) || !g_bind || !s->device_id) {
         pthread_mutex_unlock(&g_vpad_mutex);
         return 0;
@@ -1122,49 +812,6 @@ int vpad_rebind_user(int slot, int32_t user_id)
     pthread_mutex_unlock(&g_vpad_mutex);
     log_line("FreePad dashboard: bind to user 0x%08x -> 0x%08x", (unsigned)target_user, (unsigned)result);
     return result == 0;
-#endif
-#ifdef __PROSPERO__
-    if (target_user <= 0) {
-        /* Cycle to next logged in user */
-        int32_t list[4] = {-1, -1, -1, -1};
-        if (sceUserServiceGetLoginUserIdList(list) == 0) {
-            /* If current user is list[0], switch to list[1] (if logged in), else list[0] */
-            if (s->user_id == list[0] && list[1] > 0) {
-                target_user = list[1];
-            } else if (s->user_id == list[1] && list[2] > 0) {
-                target_user = list[2];
-            } else if (list[0] > 0) {
-                target_user = list[0];
-            }
-        }
-        if (target_user <= 0) {
-            sceUserServiceGetForegroundUser(&target_user);
-        }
-    }
-#else
-    if (target_user <= 0) target_user = 0x12611170;
-#endif
-    if (target_user <= 0) target_user = 0x10000000 + slot;
-
-    s->user_id = target_user;
-    uint64_t dev_id = s->device_id;
-    int32_t handle = s->handle;
-    pthread_mutex_unlock(&g_vpad_mutex);
-
-    log_line("vpad: Rebinding slot %d to user 0x%08x (dev 0x%llx)",
-             slot, (unsigned)target_user, (unsigned long long)dev_id);
-
-    int bound = -1;
-    if (dev_id > 0) {
-        if (g_bind) bound = g_bind(dev_id, target_user);
-        if (bound != 0) bound = shellui_remote_bind_device(dev_id, target_user);
-    }
-    if (handle > 0) {
-        shellui_press_ps_button(handle);
-    }
-
-    notify_ps5("OmniPad: Slot %d -> Profile 0x%08x", slot + 1, (unsigned)target_user);
-    return 1;
 }
 
 void vpad_cleanup_all(void)
@@ -1172,7 +819,6 @@ void vpad_cleanup_all(void)
     for (int i = 0; i < MAX_SLOTS; i++) {
         vpad_remove(i);
     }
-#ifdef FREEPAD_ONLY
     /* A stop/release during AddDevice must still finish ownership discovery
      * and honor remove_when_found, rather than abandon a pending pad. */
     long deadline = now_ms() + T_IDENTIFY + T_AMBIGUITY;
@@ -1185,7 +831,6 @@ void vpad_cleanup_all(void)
         usleep(4000);
     }
     close_kernel_log();
-#endif
     restore_privileges();
     g_ready = 0;
 }
