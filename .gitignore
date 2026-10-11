@@ -90,3 +90,7 @@ Desktop.ini
 scratch/
 temp/
 tmp/
+
+# Isolated Xbox experiment tools and downloaded research
+/research/
+*.bin
