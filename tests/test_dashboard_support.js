@@ -7,7 +7,7 @@ const start = script.indexOf("function supportIssueUrl(");
 const end = script.indexOf("async function refresh()",start);
 const context = vm.createContext({URL});
 vm.runInContext(script.slice(start,end),context);
-const state = {version:"0.5.3-preview",firmware:"13.60",users:[{name:"private",id:"secret"}],log:"private log"};
+const state = {version:"1.0.0",firmware:"13.60",users:[{name:"private",id:"secret"}],log:"private log"};
 const url = new URL(context.supportIssueUrl(state));
 assert.equal(url.origin,"https://github.com");
 assert.equal(url.pathname,"/arwebSE/LibrePadPS5/issues/new");

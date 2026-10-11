@@ -2,11 +2,11 @@
 
 Use a wired USB, Xbox Wireless or Bluetooth gamepad on a jailbroken PS5. See [tested hardware and controller coverage](CONTROLLERS.md).
 
-**[Download v0.5.3 ELF](https://github.com/arwebSE/LibrePadPS5/releases/download/v0.5.3-preview/LibrePadPS5.elf)** · [Releases](https://github.com/arwebSE/LibrePadPS5/releases) · [Issues](https://github.com/arwebSE/LibrePadPS5/issues)
+**[Download v1.0.0 ELF](https://github.com/arwebSE/LibrePadPS5/releases/download/v1.0.0/LibrePadPS5.elf)** · [Releases](https://github.com/arwebSE/LibrePadPS5/releases) · [Issues](https://github.com/arwebSE/LibrePadPS5/issues)
 
 ## Supported hardware
 
-- **Hardware verified:** PDP Faceoff Deluxe+ Audio Wired Switch controller, USB ID `0e6f:0184`. Development builds also accept configurable HID layouts; Xbox One model 1697 with Xbox Wireless Adapter `045e:02e6` is also verified individually on firmware 12.60; the adapter needs separately staged firmware.
+- **Hardware verified:** PDP Faceoff Deluxe+ Audio Wired Switch controller, USB ID `0e6f:0184`. The current release also accepts configurable HID layouts; Xbox One model 1697 with Xbox Wireless Adapter `045e:02e6` is also verified individually on firmware 12.60; the adapter needs separately staged firmware.
 - Tested on **PS5 firmware 12.60**: sticks, buttons, D-pad, dashboard and separate-profile assignment. Individual games/emulators and other firmware are not explicitly verified.
 - No game-driven rumble, motion forwarding, controller audio or touchpad movement. Dedicated drivers preserve analog triggers where available; the 8-byte preset has digital triggers.
 
@@ -90,7 +90,7 @@ If native controllers stop working, stop the payload and fully reboot. Do not up
 
 ## Controller profiles & remapping
 
-Requires the development build, not the older stable download. Release every virtual pad before saving shared mappings. Custom layouts are host-tested only; keep the previous release available.
+Available in v1.0.0. Release every virtual pad before saving shared mappings. Custom layouts are host-tested only; keep the previous release available.
 
 1. Enter the controller’s four-digit hexadecimal VID/PID.
 2. Choose a dedicated driver, Generic USB HID, Bluetooth button mapping, or `switch8` for the tested layout. For custom raw USB, enter report length, report ID, hat and axis byte offsets and click **Use custom layout**. Offsets include the report-ID byte. Use `-1` to disable a field.
@@ -137,14 +137,14 @@ assign a separate PS5 profile. Leave LibrePadPS5 Bluetooth disabled: the adapter
 handles its own wireless pairing and presents a USB gamepad to the payload.
 
 XInput receivers may identify as Xbox 360 `045e:028e` or an 8BitDo USB ID.
-The preview fixes vendor-interface selection for the 8BitDo driver and recognizes
+The current release fixes vendor-interface selection for the 8BitDo driver and recognizes
 `2dc8:3106` and `2dc8:3109` alongside `310a`/`310b`. Other HID modes still require
 a valid gamepad report descriptor. This is software-tested; Adapter 2 has not
 been verified on a PS5. If input fails, include the dashboard log, VID/PID,
 selected adapter mode and paired controller model in the issue.
 
 If the log shows **`2dc8:3107`**, the adapter is exposing its **idle receiver**
-identity rather than a connected gamepad. v0.5.3-preview logs a waiting message
+identity rather than a connected gamepad. v1.0.0 logs a waiting message
 once and keeps watching for a gamepad identity; it does not claim the idle
 interface or repeatedly reject its descriptor. Seeing the PS5 profile picker
 does not confirm USB input. Check **View latest raw report** while pressing a
@@ -158,7 +158,7 @@ descriptor read failures from descriptors that contain no gamepad controls.
 
 Logs are optional. A GitHub account is needed to post an issue or comment.
 
-1. Stop any old instance, load the current preview and reproduce the problem.
+1. Stop any old instance, load the current release and reproduce the problem.
 2. Open `http://<PS5_IP>:8096/` from a computer or phone while the payload is still running.
 3. Select **Advanced > Logs & support > Download diagnostic report (.txt)**. This downloads a file locally.
 4. Open and review the file. Logs may include profile names/IDs and Bluetooth/device addresses; remove anything you do not want to share publicly.
@@ -182,7 +182,7 @@ limit, retrieve the same file through FTP.
 - **Inactive pad:** click Reconnect, check the log and USB ID. If unassigned, press Home and select the separate user. For game focus, try Home/PS; game-specific behavior is not verified.
 - **Skipped D-pad taps:** use the current release and stop older instances. Report recurring problems with logs.
 - **DualSense cannot connect:** stop LibrePadPS5, unplug the USB controller and fully shut down the console, not Rest Mode. A development-session failure required a full reboot; its cause remains unconfirmed. If needed, [reset the DualSense](https://www.playstation.com/en-us/support/hardware/troubleshoot-dualsense/) and reconnect with a USB data cable. Do not update firmware just to troubleshoot.
-- **No startup notification / firmware 13.60:** v0.5.3-preview announces `starting` before opening its state/lock files and `ready` after its dashboard opens. Startup failures report the state-directory/lock, controller configuration, firmware check or virtual-pad initialization stage. If it says already running, open the existing dashboard and stop that instance before reloading. If no message appears, check `http://<PS5_IP>:8096/` and retrieve `/data/pdp-pad/pdp-pad.log` through FTP; confirm the first new line contains `0.5.3-preview`. No new log entry can mean the loader/SDK failed before reaching the entry point; include loader name/version and its output. The firmware gate accepts 13.60, but hardware operation on 13.60 is still unverified. Do not repeatedly inject while a previous instance is active.
+- **No startup notification / firmware 13.60:** v1.0.0 announces `starting` before opening its state/lock files and `ready` after its dashboard opens. Startup failures report the state-directory/lock, controller configuration, firmware check or virtual-pad initialization stage. If it says already running, open the existing dashboard and stop that instance before reloading. If no message appears, check `http://<PS5_IP>:8096/` and retrieve `/data/pdp-pad/pdp-pad.log` through FTP; confirm the first new line contains `1.0.0`. No new log entry can mean the loader/SDK failed before reaching the entry point; include loader name/version and its output. The firmware gate accepts 13.60, but hardware operation on 13.60 is still unverified. Do not repeatedly inject while a previous instance is active.
 - **Dashboard offline:** check the console IP, HTTP and port `8096`. It closes when the payload stops.
 - **Stop through FTP:** upload an empty file named `stop` into the state directory.
 - **Upgrade compatibility:** the on-console state directory is still `/data/pdp-pad/`; keep it and your profile files. The legacy `pdp-user` filename and lock remain compatible with previous builds. These paths are centralized in [legacy_paths.h](../src/core/legacy_paths.h); changing them without migration would lose profile protection and allow old/new instances to use separate locks. Historical releases keep their original assets.

@@ -2,7 +2,7 @@
 
 Use your gamepad on PS5.
 
-[Download v0.5.3](https://github.com/arwebSE/LibrePadPS5/releases/download/v0.5.3-preview/LibrePadPS5.elf) · [Releases](https://github.com/arwebSE/LibrePadPS5/releases) · [Issues](https://github.com/arwebSE/LibrePadPS5/issues)
+[Download v1.0.0](https://github.com/arwebSE/LibrePadPS5/releases/download/v1.0.0/LibrePadPS5.elf) · [Releases](https://github.com/arwebSE/LibrePadPS5/releases) · [Issues](https://github.com/arwebSE/LibrePadPS5/issues)
 
 ## What it does
 
@@ -41,5 +41,7 @@ Bluetooth uses shared console services. Address filtering and owned-handle clean
 [Setup, troubleshooting and build](docs/FREEPAD.md) · [Source map](src/README.md)
 
 ## Credits
+
+Shoutout to [MODDED WARFARE](https://www.youtube.com/@MODDEDWARFARE) for covering similar tools and sharing setup instructions with the PlayStation homebrew community.
 
 Derived from [OmniPad PS5](https://github.com/diegobarbosaa/OmniPad-PS5), with the [AnyPad Bluetooth core](vendor/anypad/README.md) and optional [xow radio port](modules/xbox/README.md#source-provenance). Thanks to PoorDS4/Ghostcontrol, YetAnotherControllerEnabler and PS5 Payload SDK contributors. [GPL-3.0](LICENSE). No upstream Git history is imported.
