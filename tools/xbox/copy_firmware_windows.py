@@ -24,8 +24,8 @@ def main():
     shutil.copyfile(args.source, args.out)
     print("Local firmware staged:", args.out.resolve())
     print("Bytes:", len(data), "SHA256:", hashlib.sha256(data).hexdigest())
-    print("Published v1.1.1-preview and earlier use /data/pdp-pad/xbox/firmware.bin")
-    print("Console destination for v1.1.1 and newer: /data/LibrePadPS5/xbox/firmware.bin")
+    print("Console destination: /data/LibrePadPS5/xbox/firmware.bin")
+    print("For older releases, see https://github.com/arwebSE/LibrePadPS5/blob/main/docs/STORAGE.md")
 
 
 if __name__ == "__main__":

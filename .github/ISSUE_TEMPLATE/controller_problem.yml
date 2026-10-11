@@ -9,13 +9,13 @@ body:
         If you already have an issue, attach your report there instead of opening another.
         To collect logs: reproduce the problem, open `http://<PS5_IP>:8096/`, then **Advanced > Logs & support > Download diagnostic report (.txt)**.
         Review the file before sharing; logs may contain profile names/IDs and device addresses.
-        If the dashboard never opens, retrieve `/data/pdp-pad/pdp-pad.log` through FTP and include the ELF loader output.
+        If the dashboard never opens, retrieve `/data/LibrePadPS5/LibrePadPS5.log` through FTP and include the ELF loader output. For older releases, see [storage paths](https://github.com/arwebSE/LibrePadPS5/blob/main/docs/STORAGE.md).
   - type: input
     id: version
     attributes:
       label: LibrePadPS5 version
       description: Shown beside the firmware in the dashboard or in the downloaded report.
-      placeholder: "1.0.0, or unknown if it never starts"
+      placeholder: "1.1.2, or unknown if it never starts"
     validations:
       required: true
   - type: input
