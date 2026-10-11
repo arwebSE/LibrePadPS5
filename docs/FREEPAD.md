@@ -1,4 +1,4 @@
-# FreePadUSB setup and reference
+# FreePadUSBPS5 setup and reference
 
 Use a supported wired USB controller on a jailbroken PS5. USB only; no Bluetooth.
 
@@ -18,17 +18,17 @@ Requires an existing jailbreak, ELF loader or Payload Manager and FTP access.
 
 1. Confirm your DualSense works. Stop AnyPad, OmniPad and older controller payloads.
 2. Through FTP, create the state directory listed in [upgrade compatibility](#troubleshooting--upgrades) and upload an empty file named `pause` into it.
-3. Load `FreePadUSB.elf`, plug in the controller and open **`http://<PS5_IP>:8096/`**.
+3. Load `FreePadUSBPS5.elf`, plug in the controller and open **`http://<PS5_IP>:8096/`**.
 4. Protect your DualSense user: open `/api/state` at that address, find its eight-digit user `id`, put only that ID in a plain-text file named `native-user`, and upload it into the state directory. Click **Stop payload**, then reload the ELF.
 5. Click **Reconnect**, press **Home** or the dashboard's **Press Home / PS**, and select **`SwitchCtl`** in the console's user picker. Check both controllers.
 
 Optional: save the USB controller user's ID in `pdp-user` in the same directory for automatic assignment. Settings are read on startup; restart after editing. Never copy IDs from another console. Invalid or identical protected/preferred IDs prevent startup. Protection does not override the console's own user picker.
 
-Payload Manager: place the ELF and [metadata](../payload/FreePadUSB.elf.json) together in `/data/pldmgr/payloads/FreePadUSB/`. Older releases download under the previous ELF filename; rename the downloaded ELF to `FreePadUSB.elf`. Keep one installed entry and stop the old instance before loading a replacement.
+Payload Manager: place the ELF and [metadata](../payload/FreePadUSBPS5.elf.json) together in `/data/pldmgr/payloads/FreePadUSBPS5/`. Older releases download under the previous ELF filename; rename the downloaded ELF to `FreePadUSBPS5.elf`. Keep one installed entry and stop the old instance before loading a replacement.
 
 ## Dashboard
 
-**`http://<PS5_IP>:8096/`** — trusted LAN only, no authentication. Do not expose publicly.
+**`http://<PS5_IP>:8096/`**: trusted LAN only, no authentication. Do not expose publicly.
 
 - **Home / PS:** sends PS through our virtual pad.
 - **Assign profile:** selects an eligible signed-in user; protected profiles are rejected.
@@ -82,7 +82,7 @@ The original protected-user settings and native-device ownership checks still ap
 
 - **Inactive pad:** click Reconnect, check the log and USB ID. If unassigned, press Home and select the separate user. For game focus, try Home/PS; game-specific behavior is not verified.
 - **Skipped D-pad taps:** use the current release and stop older instances. Report recurring problems with logs.
-- **DualSense cannot connect:** stop FreePadUSB, unplug the USB controller and fully shut down the console—not Rest Mode. A development-session failure required a full reboot; its cause remains unconfirmed. If needed, [reset the DualSense](https://www.playstation.com/en-us/support/hardware/troubleshoot-dualsense/) and reconnect with a USB data cable. Do not update firmware just to troubleshoot.
+- **DualSense cannot connect:** stop FreePadUSBPS5, unplug the USB controller and fully shut down the console, not Rest Mode. A development-session failure required a full reboot; its cause remains unconfirmed. If needed, [reset the DualSense](https://www.playstation.com/en-us/support/hardware/troubleshoot-dualsense/) and reconnect with a USB data cable. Do not update firmware just to troubleshoot.
 - **Dashboard offline:** check the console IP, HTTP and port `8096`. It closes when the payload stops.
 - **Stop through FTP:** upload an empty file named `stop` into the state directory.
 - **Upgrade compatibility:** the on-console state directory is still `/data/pdp-pad/`; keep it and your profile files. The legacy `pdp-user` filename and lock remain compatible with previous builds. These paths are centralized in [legacy_paths.h](../src/core/legacy_paths.h); changing them without migration would lose profile protection and allow old/new instances to use separate locks. Historical releases keep their original assets.
@@ -94,11 +94,11 @@ The payload manages its own virtual pad; no Bluetooth scanning, shell-process in
 Docker with Linux containers, from the repo root:
 
 ```sh
-docker build -t freepadusb-builder .
-docker run --rm -v "$PWD:/work" -w /work freepadusb-builder
+docker build -t freepadusbps5-builder .
+docker run --rm -v "$PWD:/work" -w /work freepadusbps5-builder
 ```
 
-PowerShell: use `"${PWD}:/work"` for the volume. Output: `dist/FreePadUSB.elf`. Builder uses **PS5 Payload SDK v0.43**. With the SDK installed: `make -f freepad.mk`. Dashboard assets are generated from `web/` during the build; no extra files need uploading.
+PowerShell: use `"${PWD}:/work"` for the volume. Output: `dist/FreePadUSBPS5.elf`. Builder uses **PS5 Payload SDK v0.43**. With the SDK installed: `make -f freepad.mk`. Dashboard assets are generated from `web/` during the build; no extra files need uploading.
 
 Host tests (run inside a disposable builder container; they create the legacy state directory and do not contact a PS5):
 

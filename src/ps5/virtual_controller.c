@@ -154,7 +154,7 @@ static int32_t get_user_id_for_slot(int slot)
             if (list[i] > 0 && list[i] != fg_user && list[i] != g_protected_user && is_user_logged_in(list[i]) &&
                 vpad_native_controller_connected(list[i]) != 1) return list[i];
         }
-        log_line("FreePadUSB: native controller occupies foreground profile; no free signed-in profile");
+        log_line("FreePadUSBPS5: native controller occupies foreground profile; no free signed-in profile");
         return -1;
     }
 
@@ -181,7 +181,7 @@ static int32_t get_user_id_for_slot(int slot)
             log_line("vpad: slot 0 assigned to initial user 0x%08x", (unsigned)init_user);
             return init_user;
         }
-        log_line("vpad: slot 0 no user logged in — interactive profile assignment required");
+        log_line("vpad: slot 0 no user logged in: interactive profile assignment required");
         return -1;
     }
 
@@ -351,10 +351,10 @@ int vpad_init(void)
     g_protected_user = read_user_config(FREEPAD_NATIVE_USER_PATH);
     g_controller_user = read_user_config(FREEPAD_CONTROLLER_USER_PATH);
     if (g_protected_user < 0 || g_controller_user < 0 || (g_controller_user > 0 && g_controller_user == g_protected_user)) {
-        log_line("FreePadUSB: invalid/conflicting profile configuration; refusing to initialize");
+        log_line("FreePadUSBPS5: invalid/conflicting profile configuration; refusing to initialize");
         return 0;
     }
-    log_line("FreePadUSB: protected native user 0x%08x; preferred controller user 0x%08x", (unsigned)g_protected_user, (unsigned)g_controller_user);
+    log_line("FreePadUSBPS5: protected native user 0x%08x; preferred controller user 0x%08x", (unsigned)g_protected_user, (unsigned)g_controller_user);
 
     if (!elevate_privileges()) {
         log_line("vpad: failed to elevate privileges");
@@ -391,7 +391,7 @@ int vpad_init(void)
     /* Start with process privilege 1 to manage virtual pads */
     scePadSetProcessPrivilege(1);
 
-    /* The dedicated FreePadUSB payload must not delete pads owned by other payloads. */
+    /* The dedicated FreePadUSBPS5 payload must not delete pads owned by other payloads. */
 #endif
 
     g_active_user = get_user_id_for_slot(0);
@@ -524,7 +524,7 @@ static void finish_identification(long now)
 
     /* Only submit data to a device uniquely observed during our AddDevice. */
     if (g_matches != 1) {
-        log_line("vpad: FreePadUSB device identification failed (%d matches)", g_matches);
+        log_line("vpad: FreePadUSBPS5 device identification failed (%d matches)", g_matches);
         s->status = VP_FAILED;
         return;
     }
@@ -542,12 +542,12 @@ static void finish_identification(long now)
          * profile picker can sign in the separate controller user; never bind
          * to the protected DualSense user just to get input working. */
         s->status = VP_READY;
-        log_line("FreePadUSB: virtual pad waiting unbound; press Home and choose the separate controller profile");
+        log_line("FreePadUSBPS5: virtual pad waiting unbound; press Home and choose the separate controller profile");
         return;
     }
     int32_t bind_result = -1;
     if (s->user_id > 0 && g_bind) bind_result = g_bind(s->device_id, s->user_id);
-    log_line("vpad: FreePadUSB bind device 0x%llx to user 0x%08x -> 0x%08x",
+    log_line("vpad: FreePadUSBPS5 bind device 0x%llx to user 0x%08x -> 0x%08x",
              (unsigned long long)s->device_id, (unsigned)s->user_id, (unsigned)bind_result);
     if (bind_result != 0) {
         scePadVirtualDeviceDeleteDevice(s->handle);
@@ -557,7 +557,7 @@ static void finish_identification(long now)
         return;
     }
     s->status = VP_READY;
-    log_line("vpad: FreePadUSB ready (handle %d)", s->handle);
+    log_line("vpad: FreePadUSBPS5 ready (handle %d)", s->handle);
 }
 
 void vpad_poll(long now)
@@ -592,7 +592,7 @@ void vpad_poll(long now)
                 int32_t result = g_bind(s->device_id, target);
                 if (result == 0) s->user_id = target;
                 else s->status = VP_FAILED;
-                log_line("FreePadUSB: delayed profile bind user 0x%08x -> 0x%08x", (unsigned)target, (unsigned)result);
+                log_line("FreePadUSBPS5: delayed profile bind user 0x%08x -> 0x%08x", (unsigned)target, (unsigned)result);
             }
         }
         pthread_mutex_unlock(&g_vpad_mutex);
@@ -641,7 +641,7 @@ void vpad_poll(long now)
                 }
                 /* If handle fails repeatedly for > 250 consecutive ticks (~1000ms), handle is dead */
                 if (g_slots[i].consecutive_insert_errors >= 250) {
-                    log_line("vpad: FreePadUSB input rejected; stopping this virtual pad");
+                    log_line("vpad: FreePadUSBPS5 input rejected; stopping this virtual pad");
                     g_slots[i].status = VP_FAILED;
                 }
             }
@@ -690,7 +690,7 @@ void vpad_remove(int slot)
         }
         log_line("vpad: slot %d removed (handle %d, dev 0x%llx, uid 0x%08x)",
                  slot, handle, (unsigned long long)dev_id, (unsigned)uid);
-        notify_ps5("FreePadUSB: Controller disconnected (Slot %d)", slot + 1);
+        notify_ps5("FreePadUSBPS5: Controller disconnected (Slot %d)", slot + 1);
     }
 #endif
     pthread_mutex_unlock(&g_vpad_mutex);
@@ -736,7 +736,7 @@ void vpad_update(int slot, const pad_state_t *st)
             vpad_press_ps_button(slot);
             pthread_mutex_lock(&g_vpad_mutex);
         } else if (status == VP_QUEUED || status == VP_PENDING) {
-            log_line("vpad: slot %d PS pressed while identifying — queuing pending press", slot + 1);
+            log_line("vpad: slot %d PS pressed while identifying: queuing pending press", slot + 1);
             g_slots[slot].ps_pending_on_ready = 1;
         }
     }
@@ -804,13 +804,13 @@ int vpad_rebind_user(int slot, int32_t user_id)
     }
     if (target_user == g_protected_user || vpad_native_controller_connected(target_user) == 1) {
         pthread_mutex_unlock(&g_vpad_mutex);
-        log_line("FreePadUSB: refusing to bind over a connected native controller");
+        log_line("FreePadUSBPS5: refusing to bind over a connected native controller");
         return 0;
     }
     int32_t result = g_bind(s->device_id, target_user);
     if (result == 0) s->user_id = target_user;
     pthread_mutex_unlock(&g_vpad_mutex);
-    log_line("FreePadUSB dashboard: bind to user 0x%08x -> 0x%08x", (unsigned)target_user, (unsigned)result);
+    log_line("FreePadUSBPS5 dashboard: bind to user 0x%08x -> 0x%08x", (unsigned)target_user, (unsigned)result);
     return result == 0;
 }
 

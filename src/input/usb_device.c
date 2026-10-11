@@ -231,7 +231,7 @@ static void *usb_reader_worker(void *arg)
                 last_data_time = cur_time;
 
                 if (st.buttons != last_buttons) {
-                    log_line("FreePadUSB: report bytes=%d -> PS buttons=0x%08x", n, (unsigned)st.buttons);
+                    log_line("FreePadUSBPS5: report bytes=%d -> PS buttons=0x%08x", n, (unsigned)st.buttons);
                     last_buttons = st.buttons;
                 }
 
@@ -253,7 +253,7 @@ static void *usb_reader_worker(void *arg)
         } else if (n < 0) {
             consecutive_errors++;
             if (consecutive_errors >= 50) {
-                log_line("usb_hotplug: slot %d disconnected (read error n=%d, errs=%d) — terminating reader",
+                log_line("usb_hotplug: slot %d disconnected (read error n=%d, errs=%d): terminating reader",
                          dev->slot, n, consecutive_errors);
                 dev->stop_thread = 1;
                 break;
@@ -344,7 +344,7 @@ static void probe_usb_devices(void)
             }
 
             const char *ctrl_name = NULL;
-            ctrl_name = "FreePadUSB controller";
+            ctrl_name = "FreePadUSBPS5 controller";
 
             if (vid != 0 || pid != 0) {
                 uint32_t packed = ((uint32_t)vid << 16) | pid;

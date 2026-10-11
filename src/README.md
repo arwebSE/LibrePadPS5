@@ -18,3 +18,6 @@ The active build has no OmniPad feature mode: Bluetooth, generic fallback,
 remote shell injection and native-handle recycling are excluded by source,
 not by a build flag. The remaining platform guards support PS5 compilation
 and host tests. Runtime validation is intentional and must not be removed.
+
+Use plain punctuation throughout the project, never em dashes.
+The punctuation check in `make test` enforces this.

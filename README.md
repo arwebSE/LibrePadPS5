@@ -1,8 +1,8 @@
-# FreePadUSB
+# FreePadUSBPS5
 
-Configurable wired USB controller support for jailbroken PS5. No Bluetooth.
+Use your USB gamepad on PS5.
 
-**[Download FreePadUSB.elf](https://github.com/arwebSE/freepad-usb-ps5/releases/latest/download/FreePad-USB.elf)** · [Releases](https://github.com/arwebSE/freepad-usb-ps5/releases) · [Issues](https://github.com/arwebSE/freepad-usb-ps5/issues)
+**[Download FreePadUSBPS5.elf](https://github.com/arwebSE/freepad-usb-ps5/releases/latest/download/FreePad-USB.elf)** · [Releases](https://github.com/arwebSE/freepad-usb-ps5/releases) · [Issues](https://github.com/arwebSE/freepad-usb-ps5/issues)
 
 The development build adds custom USB IDs, report layouts and button mappings. Host-tested only; not yet tested on PS5. [Configuration](docs/FREEPAD.md#controller-profiles--remapping-preview).
 
@@ -16,7 +16,7 @@ The development build adds custom USB IDs, report layouts and button mappings. H
 
 1. Create a **separate PS5 user** for the USB controller. Keep your DualSense on its own user.
 2. Stop other controller payloads. Follow the [first-time profile protection setup](docs/FREEPAD.md#setup) before enabling input.
-3. Load **`FreePadUSB.elf`** and plug in the controller.
+3. Load **`FreePadUSBPS5.elf`** and plug in the controller.
 4. Open **`http://<PS5_IP>:8096/`**, click **Reconnect**, press **Home / PS**, then select the separate user.
 
 Already using the previous build? **Keep your existing state directory and profile files.** Stop the old instance before loading this one. See [upgrade compatibility](docs/FREEPAD.md#troubleshooting--upgrades).
@@ -33,7 +33,7 @@ Sticks, D-pad, shoulders and stick clicks map normally.
 
 ## Problems?
 
-Inactive pad: **Reconnect**, then check its profile and the log. DualSense connection failure: stop the payload, unplug the USB controller and **fully reboot** the console—not Rest Mode. Do not update firmware just to troubleshoot. Native status marked *unavailable* does not mean disconnected.
+Inactive pad: **Reconnect**, then check its profile and the log. DualSense connection failure: stop the payload, unplug the USB controller and **fully reboot** the console, not Rest Mode. Do not update firmware just to troubleshoot. Native status marked *unavailable* does not mean disconnected.
 
 [Full setup, Payload Manager, troubleshooting and build instructions](docs/FREEPAD.md)
 

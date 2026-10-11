@@ -1,4 +1,4 @@
-# FreePadUSB — configurable wired USB controllers for PS5.
+# FreePadUSBPS5: configurable wired USB controllers for PS5.
 
 PS5_HOST ?=
 PS5_PORT ?= 9021
@@ -20,11 +20,12 @@ ifeq ($(strip $(PS5_HOST)),)
 	$(error Set PS5_HOST to your console's address)
 endif
 	@echo "[*] Sending payload to PS5 $(PS5_HOST):$(PS5_PORT)..."
-	python3 -c "import socket; f=open('dist/FreePadUSB.elf','rb').read(); s=socket.create_connection(('$(PS5_HOST)', $(PS5_PORT)), timeout=5); s.sendall(f); s.close(); print('Payload sent')"
+	python3 -c "import socket; f=open('dist/FreePadUSBPS5.elf','rb').read(); s=socket.create_connection(('$(PS5_HOST)', $(PS5_PORT)), timeout=5); s.sendall(f); s.close(); print('Payload sent')"
 
 test: freepad-test
 
 freepad-test:
+	python3 tools/check_style.py
 	python3 tools/embed_dashboard.py
 	@mkdir -p $(BUILD)
 	clang -std=c11 -Wall -Wextra -Werror -pthread -fsanitize=address,undefined -g -Isrc tests/test_freepad.c src/legacy/report_decoder.c -o $(BUILD)/test_freepad
