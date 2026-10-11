@@ -77,6 +77,7 @@ static void request(const char *raw, int status, const char *expected, int split
 int main(void)
 {
     signal(SIGPIPE, SIG_IGN);
+    request("GET /api/state HTTP/1.1\r\nHost: localhost\r\n\r\n", 200, "\"version\":\"" LIBREPAD_VERSION "\"", 0);
     mkdir("/data", 0700); mkdir(FREEPAD_STATE_DIR, 0700);
     unlink(FREEPAD_PROFILES_PATH);
     assert(freepad_profiles_init(FREEPAD_PROFILES_PATH));

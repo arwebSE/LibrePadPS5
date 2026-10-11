@@ -87,7 +87,8 @@ void notify_ps5(const char *fmt, ...)
     vsnprintf(req.message, sizeof(req.message), fmt, ap);
     va_end(ap);
 
-    sceKernelSendNotificationRequest(0, &req, sizeof(req), 0);
+    int result = sceKernelSendNotificationRequest(0, &req, sizeof(req), 0);
+    if (result != 0) log_line("Notification request failed: 0x%08x (%s)", (unsigned)result, req.message);
 #else
     char buf[512];
     va_list ap;

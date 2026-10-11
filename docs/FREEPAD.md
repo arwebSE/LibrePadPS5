@@ -2,7 +2,7 @@
 
 Use a wired USB, Xbox Wireless or Bluetooth gamepad on a jailbroken PS5. See [tested hardware and controller coverage](CONTROLLERS.md).
 
-**[Download v0.5.0 ELF](https://github.com/arwebSE/freepad-usb-ps5/releases/download/v0.5.0-preview/LibrePadPS5.elf)** · [Releases](https://github.com/arwebSE/freepad-usb-ps5/releases) · [Issues](https://github.com/arwebSE/freepad-usb-ps5/issues)
+**[Download v0.5.1 ELF](https://github.com/arwebSE/freepad-usb-ps5/releases/download/v0.5.1-preview/LibrePadPS5.elf)** · [Releases](https://github.com/arwebSE/freepad-usb-ps5/releases) · [Issues](https://github.com/arwebSE/freepad-usb-ps5/issues)
 
 ## Supported hardware
 
@@ -122,11 +122,30 @@ Driver formats: `driver:ds4`, `driver:ds3`, `driver:xinput`, `driver:switchpro`,
 
 The original protected-user settings and native-device ownership checks still apply. Unknown USB IDs require a saved profile. Generic USB uses a real HID gamepad descriptor, not guessed report bytes. Generic Bluetooth reads the controller's descriptor. [Coverage and generic map files](CONTROLLERS.md).
 
+## 8BitDo USB Wireless Adapter 2
+
+Pair the gamepad to the adapter, then explicitly select **XInput mode**. The
+adapter only switches automatically on Windows and Switch; a PS5 needs the
+manual mode combination. For a DualShock 4, hold **Share + D-pad Up for three
+seconds** until the adapter LED blinks twice. Other controllers use their
+Select/View equivalent; check the [official controller-specific manual](https://support.8bitdo.com/Manual/USB-Adapter-2/ps4-windows.html).
+Unplug and replug the adapter after changing modes, then use Reconnect and
+assign a separate PS5 profile. Leave LibrePadPS5 Bluetooth disabled: the adapter
+handles its own wireless pairing and presents a USB gamepad to the payload.
+
+XInput receivers may identify as Xbox 360 `045e:028e` or an 8BitDo USB ID.
+The preview fixes vendor-interface selection for the 8BitDo driver and recognizes
+`2dc8:3106` and `2dc8:3109` alongside `310a`/`310b`. Other HID modes still require
+a valid gamepad report descriptor. This is software-tested; Adapter 2 has not
+been verified on a PS5. If input fails, include the dashboard log, VID/PID,
+selected adapter mode and paired controller model in the issue.
+
 ## Troubleshooting / upgrades
 
 - **Inactive pad:** click Reconnect, check the log and USB ID. If unassigned, press Home and select the separate user. For game focus, try Home/PS; game-specific behavior is not verified.
 - **Skipped D-pad taps:** use the current release and stop older instances. Report recurring problems with logs.
 - **DualSense cannot connect:** stop LibrePadPS5, unplug the USB controller and fully shut down the console, not Rest Mode. A development-session failure required a full reboot; its cause remains unconfirmed. If needed, [reset the DualSense](https://www.playstation.com/en-us/support/hardware/troubleshoot-dualsense/) and reconnect with a USB data cable. Do not update firmware just to troubleshoot.
+- **No startup notification / firmware 13.60:** v0.5.1-preview announces `starting` before opening its state/lock files and `ready` after its dashboard opens. Startup failures report the state-directory/lock, controller configuration, firmware check or virtual-pad initialization stage. If it says already running, open the existing dashboard and stop that instance before reloading. If no message appears, check `http://<PS5_IP>:8096/` and retrieve `/data/pdp-pad/pdp-pad.log` through FTP; confirm the first new line contains `0.5.1-preview`. No new log entry can mean the loader/SDK failed before reaching the entry point; include loader name/version and its output. The firmware gate accepts 13.60, but hardware operation on 13.60 is still unverified. Do not repeatedly inject while a previous instance is active.
 - **Dashboard offline:** check the console IP, HTTP and port `8096`. It closes when the payload stops.
 - **Stop through FTP:** upload an empty file named `stop` into the state directory.
 - **Upgrade compatibility:** the on-console state directory is still `/data/pdp-pad/`; keep it and your profile files. The legacy `pdp-user` filename and lock remain compatible with previous builds. These paths are centralized in [legacy_paths.h](../src/core/legacy_paths.h); changing them without migration would lose profile protection and allow old/new instances to use separate locks. Historical releases keep their original assets.

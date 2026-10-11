@@ -37,6 +37,8 @@ usb_controller_type_t usb_identify_controller(uint16_t vid, uint16_t pid, const 
         {0x045e,0x0b12,CTRL_XBOX_XINPUT,"Xbox Series"},
         {0x045e,0x0b13,CTRL_XBOX_XINPUT,"Xbox Series"},
         {0x1a34,0xf517,CTRL_XBOX_XINPUT,"2.4 GHz XInput receiver"},
+        {0x2dc8,0x3106,CTRL_8BITDO_ADAPTER,"8BitDo XInput gamepad"},
+        {0x2dc8,0x3109,CTRL_8BITDO_ADAPTER,"8BitDo XInput receiver"},
         {0x2dc8,0x310a,CTRL_8BITDO_ADAPTER,"8BitDo adapter"},
         {0x2dc8,0x310b,CTRL_8BITDO_ADAPTER,"8BitDo adapter"},
         {0x2dc8,0x2100,CTRL_8BITDO_ADAPTER,"8BitDo gamepad"},
@@ -61,9 +63,53 @@ usb_controller_type_t usb_identify_controller(uint16_t vid, uint16_t pid, const 
     return CTRL_UNKNOWN;
 }
 
-int usb_init_controller_handshake(int fd, usb_controller_type_t type)
+/* Keep endpoints together on one alternate-zero interface. 8BitDo XInput
+ * devices use the same vendor interface as Xbox 360 pads, not HID reports. */
+int usb_select_input_interface(const uint8_t *data, size_t length,
+                               usb_controller_type_t driver, usb_input_interface_t *out)
+{
+    if (!data || !out) return 0;
+    memset(out, 0, sizeof(*out));
+    usb_input_interface_t candidate = {0}, selected = {0};
+    int suitable = 0, selected_score = 0;
+    for (size_t offset = 0; offset < length;) {
+        if (length-offset < 2) return 0;
+        size_t entry = data[offset];
+        if (entry < 2 || entry > length-offset) return 0;
+        const uint8_t *d = data+offset;
+        if (d[1] == 4) {
+            if (entry < 9) return 0;
+            if (candidate.in_address && suitable > selected_score) {
+                selected = candidate; selected_score = suitable;
+            }
+            memset(&candidate, 0, sizeof(candidate));
+            int hid = d[5] == 3 && d[6] == 0 && d[7] == 0;
+            int gip = d[5] == 0xff && d[6] == 0x47 && d[7] == 0xd0;
+            int xinput = d[5] == 0xff && d[6] == 0x5d && d[7] == 1;
+            int xbox = driver == CTRL_XBOX_XINPUT || driver == CTRL_8BITDO_ADAPTER;
+            suitable = d[3] != 0 ? 0 : xbox && (gip || xinput) ? 2 : hid ? 1 : 0;
+            candidate.interface = d[2]; candidate.gip = gip;
+        } else if (d[1] == 5) {
+            if (entry < 7) return 0;
+            uint8_t address = d[2], type = d[3] & 3;
+            if (suitable && (address & 15) && (type == 2 || type == 3)) {
+                if (address & 0x80) {
+                    if (!candidate.in_address || address == 0x81) candidate.in_address = address;
+                } else if (!candidate.out_address) candidate.out_address = address;
+            }
+        }
+        offset += entry;
+    }
+    if (candidate.in_address && suitable > selected_score) selected = candidate;
+    if (!selected.in_address) return 0;
+    *out = selected;
+    return 1;
+}
+
+int usb_init_controller_handshake(int fd, usb_controller_type_t type, uint8_t interface)
 {
     (void)type;
+    (void)interface;
     if (fd < 0) return -1;
 
 #ifdef __PROSPERO__
@@ -76,6 +122,7 @@ int usb_init_controller_handshake(int fd, usb_controller_type_t type)
         req.ucr_request.bmRequestType = 0x21; /* Class, Interface */
         req.ucr_request.bRequest = 0x09;      /* SET_REPORT */
         USETW(req.ucr_request.wValue, 0x0101);
+        USETW(req.ucr_request.wIndex, interface);
         USETW(req.ucr_request.wLength, sizeof(hs1));
         req.ucr_data = hs1;
         ioctl(fd, USB_DO_REQUEST, &req);
@@ -103,13 +150,14 @@ int usb_init_controller_handshake(int fd, usb_controller_type_t type)
         req.ucr_request.bmRequestType = 0x21;
         req.ucr_request.bRequest = 0x09;
         USETW(req.ucr_request.wValue, 0x03f4);
+        USETW(req.ucr_request.wIndex, interface);
         USETW(req.ucr_request.wLength, sizeof(ds3_init));
         req.ucr_data = ds3_init;
         ioctl(fd, USB_DO_REQUEST, &req);
         log_line("usb_ctrl: DualShock 3 magic initialization sent");
         return 0;
     }
-    else if (type == CTRL_XBOX_XINPUT) {
+    else if (type == CTRL_XBOX_XINPUT || type == CTRL_8BITDO_ADAPTER) {
         /* Handshake 1: ShanWan / Machenike / Clone wake-up control transfer.
          * Many third-party 2.4G dongles (045e:028e clones) boot into dormant mode
          * and will not emit input until this control transfer is dispatched. */
@@ -118,7 +166,7 @@ int usb_init_controller_handshake(int fd, usb_controller_type_t type)
         req.ucr_request.bmRequestType = 0xc1; /* Device to host, vendor, interface */
         req.ucr_request.bRequest = 0x01;
         USETW(req.ucr_request.wValue, 0x0100);
-        USETW(req.ucr_request.wIndex, 0x0000);
+        USETW(req.ucr_request.wIndex, interface);
         USETW(req.ucr_request.wLength, 0x0014);
         req.ucr_data = dummy;
         int r1 = ioctl(fd, USB_DO_REQUEST, &req);
@@ -130,7 +178,7 @@ int usb_init_controller_handshake(int fd, usb_controller_type_t type)
         req.ucr_request.bmRequestType = 0x21; /* Host to device, class, interface */
         req.ucr_request.bRequest = 0x09;      /* SET_REPORT */
         USETW(req.ucr_request.wValue, 0x0200);
-        USETW(req.ucr_request.wIndex, 0x0000);
+        USETW(req.ucr_request.wIndex, interface);
         USETW(req.ucr_request.wLength, sizeof(x360_led));
         req.ucr_data = x360_led;
         int r2 = ioctl(fd, USB_DO_REQUEST, &req);

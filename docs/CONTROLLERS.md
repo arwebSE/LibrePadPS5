@@ -8,7 +8,7 @@ The PDP `0e6f:0184` wired gamepad and Xbox One model 1697 through `045e:02e6` ar
 | DualShock 3 | Dedicated driver, `054c:0268` | Not implemented upstream or here |
 | Xbox | 360/XInput and One/Series GIP input, wake-up and Guide ACK | Classic One S/Elite/Adaptive; LE Series/current firmware; Secure Connections |
 | Switch Pro / NSO | Full-report driver and USB wake-up | Classic driver and report-mode initialization |
-| 8BitDo | Known adapters use XInput; other HID modes can use Generic USB HID | Descriptor-based generic HID, including upstream mappings |
+| 8BitDo | Known XInput IDs use vendor interfaces; Adapter 2 needs manual XInput mode (hardware unverified). [Setup](FREEPAD.md#8bitdo-usb-wireless-adapter-2); other HID modes can use Generic USB HID | Descriptor-based generic HID, including upstream mappings |
 | GameSir, iPega, SteelSeries, MOGA, Shield, Atari, Hyperkin, Mocute and other HID pads | Generic USB HID after adding an explicit profile if not auto-recognized | All AnyPad built-in generic mappings retained; other HID pads use descriptor/default mapping |
 | DualSense / Edge | Never claimed by our USB scanner | Upstream decoder retained, selected address only. Do not select the console's native controller |
 | Wii Remote, Wii U Pro, standalone Joy-Con | No dedicated driver | Not implemented upstream or here |

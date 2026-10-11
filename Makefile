@@ -54,6 +54,8 @@ freepad-test:
 	./$(BUILD)/test_freepad
 	clang -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -g -Isrc tests/test_protocols.c src/input/protocol_decoder.c -o $(BUILD)/test_protocols
 	./$(BUILD)/test_protocols
+	clang -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -g -Isrc -Itests/stubs tests/test_startup.c -o $(BUILD)/test_startup
+	./$(BUILD)/test_startup
 	clang -std=c11 -Wall -Wextra -Werror -pthread -fsanitize=address,undefined -g -Isrc tests/test_freepad_profiles.c src/input/controller_profiles.c src/input/protocol_decoder.c -o $(BUILD)/test_freepad_profiles
 	./$(BUILD)/test_freepad_profiles
 	clang -std=c11 -Wall -Wextra -Werror -pthread -fsanitize=address,undefined -g -Isrc -Ibuild/generated tests/test_freepad_dashboard.c tests/mock_bluetooth.c src/input/controller_profiles.c src/input/protocol_decoder.c -o $(BUILD)/test_freepad_dashboard

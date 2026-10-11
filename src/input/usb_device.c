@@ -75,36 +75,17 @@ static uint32_t s_last_seen[6][21] = {{0}};
 static uint8_t find_usb_input_endpoint(usb_slot_device_t *dev)
 {
     struct usb_gen_descriptor desc = {0};
-    uint8_t raw[512] = {0}, first = 0;
+    uint8_t raw[512] = {0};
     desc.ugd_data = raw; desc.ugd_maxlen = sizeof(raw);
     if (ioctl(dev->fd,USB_GET_FULL_DESC,&desc) != 0) return 0;
-    int length = desc.ugd_actlen;
-    if (length <= 0 || length > (int)sizeof(raw)) return 0;
-    int suitable=0, chosen=-1;
-    for (int offset = 0; offset+2 <= length;) {
-        int entry = raw[offset];
-        if (entry < 2 || offset+entry > length) break;
-        if (raw[offset+1]==4 && entry>=9) {
-            if (chosen>=0 && first) break;
-            int hid=raw[offset+5]==3 && raw[offset+6]==0 && raw[offset+7]==0;
-            int gip=raw[offset+5]==0xff && raw[offset+6]==0x47 && raw[offset+7]==0xd0;
-            int xinput=raw[offset+5]==0xff && raw[offset+6]==0x5d && raw[offset+7]==1;
-            suitable=raw[offset+3]==0 && (hid || ((gip || xinput) && dev->driver==CTRL_XBOX_XINPUT));
-            if (suitable) {
-                chosen=raw[offset+2]; dev->interface=(uint8_t)chosen; dev->gip=gip;
-                dev->out_address=0;
-            }
-        }
-        if (suitable && raw[offset+1] == 5 && entry >= 7) {
-            uint8_t address = raw[offset+2], type = raw[offset+3] & 3;
-            if ((address & 0x80) && (type == 3 || type == 2)) {
-                if (address == 0x81 || !first) first = address;
-            }
-            if (!(address & 0x80) && (type == 3 || type == 2) && !dev->out_address) dev->out_address=address;
-        }
-        offset += entry;
-    }
-    return first;
+    size_t length = desc.ugd_actlen;
+    usb_input_interface_t selected;
+    if (!length || length > sizeof(raw) ||
+        !usb_select_input_interface(raw, length, dev->driver, &selected)) return 0;
+    dev->interface = selected.interface;
+    dev->gip = selected.gip;
+    dev->out_address = selected.out_address;
+    return selected.in_address;
 }
 
 static int usb_fs_setup_device(usb_slot_device_t *sdev)
@@ -164,7 +145,7 @@ static int usb_fs_setup_device(usb_slot_device_t *sdev)
     sdev->endpoints[0].flags = USB_FS_FLAG_SINGLE_SHORT_OK;
 
     sdev->use_fs = 1;
-    if (sdev->out_address && (sdev->driver==CTRL_XBOX_XINPUT || sdev->driver==CTRL_NINTENDO_SWITCH_PRO)) {
+    if (sdev->out_address && (sdev->driver==CTRL_XBOX_XINPUT || sdev->driver==CTRL_8BITDO_ADAPTER || sdev->driver==CTRL_NINTENDO_SWITCH_PRO)) {
         struct usb_fs_open output={0};
         output.max_bufsize=64; output.max_frames=1; output.ep_index=1; output.ep_no=sdev->out_address;
         sdev->has_output=ioctl(sdev->fd,USB_FS_OPEN,&output)==0;
@@ -227,7 +208,7 @@ static int wake_device(usb_slot_device_t *dev)
         const uint8_t mode[]={1,0,0,1,0x40,0x40,0,1,0x40,0x40,3,0x30};
         return usb_output(dev,mode,sizeof(mode));
     }
-    if (dev->driver==CTRL_XBOX_XINPUT && dev->gip) {
+    if ((dev->driver==CTRL_XBOX_XINPUT || dev->driver==CTRL_8BITDO_ADAPTER) && dev->gip) {
         const uint8_t power[]={0x05,0x20,0x00,0x01,0x00};
         if (!usb_output(dev,power,sizeof(power))) return 0;
         if (dev->vid==0x045e && (dev->pid==0x02ea || dev->pid==0x0b00)) {
@@ -238,7 +219,7 @@ static int wake_device(usb_slot_device_t *dev)
         const uint8_t authenticate[]={6,0x20,3,2,1,0};
         return usb_output(dev,light,sizeof(light)) && usb_output(dev,authenticate,sizeof(authenticate));
     }
-    return usb_init_controller_handshake(dev->fd,dev->driver)==0;
+    return usb_init_controller_handshake(dev->fd,dev->driver,dev->interface)==0;
 }
 
 static int usb_fs_recv_packet(usb_slot_device_t *dev, uint8_t *buffer, uint32_t length, int timeout_ms)
@@ -332,7 +313,7 @@ static void *usb_reader_worker(void *arg)
                 freepad_profiles_remap(dev->vid,dev->pid,&st); parsed=1;
             }
 #ifdef __PROSPERO__
-            if (dev->driver==CTRL_XBOX_XINPUT && report[0]==7 && n>=5 && (report[1]&0x10)) {
+            if ((dev->driver==CTRL_XBOX_XINPUT || dev->driver==CTRL_8BITDO_ADAPTER) && dev->gip && report[0]==7 && n>=5 && (report[1]&0x10)) {
                 uint8_t ack[]={1,0x20,report[2],9,0,7,0x20,2,0,0,0,0,0};
                 if (!usb_output(dev,ack,sizeof(ack))) { dev->stop_thread=1; break; }
             }
@@ -500,8 +481,12 @@ static void probe_usb_devices(void)
 
 #ifdef __PROSPERO__
             sdev->in_address=find_usb_input_endpoint(sdev);
-            if (!sdev->in_address) { close(fd); memset(sdev,0,sizeof(*sdev)); continue; }
+            if (!sdev->in_address) {
+                log_line("usb_hotplug: %04x:%04x has no supported HID/XInput interface (driver=%d); for 8BitDo Adapter 2 select XInput mode, then replug", vid, pid, sdev->driver);
+                close(fd); memset(sdev,0,sizeof(*sdev)); continue;
+            }
             if (sdev->driver==CTRL_GENERIC_HID && !setup_generic(sdev)) {
+                log_line("usb_hotplug: %04x:%04x HID descriptor rejected; for 8BitDo Adapter 2 select XInput mode, then replug", vid, pid);
                 close(fd); memset(sdev,0,sizeof(*sdev)); continue;
             }
             if (!usb_fs_setup_device(sdev)) {

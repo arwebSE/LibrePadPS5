@@ -18,8 +18,16 @@ typedef enum {
 
 #define CTRL_BLUETOOTH_MAPPING 100
 
+typedef struct {
+    uint8_t interface, in_address, out_address;
+    int gip;
+} usb_input_interface_t;
+
+int usb_select_input_interface(const uint8_t *data, size_t length,
+                               usb_controller_type_t driver, usb_input_interface_t *out);
+
 usb_controller_type_t usb_identify_controller(uint16_t vid, uint16_t pid, const char **name_out);
-int usb_init_controller_handshake(int fd, usb_controller_type_t type);
+int usb_init_controller_handshake(int fd, usb_controller_type_t type, uint8_t interface);
 int usb_parse_input_report(usb_controller_type_t type, const uint8_t *data, size_t len, pad_state_t *st);
 int usb_parse_stateful_report(usb_controller_type_t type, const uint8_t *data, size_t len,
                              pad_state_t *previous, pad_state_t *state);

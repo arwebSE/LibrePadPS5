@@ -7,6 +7,7 @@
 #include "input/usb_device.h"
 #include "input/controller_router.h"
 #include "core/logging.h"
+#include "core/version.h"
 #include "input/controller_profiles.h"
 #include "bluetooth/controller_host.h"
 
@@ -114,7 +115,7 @@ static void state(int fd)
     vpad_slot_info_t pad = {0};
     vpad_get_slot_info(0, &pad);
     snprintf(body, sizeof(body),
-        "{\"firmware\":\"%x.%02x\",\"usb_connected\":%s,\"live\":%s,\"status\":%d,\"user\":\"%08x\",\"buttons\":%u,\"axes\":[%u,%u,%u,%u],\"frames\":%u,\"users\":[%s],\"slots\":[%s]}",
+        "{\"version\":\"" LIBREPAD_VERSION "\",\"firmware\":\"%x.%02x\",\"usb_connected\":%s,\"live\":%s,\"status\":%d,\"user\":\"%08x\",\"buttons\":%u,\"axes\":[%u,%u,%u,%u],\"frames\":%u,\"users\":[%s],\"slots\":[%s]}",
         (firmware >> 24) & 255, (firmware >> 16) & 255,
         usb_hotplug_freepad_connected() ? "true" : "false", pad.status == VP_READY ? "true" : "false", pad.status,
         (unsigned)pad.user_id, pad.buttons, pad.lx, pad.ly, pad.rx, pad.ry, pad.packets_injected, users, slots);

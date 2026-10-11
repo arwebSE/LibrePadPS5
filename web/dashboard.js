@@ -67,7 +67,7 @@ async function refresh() {
     const bt = await (await fetch("/api/bluetooth", { cache: "no-store" })).json();
     el("bt-status").textContent = bt.message + (bt.pairing ? " · " + bt.pairing + " seconds remaining" : "") +
       (bt.connected ? " · USB ID " + bt.vid.toString(16).padStart(4,"0") + ":" + bt.pid.toString(16).padStart(4,"0") : "");
-    el("fw").textContent = "· FW " + s.firmware;
+    el("fw").textContent = (s.version ? "· " + s.version + " " : "") + "· FW " + s.firmware;
     el("status").textContent = s.usb_connected
       ? s.live
         ? "Controller active"

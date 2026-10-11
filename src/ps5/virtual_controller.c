@@ -330,6 +330,7 @@ int vpad_init(void)
 
     void *mbus = dlopen("/system/common/lib/libSceMbus.sprx", RTLD_NOW | RTLD_GLOBAL);
     if (!mbus) mbus = dlopen("libSceMbus.sprx", RTLD_NOW | RTLD_GLOBAL);
+    if (!mbus) log_line("vpad: libSceMbus load failed: %s", dlerror());
     if (mbus) {
         g_bind = (mbus_bind_fn)dlsym(mbus, "sceMbusBindDeviceWithUserId");
         g_disconnect = (mbus_disconnect_fn)dlsym(mbus, "sceMbusDisconnectDevice");
@@ -353,7 +354,9 @@ int vpad_init(void)
     }
 
     /* Start with process privilege 1 to manage virtual pads */
-    scePadSetProcessPrivilege(1);
+    int privilege_result = scePadSetProcessPrivilege(1);
+    if (privilege_result != 0)
+        log_line("vpad: scePadSetProcessPrivilege(1) returned 0x%08x", (unsigned)privilege_result);
 
     /* The dedicated LibrePadPS5 payload must not delete pads owned by other payloads. */
 #endif

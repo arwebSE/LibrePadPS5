@@ -2,7 +2,7 @@
 
 Use your gamepad on PS5.
 
-[Download v0.5.0](https://github.com/arwebSE/freepad-usb-ps5/releases/download/v0.5.0-preview/LibrePadPS5.elf) · [Releases](https://github.com/arwebSE/freepad-usb-ps5/releases) · [Issues](https://github.com/arwebSE/freepad-usb-ps5/issues)
+[Download v0.5.1](https://github.com/arwebSE/freepad-usb-ps5/releases/download/v0.5.1-preview/LibrePadPS5.elf) · [Releases](https://github.com/arwebSE/freepad-usb-ps5/releases) · [Issues](https://github.com/arwebSE/freepad-usb-ps5/issues)
 
 ## What it does
 
@@ -21,7 +21,7 @@ Use your gamepad on PS5.
 2. Stop other controller payloads and configure [protected-user settings](docs/FREEPAD.md#setup).
 3. Load `LibrePadPS5.elf`. Open `http://<PS5_IP>:8096/`.
    The **Controller** tab has connection controls; **Advanced** has profiles, remapping and diagnostics.
-4. USB/Xbox: select each gamepad in **Control gamepad**, click **Reconnect** if released, then assign its separate signed-in profile. Xbox Wireless requires [separately staged firmware](modules/xbox/README.md#firmware).
+4. USB/Xbox: select each gamepad in **Control gamepad**, click **Reconnect** if released, then assign its separate signed-in profile. [8BitDo Adapter 2 requires manual XInput mode](docs/FREEPAD.md#8bitdo-usb-wireless-adapter-2). Xbox Wireless requires [separately staged firmware](modules/xbox/README.md#firmware).
 5. Bluetooth: unplug USB gamepads, release the virtual pad, enter the controller address and select **Enable & pair** while the controller is in pairing mode. Bluetooth starts disabled.
 
 Already using an older build? Keep `/data/pdp-pad/` and its profile files. Stop the old instance before loading this one.
