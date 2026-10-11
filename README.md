@@ -18,19 +18,19 @@ Use your gamepad on PS5.
 ## Use
 
 1. Use a separate PS5 profile for every player. Reserve all native DualSense profiles in Advanced.
-2. Stop other controller payloads and configure [protected-user settings](docs/FREEPAD.md#setup).
+2. Stop other controller payloads and configure [protected-user settings](docs/SETUP.md#setup).
 3. Load `LibrePadPS5.elf`. Open `http://<PS5_IP>:8096/`.
    The **Controller** tab has connection controls; **Advanced** has profiles, remapping and diagnostics.
-4. USB/Xbox: select each gamepad in **Control gamepad**, click **Reconnect** if released, then assign its separate signed-in profile. [8BitDo Adapter 2 requires manual XInput mode](docs/FREEPAD.md#8bitdo-usb-wireless-adapter-2). Xbox Wireless requires [separately staged firmware](modules/xbox/README.md#firmware).
+4. USB/Xbox: select each gamepad in **Control gamepad**, click **Reconnect** if released, then assign its separate signed-in profile. [8BitDo Adapter 2 requires manual XInput mode](docs/SETUP.md#8bitdo-usb-wireless-adapter-2). Xbox Wireless requires [separately staged firmware](docs/XBOX.md#firmware).
 5. Bluetooth: unplug USB gamepads, release the virtual pad, enter the controller address and select **Enable & pair** while the controller is in pairing mode. Bluetooth starts disabled.
 
 Already using an older build? Keep `/data/pdp-pad/` and its profile files. Stop the old instance before loading this one.
 
-Having trouble? [Download a diagnostic report and attach it to a GitHub issue](docs/FREEPAD.md#share-a-diagnostic-report-on-github). Logs are optional.
+Having trouble? [Download a diagnostic report and attach it to a GitHub issue](docs/SETUP.md#share-a-diagnostic-report-on-github). Logs are optional.
 
 ## Remap
 
-Choose the driver and VID/PID in the dashboard, change the named outputs, then **Add / update**, **Release all virtual pads**, **Save & apply**, then reconnect each pad. Unknown USB devices can use **Generic USB HID** or a custom raw layout. [Configuration](docs/FREEPAD.md#controller-profiles--remapping).
+Choose the driver and VID/PID in the dashboard, change the named outputs, then **Add / update**, **Release all virtual pads**, **Save & apply**, then reconnect each pad. Unknown USB devices can use **Generic USB HID** or a custom raw layout. [Configuration](docs/SETUP.md#controller-profiles--remapping).
 
 ## Safety and limits
 
@@ -38,10 +38,10 @@ Up to three virtual slots, with one Xbox Wireless controller. Native DualSense U
 
 Bluetooth uses shared console services. Address filtering and owned-handle cleanup reduce accidental interference but do not guarantee native DualSense isolation. If native input fails, stop the payload and fully reboot the console, not Rest Mode. Never select the console's own DualSense for pairing. No firmware updates are needed for this workflow.
 
-[Setup, troubleshooting and build](docs/FREEPAD.md) · [Source map](src/README.md)
+[Setup, troubleshooting and build](docs/SETUP.md) · [Source map](src/README.md)
 
 ## Credits
 
 Shoutout to [MODDED WARFARE](https://www.youtube.com/@MODDEDWARFARE) for covering similar tools and sharing setup instructions with the PlayStation homebrew community.
 
-Derived from [OmniPad PS5](https://github.com/diegobarbosaa/OmniPad-PS5), with the [AnyPad Bluetooth core](vendor/anypad/README.md) and optional [xow radio port](modules/xbox/README.md#source-provenance). Thanks to PoorDS4/Ghostcontrol, YetAnotherControllerEnabler and PS5 Payload SDK contributors. [GPL-3.0](LICENSE). No upstream Git history is imported.
+Derived from [OmniPad PS5](https://github.com/diegobarbosaa/OmniPad-PS5), with the [AnyPad Bluetooth core](vendor/anypad/README.md) and optional [xow radio port](docs/XBOX.md#source-provenance). Thanks to PoorDS4/Ghostcontrol, YetAnotherControllerEnabler and PS5 Payload SDK contributors. [GPL-3.0](LICENSE). No upstream Git history is imported.

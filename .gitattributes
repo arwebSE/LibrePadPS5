@@ -1,0 +1,6 @@
+# Keep source, scripts and make recipes portable across Windows and Linux.
+* text=auto eol=lf
+*.elf binary
+*.bin binary
+*.png binary
+*.jpg binary

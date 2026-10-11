@@ -297,10 +297,10 @@ int vpad_init(void)
 {
     if (g_ready) return 1;
 
-    g_protected_user = read_user_config(FREEPAD_NATIVE_USER_PATH);
-    g_controller_user = read_user_config(FREEPAD_CONTROLLER_USER_PATH);
+    g_protected_user = read_user_config(LIBREPAD_NATIVE_USER_PATH);
+    g_controller_user = read_user_config(LIBREPAD_CONTROLLER_USER_PATH);
     memset(g_reserved_users, 0, sizeof(g_reserved_users));
-    FILE *reserved = fopen(FREEPAD_NATIVE_USERS_PATH, "r");
+    FILE *reserved = fopen(LIBREPAD_NATIVE_USERS_PATH, "r");
     if (reserved) {
         char line[32]; int count = 0, invalid = 0;
         while (fgets(line, sizeof(line), reserved)) {
@@ -854,14 +854,14 @@ int vpad_protect_user(int32_t user, int protect)
         if (free_index < 0) { pthread_mutex_unlock(&g_vpad_mutex); return 0; }
         next[free_index] = user;
     } else if (!protect && index >= 0) next[index] = 0;
-    FILE *file = fopen(FREEPAD_NATIVE_USERS_PATH ".tmp", "w");
+    FILE *file = fopen(LIBREPAD_NATIVE_USERS_PATH ".tmp", "w");
     int ok = file != NULL;
     if (file) {
         for (int i = 0; i < 4; i++) if (next[i] && fprintf(file, "%08x\n", (unsigned)next[i]) < 0) ok = 0;
         if (fflush(file) || fsync(fileno(file))) ok = 0;
         if (fclose(file)) ok = 0;
-        if (ok) ok = rename(FREEPAD_NATIVE_USERS_PATH ".tmp", FREEPAD_NATIVE_USERS_PATH) == 0;
-        if (!ok) unlink(FREEPAD_NATIVE_USERS_PATH ".tmp");
+        if (ok) ok = rename(LIBREPAD_NATIVE_USERS_PATH ".tmp", LIBREPAD_NATIVE_USERS_PATH) == 0;
+        if (!ok) unlink(LIBREPAD_NATIVE_USERS_PATH ".tmp");
     }
     if (ok) memcpy(g_reserved_users, next, sizeof(next));
     pthread_mutex_unlock(&g_vpad_mutex); return ok;

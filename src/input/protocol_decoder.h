@@ -34,4 +34,4 @@ int usb_parse_stateful_report(usb_controller_type_t type, const uint8_t *data, s
                              pad_state_t *previous, pad_state_t *state);
 uint8_t axis16_to_u8(int16_t val, int invert_y);
 
-#endif /* USB_CONTROLLERS_H */
+#endif /* LIBREPAD_PROTOCOL_DECODER_H */

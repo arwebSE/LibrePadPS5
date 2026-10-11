@@ -1,7 +1,7 @@
 /* Mock the entry point to exercise startup failures before any device access. */
 #define _DEFAULT_SOURCE
 #define __PROSPERO__
-#define FREEPAD_STATE_DIR "build/startup-state"
+#define LIBREPAD_STATE_DIR "build/startup-state"
 #define main payload_main
 #include "../src/app/main.c"
 #undef main
@@ -22,20 +22,20 @@ void notify_ps5(const char *fmt, ...)
 { va_list args; va_start(args,fmt); append(notifications,fmt,args); va_end(args); }
 void log_line(const char *fmt, ...)
 { va_list args; va_start(args,fmt); append(logs,fmt,args); va_end(args); }
-void log_init(const char *path) { assert(!strcmp(path,FREEPAD_LOG_PATH)); }
+void log_init(const char *path) { assert(!strcmp(path,LIBREPAD_LOG_PATH)); }
 void log_close(void) {}
 uint32_t kernel_get_fw_version(void) { return firmware; }
-int freepad_profiles_init(const char *path) { assert(!strcmp(path,FREEPAD_PROFILES_PATH)); return profiles_ok; }
+int librepad_profiles_init(const char *path) { assert(!strcmp(path,LIBREPAD_PROFILES_PATH)); return profiles_ok; }
 int vpad_init(void) { return vpad_ok; }
 void vpad_poll(long now) { (void)now; }
 void vpad_cleanup_all(void) { cleanups++; }
 int usb_hotplug_init(void) { usb_starts++; return 1; }
-void usb_hotplug_poll(long now) { (void)now; freepad_request_stop(); }
+void usb_hotplug_poll(long now) { (void)now; librepad_request_stop(); }
 void usb_hotplug_cleanup(void) {}
 void bluetooth_poll(void) {}
 void bluetooth_cleanup(void) {}
-int freepad_web_init(int port) { assert(port==8096); return web_ok; }
-void freepad_web_cleanup(void) {}
+int librepad_web_init(int port) { assert(port==8096); return web_ok; }
+void librepad_web_cleanup(void) {}
 long now_ms(void) { return 10000; }
 
 static void reset(void)

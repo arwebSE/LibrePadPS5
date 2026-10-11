@@ -32,7 +32,7 @@ static const uint32_t masks[] = {
 };
 /* switch8 source bits: X,A,B,Y,L,R,ZL,ZR,Minus,Plus,L3,R3,Home,Capture. */
 static const uint8_t defaults[14] = {4,2,1,3,5,6,7,8,9,10,11,12,13,14};
-static controller_profile profiles[FREEPAD_PROFILE_MAX];
+static controller_profile profiles[LIBREPAD_PROFILE_MAX];
 static size_t profile_count;
 static char config_path[256];
 static char last_report[256] = "No reports yet\n";
@@ -104,8 +104,8 @@ static int layout(char *text, controller_profile *p)
 
 static int parse_text(const char *text, controller_profile *out, size_t *count)
 {
-    if (!text || strlen(text) >= FREEPAD_PROFILE_TEXT_MAX) return 0;
-    char copy[FREEPAD_PROFILE_TEXT_MAX];
+    if (!text || strlen(text) >= LIBREPAD_PROFILE_TEXT_MAX) return 0;
+    char copy[LIBREPAD_PROFILE_TEXT_MAX];
     strcpy(copy, text);
     size_t used = 0;
     char *lines = NULL;
@@ -113,7 +113,7 @@ static int parse_text(const char *text, controller_profile *out, size_t *count)
         size_t length = strlen(line);
         if (length && line[length-1] == '\r') line[--length] = 0;
         if (!length || line[0] == '#') continue;
-        if (used == FREEPAD_PROFILE_MAX || length < 12 || line[4] != ':' || line[9] != ' ') return 0;
+        if (used == LIBREPAD_PROFILE_MAX || length < 12 || line[4] != ':' || line[9] != ' ') return 0;
         controller_profile *p = &out[used];
         memset(p, 0, sizeof(*p));
         char *mapping = strchr(line+10, ' ');
@@ -155,16 +155,16 @@ static int parse_text(const char *text, controller_profile *out, size_t *count)
     return 1;
 }
 
-int freepad_profiles_init(const char *path)
+int librepad_profiles_init(const char *path)
 {
     if (!path || strlen(path) >= sizeof(config_path)-16) return 0;
-    controller_profile next[FREEPAD_PROFILE_MAX] = {{.vid=0x0e6f,.pid=0x0184}};
+    controller_profile next[LIBREPAD_PROFILE_MAX] = {{.vid=0x0e6f,.pid=0x0184}};
     preset(&next[0]);
     memcpy(next[0].map, defaults, sizeof(defaults));
     size_t count = 1;
     FILE *file = fopen(path, "rb");
     if (file) {
-        char text[FREEPAD_PROFILE_TEXT_MAX];
+        char text[LIBREPAD_PROFILE_TEXT_MAX];
         size_t n = fread(text, 1, sizeof(text)-1, file);
         int extra = fgetc(file), error = ferror(file);
         fclose(file);
@@ -179,7 +179,7 @@ int freepad_profiles_init(const char *path)
     return 1;
 }
 
-int freepad_profiles_allowed(uint16_t vid, uint16_t pid)
+int librepad_profiles_allowed(uint16_t vid, uint16_t pid)
 {
     int allowed = usb_identify_controller(vid,pid,NULL) != CTRL_UNKNOWN;
     pthread_mutex_lock(&lock);
@@ -189,7 +189,7 @@ int freepad_profiles_allowed(uint16_t vid, uint16_t pid)
     return allowed;
 }
 
-int freepad_profiles_export(char *out, size_t size)
+int librepad_profiles_export(char *out, size_t size)
 {
     size_t used = 0;
     int ok = size > 0;
@@ -219,9 +219,9 @@ int freepad_profiles_export(char *out, size_t size)
     return ok;
 }
 
-int freepad_profiles_save(const char *text)
+int librepad_profiles_save(const char *text)
 {
-    controller_profile next[FREEPAD_PROFILE_MAX];
+    controller_profile next[LIBREPAD_PROFILE_MAX];
     size_t count = 0;
     if (!parse_text(text, next, &count)) return 0;
     pthread_mutex_lock(&lock);
@@ -244,7 +244,7 @@ int freepad_profiles_save(const char *text)
     return ok;
 }
 
-int freepad_profiles_parse(uint16_t vid, uint16_t pid, const uint8_t *data,
+int librepad_profiles_parse(uint16_t vid, uint16_t pid, const uint8_t *data,
                           size_t len, pad_state_t *state)
 {
     if (!data || !state) return 0;
@@ -267,7 +267,7 @@ int freepad_profiles_parse(uint16_t vid, uint16_t pid, const uint8_t *data,
         usb_controller_type_t driver=found ? (usb_controller_type_t)selected.driver : usb_identify_controller(vid,pid,NULL);
         if (driver == CTRL_UNKNOWN || driver == CTRL_GENERIC_HID || driver == CTRL_BLUETOOTH_MAPPING) return 0;
         int ok=usb_parse_input_report(driver,data,len,state);
-        if (ok) freepad_profiles_remap(vid,pid,state);
+        if (ok) librepad_profiles_remap(vid,pid,state);
         return ok;
     }
     const uint8_t *report = data;
@@ -291,13 +291,13 @@ int freepad_profiles_parse(uint16_t vid, uint16_t pid, const uint8_t *data,
     return 1;
 }
 
-void freepad_profiles_report(char *out, size_t size)
+void librepad_profiles_report(char *out, size_t size)
 {
     pthread_mutex_lock(&lock);
     snprintf(out, size, "%s", last_report);
     pthread_mutex_unlock(&lock);
 }
-size_t freepad_profiles_report_size(uint16_t vid, uint16_t pid)
+size_t librepad_profiles_report_size(uint16_t vid, uint16_t pid)
 {
     usb_controller_type_t builtin=usb_identify_controller(vid,pid,NULL);
     size_t size = builtin==CTRL_PDP_FACEOFF ? 8 : builtin!=CTRL_UNKNOWN ? 64 : 0;
@@ -308,7 +308,7 @@ size_t freepad_profiles_report_size(uint16_t vid, uint16_t pid)
     return size;
 }
 
-usb_controller_type_t freepad_profiles_driver(uint16_t vid, uint16_t pid)
+usb_controller_type_t librepad_profiles_driver(uint16_t vid, uint16_t pid)
 {
     usb_controller_type_t driver=usb_identify_controller(vid,pid,NULL);
     pthread_mutex_lock(&lock);
@@ -318,7 +318,7 @@ usb_controller_type_t freepad_profiles_driver(uint16_t vid, uint16_t pid)
     pthread_mutex_unlock(&lock);
     return driver;
 }
-void freepad_profiles_remap(uint16_t vid, uint16_t pid, pad_state_t *state)
+void librepad_profiles_remap(uint16_t vid, uint16_t pid, pad_state_t *state)
 {
     pthread_mutex_lock(&lock);
     for (size_t i=0; i<profile_count; i++) {

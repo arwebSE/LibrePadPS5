@@ -123,7 +123,7 @@ static void state(int fd)
     snprintf(body, sizeof(body),
         "{\"version\":\"" LIBREPAD_VERSION "\",\"firmware\":\"%x.%02x\",\"usb_connected\":%s,\"live\":%s,\"status\":%d,\"user\":\"%08x\",\"buttons\":%u,\"axes\":[%u,%u,%u,%u],\"frames\":%u,\"users\":[%s],\"slots\":[%s]}",
         (firmware >> 24) & 255, (firmware >> 16) & 255,
-        usb_hotplug_freepad_connected() ? "true" : "false", pad.status == VP_READY ? "true" : "false", pad.status,
+        usb_hotplug_librepad_connected() ? "true" : "false", pad.status == VP_READY ? "true" : "false", pad.status,
         (unsigned)pad.user_id, pad.buttons, pad.lx, pad.ly, pad.rx, pad.ry, pad.packets_injected, users, slots);
     reply(fd, 200, "application/json", body);
 }
@@ -134,7 +134,8 @@ static int control_header(const char *request)
     while (line && line[2]) {
         line += 2;
         /* Keep old clients working without changing the strict value check. */
-        size_t prefix = strncasecmp(line, "X-FreePad-Control:", 18) == 0 ? 18 :
+        size_t prefix = strncasecmp(line, "X-LibrePad-Control:", 19) == 0 ? 19 :
+                        strncasecmp(line, "X-FreePad-Control:", 18) == 0 ? 18 :
                         strncasecmp(line, "X-PDP-Control:", 14) == 0 ? 14 : 0;
         if (prefix) {
             const char *value = line + prefix;
@@ -146,7 +147,7 @@ static int control_header(const char *request)
     return 0;
 }
 
-static int decode_profile_text(const char *in, char out[FREEPAD_PROFILE_TEXT_MAX])
+static int decode_profile_text(const char *in, char out[LIBREPAD_PROFILE_TEXT_MAX])
 {
     size_t used = 0;
     while (*in) {
@@ -162,7 +163,7 @@ static int decode_profile_text(const char *in, char out[FREEPAD_PROFILE_TEXT_MAX
             }
             c = (unsigned char)(n[0]*16+n[1]); in += 2;
         }
-        if (!c || c > 126 || (c < 32 && c != '\n' && c != '\r') || used+1 >= FREEPAD_PROFILE_TEXT_MAX) return 0;
+        if (!c || c > 126 || (c < 32 && c != '\n' && c != '\r') || used+1 >= LIBREPAD_PROFILE_TEXT_MAX) return 0;
         out[used++] = (char)c;
     }
     out[used] = 0;
@@ -172,14 +173,14 @@ static int decode_profile_text(const char *in, char out[FREEPAD_PROFILE_TEXT_MAX
 
 static void profiles_reply(int fd)
 {
-    char text[FREEPAD_PROFILE_TEXT_MAX];
-    if (freepad_profiles_export(text,sizeof(text))) reply(fd,200,"text/plain; charset=utf-8",text);
+    char text[LIBREPAD_PROFILE_TEXT_MAX];
+    if (librepad_profiles_export(text,sizeof(text))) reply(fd,200,"text/plain; charset=utf-8",text);
     else reply(fd,409,"text/plain","Profiles unavailable");
 }
 static void report_reply(int fd)
 {
     char text[256];
-    freepad_profiles_report(text,sizeof(text));
+    librepad_profiles_report(text,sizeof(text));
     reply(fd,200,"text/plain; charset=utf-8",text);
 }
 static void bluetooth_reply(int fd)
@@ -190,7 +191,7 @@ static void bluetooth_reply(int fd)
 static void log_reply(int fd)
 {
         char log[12001] = {0};
-        FILE *file = fopen(FREEPAD_LOG_PATH, "r");
+        FILE *file = fopen(LIBREPAD_LOG_PATH, "r");
         if (file) {
             fseek(file, 0, SEEK_END);
             long size = ftell(file);
@@ -230,27 +231,27 @@ static void diagnostics_reply(int fd)
             slot+1,name,controller_connected(slot),pad.status,controller_paused(slot),
             pad.packets_injected,pad.buttons,pad.lx,pad.ly,pad.rx,pad.ry);
     }
-    char bt[512], raw[256], profiles[FREEPAD_PROFILE_TEXT_MAX];
-    bluetooth_status(bt,sizeof(bt)); freepad_profiles_report(raw,sizeof(raw));
-    if (!freepad_profiles_export(profiles,sizeof(profiles))) snprintf(profiles,sizeof(profiles),"Unavailable\n");
+    char bt[512], raw[256], profiles[LIBREPAD_PROFILE_TEXT_MAX];
+    bluetooth_status(bt,sizeof(bt)); librepad_profiles_report(raw,sizeof(raw));
+    if (!librepad_profiles_export(profiles,sizeof(profiles))) snprintf(profiles,sizeof(profiles),"Unavailable\n");
     used += (size_t)snprintf(report+used,DIAGNOSTIC_HEADER_LIMIT-used,
         "\n--- Bluetooth snapshot ---\n%s\n\n--- Latest USB report ---\n%s\n"
         "--- Saved controller mappings ---\n%s\n--- Payload log ---\n",bt,raw,profiles);
-    FILE *file = fopen(FREEPAD_LOG_PATH,"rb");
+    FILE *file = fopen(LIBREPAD_LOG_PATH,"rb");
     if (file) {
         if (fseek(file,0,SEEK_END)) goto log_error;
         long length=ftell(file);
         if (length < 0) goto log_error;
         long offset=length > DIAGNOSTIC_LOG_LIMIT ? length-DIAGNOSTIC_LOG_LIMIT : 0;
         used += (size_t)snprintf(report+used,DIAGNOSTIC_HEADER_LIMIT-used,
-            offset ? "Log truncated: latest 256 KiB; older entries omitted. Full log: " FREEPAD_LOG_PATH "\n" : "Complete log at capture time.\n");
+            offset ? "Log truncated: latest 256 KiB; older entries omitted. Full log: " LIBREPAD_LOG_PATH "\n" : "Complete log at capture time.\n");
         if (fseek(file,offset,SEEK_SET)) goto log_error;
         size_t count=fread(report+used,1,(size_t)(length-offset),file);
         if (ferror(file)) goto log_error;
         used += count; report[used]=0;
         fclose(file);
     } else if (errno == ENOENT) {
-        snprintf(report+used,DIAGNOSTIC_HEADER_LIMIT-used,"Log file not created yet: " FREEPAD_LOG_PATH "\n");
+        snprintf(report+used,DIAGNOSTIC_HEADER_LIMIT-used,"Log file not created yet: " LIBREPAD_LOG_PATH "\n");
     } else goto log_error;
     reply_headers(fd,200,"text/plain; charset=utf-8",report,
         "Content-Disposition: attachment; filename=\"LibrePadPS5-diagnostics-" LIBREPAD_VERSION ".txt\"\r\n");
@@ -259,7 +260,7 @@ static void diagnostics_reply(int fd)
 log_error:
     if (file) fclose(file);
     free(report);
-    reply(fd,500,"text/plain","Could not read the payload log. Try again or retrieve " FREEPAD_LOG_PATH " through FTP.");
+    reply(fd,500,"text/plain","Could not read the payload log. Try again or retrieve " LIBREPAD_LOG_PATH " through FTP.");
 }
 /* Data-driven routing; validation and ownership checks stay explicit. */
 static int get_route(int fd, const char *path)
@@ -363,7 +364,7 @@ static void handle(int fd)
         } else if (!strcmp(path,"/api/bluetooth/forget")) {
             ok=bluetooth_forget(); message=ok ? "Forget selected controller and shutdown queued" : "Command pending";
         } else if (!strncmp(path, "/api/profiles?data=", 19)) {
-            char text[FREEPAD_PROFILE_TEXT_MAX];
+            char text[LIBREPAD_PROFILE_TEXT_MAX];
             int released = 1;
             for (int i = 0; i < MAX_SLOTS; i++) {
                 vpad_slot_info_t pad = {0}; vpad_get_slot_info(i, &pad);
@@ -372,12 +373,12 @@ static void handle(int fd)
             if (!released) {
                 ok = 0; message = "Release the virtual pad and wait until it is removed before saving";
             } else {
-                ok = decode_profile_text(path+19, text) && freepad_profiles_save(text);
+                ok = decode_profile_text(path+19, text) && librepad_profiles_save(text);
                 message = ok ? "Profiles saved and applied. Reconnect the pad; replug new devices if needed." : "Invalid profiles or save failed; existing settings unchanged";
             }
         } else if (!strcmp(path, "/api/stop")) {
             reply(fd, 200, "application/json", "{\"message\":\"Stopping payload\"}");
-            freepad_request_stop();
+            librepad_request_stop();
             return;
         } else if (!strcmp(path, "/api/release")) {
             ok = controller_release(slot);
@@ -425,7 +426,7 @@ static void *worker(void *arg)
     return NULL;
 }
 
-int freepad_web_init(int port)
+int librepad_web_init(int port)
 {
     server = socket(AF_INET, SOCK_STREAM, 0);
     if (server < 0) return 0;
@@ -451,7 +452,7 @@ int freepad_web_init(int port)
     return 1;
 }
 
-void freepad_web_cleanup(void)
+void librepad_web_cleanup(void)
 {
     if (server < 0) return;
     running = 0;

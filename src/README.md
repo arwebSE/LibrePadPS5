@@ -7,7 +7,7 @@ input/      USB discovery/reading, shared source slots and report decoding
 bluetooth/  Queued Classic/LE host adapter; disabled until explicitly enabled
 ps5/        Virtual-controller ownership, user binding, system credentials
 dashboard/  HTTP endpoints; generated interface assets come from web/
-legacy/     Archived reference files, not compiled into the payload
+xbox/       Xbox Wireless backend, USB transport and standalone diagnostic glue
 ```
 
 Start at `app/main.c`. Add report formats in `input/controller_profiles.c`;
@@ -17,9 +17,15 @@ protection and owned-device cleanup live in `ps5/virtual_controller.c`.
 
 Dedicated USB decoders live in `input/protocol_decoder.c`. Bluetooth and
 descriptor-based generic HID use a pinned core in `vendor/anypad/`, behind
-the owned-device adapter. The optional Xbox radio is behind a build flag and four-function C interface. No remote shell injection or
+the owned-device adapter. The optional Xbox radio uses `xbox/librepad_xbox.h` and
+the pinned protocol/radio code in `vendor/xow/`. No remote shell injection or
 native-handle recycling is present. Platform guards support PS5 compilation
 and host tests. Address approval and ownership checks are intentional.
 
 Use plain punctuation throughout the project, never em dashes.
 The punctuation check in `make test` enforces this.
+
+Build recipes live in `config/build/`, examples and payload metadata in `config/`,
+host tests in `tests/`, and developer tools in `tools/`. Reference-only OmniPad
+snapshots are kept outside the active source tree in `docs/reference/omnipad/`.
+See [development and layout](../docs/DEVELOPMENT.md).

@@ -18,11 +18,11 @@ static source_t sources[MAX_SLOTS];
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static void pause_path(int slot, char path[80])
-{ snprintf(path, 80, FREEPAD_STATE_DIR "/pause-%d", slot); }
+{ snprintf(path, 80, LIBREPAD_STATE_DIR "/pause-%d", slot); }
 int controller_paused(int slot)
 {
     char path[80]; pause_path(slot, path);
-    return access(FREEPAD_STATE_DIR "/pause", F_OK) == 0 || access(path, F_OK) == 0;
+    return access(LIBREPAD_STATE_DIR "/pause", F_OK) == 0 || access(path, F_OK) == 0;
 }
 int controller_attach(void *owner, pad_conn_type_t type, const char *name)
 {
@@ -79,7 +79,7 @@ int controller_reconnect(int slot)
     if (ok && pad.status == VP_FAILED) vpad_remove(slot);
     /* Migrate a legacy global pause before clearing it, so reconnecting one
      * slot cannot silently unpause other devices on their next replug. */
-    if (ok && access(FREEPAD_STATE_DIR "/pause", F_OK) == 0) {
+    if (ok && access(LIBREPAD_STATE_DIR "/pause", F_OK) == 0) {
         for (int i = 0; i < MAX_SLOTS; i++) {
             char paused[80]; pause_path(i, paused);
             int fd = open(paused, O_WRONLY | O_CREAT, 0600);
@@ -89,7 +89,7 @@ int controller_reconnect(int slot)
     }
     char path[80]; pause_path(slot, path);
     if (ok) ok = unlink(path) == 0 || errno == ENOENT;
-    if (ok) ok = unlink(FREEPAD_STATE_DIR "/pause") == 0 || errno == ENOENT;
+    if (ok) ok = unlink(LIBREPAD_STATE_DIR "/pause") == 0 || errno == ENOENT;
     if (ok) {
         ok = vpad_add(slot, sources[slot].type, sources[slot].name);
         if (ok) vpad_update(slot, &sources[slot].state);
@@ -115,7 +115,7 @@ int controller_release(int slot)
         close(fd); vpad_remove(i);
     }
     if (ok && slot < 0) {
-        int fd = open(FREEPAD_STATE_DIR "/pause", O_WRONLY | O_CREAT, 0600);
+        int fd = open(LIBREPAD_STATE_DIR "/pause", O_WRONLY | O_CREAT, 0600);
         if (fd < 0) ok = 0; else close(fd);
     }
     pthread_mutex_unlock(&mutex); return ok;

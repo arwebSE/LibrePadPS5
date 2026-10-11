@@ -7,7 +7,7 @@
 #include "input/controller_profiles.h"
 #include "bluetooth/controller_host.h"
 #ifdef LIBREPAD_WITH_XBOX
-#include "../../modules/xbox/librepad_xbox.h"
+#include "xbox/librepad_xbox.h"
 #endif
 
 #include <signal.h>
@@ -25,13 +25,13 @@
 #endif
 
 #include "core/legacy_paths.h"
-#define STATE_DIR FREEPAD_STATE_DIR
+#define STATE_DIR LIBREPAD_STATE_DIR
 #define STOP_FLAG STATE_DIR "/stop"
 
 static volatile sig_atomic_t running = 1;
 static atomic_int stop_requested;
 
-void freepad_request_stop(void)
+void librepad_request_stop(void)
 {
     atomic_store(&stop_requested, 1);
 }
@@ -66,7 +66,7 @@ int main(void)
         if (lock_fd >= 0) close(lock_fd);
         return 1;
     }
-    log_init(FREEPAD_LOG_PATH);
+    log_init(LIBREPAD_LOG_PATH);
     log_line("LibrePadPS5 version " LIBREPAD_VERSION);
 #ifdef LIBREPAD_XBOX_STANDALONE
     log_line("LibrePadPS5 Xbox Wireless: native adapter / MT76 / GIP");
@@ -75,9 +75,9 @@ int main(void)
 #else
     log_line("LibrePadPS5: USB and opt-in Bluetooth; shared virtual slots");
 #endif
-    if (!freepad_profiles_init(FREEPAD_PROFILES_PATH)) {
+    if (!librepad_profiles_init(LIBREPAD_PROFILES_PATH)) {
         log_line("Invalid/unreadable controller profiles; refusing startup");
-        notify_ps5("LibrePadPS5: controllers.conf is invalid or unreadable. Check " FREEPAD_LOG_PATH);
+        notify_ps5("LibrePadPS5: controllers.conf is invalid or unreadable. Check " LIBREPAD_LOG_PATH);
         log_close();
         close(lock_fd);
         return 1;
@@ -88,7 +88,7 @@ int main(void)
     log_line("Firmware: 0x%08x", fw);
     if (fw < 0x07000000 || fw > 0x1360ffff) {
         log_line("Unsupported firmware; exiting without touching virtual pads");
-        notify_ps5("LibrePadPS5: unsupported firmware 0x%08x. Check " FREEPAD_LOG_PATH, fw);
+        notify_ps5("LibrePadPS5: unsupported firmware 0x%08x. Check " LIBREPAD_LOG_PATH, fw);
         log_close();
         close(lock_fd);
         return 1;
@@ -97,7 +97,7 @@ int main(void)
 
     if (!vpad_init()) {
         log_line("Virtual pad initialization failed");
-        notify_ps5("LibrePadPS5: virtual pad initialization failed. Check " FREEPAD_LOG_PATH " for the reason.");
+        notify_ps5("LibrePadPS5: virtual pad initialization failed. Check " LIBREPAD_LOG_PATH " for the reason.");
         log_close();
         close(lock_fd);
         return 1;
@@ -106,9 +106,9 @@ int main(void)
 #ifdef LIBREPAD_WITH_XBOX
     librepad_xbox_start();
 #endif
-    if (!freepad_web_init(8096)) {
+    if (!librepad_web_init(8096)) {
         log_line("LibrePadPS5 dashboard failed to start");
-        notify_ps5("LibrePadPS5: dashboard failed on port 8096. Check " FREEPAD_LOG_PATH);
+        notify_ps5("LibrePadPS5: dashboard failed on port 8096. Check " LIBREPAD_LOG_PATH);
     } else {
         notify_ps5("LibrePadPS5 " LIBREPAD_VERSION " ready. Dashboard: http://<PS5_IP>:8096/");
     }
@@ -127,7 +127,7 @@ int main(void)
         }
         usleep(4000);
     }
-    freepad_web_cleanup();
+    librepad_web_cleanup();
     bluetooth_cleanup();
     usb_hotplug_cleanup();
 #ifdef LIBREPAD_WITH_XBOX

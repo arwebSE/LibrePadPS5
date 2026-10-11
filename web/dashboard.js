@@ -134,7 +134,7 @@ async function act(path) {
   try {
     let r = await fetch("/api/" + path, {
       method: "POST",
-      headers: { "X-FreePad-Control": "1" },
+      headers: { "X-LibrePad-Control": "1" },
     });
     let j = await r.json();
     el("message").textContent = j.message;
@@ -339,7 +339,7 @@ async function saveProfiles() {
     if (text.length >= 2048) throw Error("Profiles too large");
     let r = await fetch("/api/profiles?data=" + encodeURIComponent(text), {
         method: "POST",
-        headers: { "X-FreePad-Control": "1" },
+        headers: { "X-LibrePad-Control": "1" },
       }),
       j = await r.json();
     el("message").textContent = j.message;

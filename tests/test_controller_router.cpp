@@ -59,8 +59,8 @@ int main() {
     assert(controller_reconnect(0) && states[0].buttons==PAD_BTN_CROSS);
     assert(additions[0]==2 && additions[1]==1);
     assert(controller_release(-1));
-    files.erase(FREEPAD_STATE_DIR "/pause-0");
-    files.erase(FREEPAD_STATE_DIR "/pause-2"); // Older builds only had a global pause.
+    files.erase(LIBREPAD_STATE_DIR "/pause-0");
+    files.erase(LIBREPAD_STATE_DIR "/pause-2"); // Older builds only had a global pause.
     assert(controller_reconnect(1));
     assert(controller_paused(0) && !controller_paused(1) && controller_paused(2));
     controller_detach(&pdp); controller_detach(&extra);

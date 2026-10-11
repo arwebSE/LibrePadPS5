@@ -8,7 +8,7 @@ The PDP `0e6f:0184` wired gamepad and Xbox One model 1697 through `045e:02e6` ar
 | DualShock 3 | Dedicated driver, `054c:0268` | Not implemented upstream or here |
 | Xbox | 360/XInput and One/Series GIP input, wake-up and Guide ACK | Classic One S/Elite/Adaptive; LE Series/current firmware; Secure Connections |
 | Switch Pro / NSO | Full-report driver and USB wake-up | Classic driver and report-mode initialization |
-| 8BitDo | Known XInput IDs use vendor interfaces; Adapter 2 needs manual XInput mode (hardware unverified). [Setup](FREEPAD.md#8bitdo-usb-wireless-adapter-2); other HID modes can use Generic USB HID | Descriptor-based generic HID, including upstream mappings |
+| 8BitDo | Known XInput IDs use vendor interfaces; Adapter 2 needs manual XInput mode (hardware unverified). [Setup](SETUP.md#8bitdo-usb-wireless-adapter-2); other HID modes can use Generic USB HID | Descriptor-based generic HID, including upstream mappings |
 | GameSir, iPega, SteelSeries, MOGA, Shield, Atari, Hyperkin, Mocute and other HID pads | Generic USB HID after adding an explicit profile if not auto-recognized | All AnyPad built-in generic mappings retained; other HID pads use descriptor/default mapping |
 | DualSense / Edge | Never claimed by our USB scanner | Upstream decoder retained, selected address only. Do not select the console's native controller |
 | Wii Remote, Wii U Pro, standalone Joy-Con | No dedicated driver | Not implemented upstream or here |
@@ -21,7 +21,7 @@ The optional xow-based radio module supports the Microsoft adapter `045e:02e6`
 (hardware verified) and allowlists `045e:02fe` (unverified). It handles one Xbox
 controller alongside USB controllers through the shared three-slot manager.
 Microsoft firmware is supplied separately and is not distributed in the payload.
-See [radio setup and limits](../modules/xbox/README.md).
+See [radio setup and limits](XBOX.md).
 
 Native DualSense USB devices are ignored. Reserve each native user's profile,
 then assign PDP and Xbox to separate other profiles. USB and Xbox do not enable
@@ -47,6 +47,6 @@ Driver profiles remap canonical PS5 inputs in this order:
 
 The mapping preserves stick and D-pad state. Analog trigger pressure follows trigger-output remapping. Use `driver:bluetooth` for Bluetooth button overrides; it does not enable that ID for USB scanning.
 
-For unusual generic HID axis/button usages, place `VVVV_PPPP.map` inside `/data/pdp-pad/maps/` using hexadecimal IDs. [Example](../maps/EXAMPLE.map). Disable/re-enable Bluetooth or replug USB after editing a map. Generic reports retain state across separate report IDs.
+For unusual generic HID axis/button usages, place `VVVV_PPPP.map` inside `/data/pdp-pad/maps/` using hexadecimal IDs. [Example](../config/maps/EXAMPLE.map). Disable/re-enable Bluetooth or replug USB after editing a map. Generic reports retain state across separate report IDs.
 
 USB wake-up/Guide protocol details were checked against Linux's [xpad](https://github.com/torvalds/linux/blob/master/drivers/input/joystick/xpad.c) and [hid-nintendo](https://github.com/torvalds/linux/blob/master/drivers/hid/hid-nintendo.c) drivers.

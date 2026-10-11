@@ -201,7 +201,7 @@ static int setup_generic(usb_slot_device_t *dev)
     }
     pad_state_reset(&dev->generic_state);
     int ready = generic_setup(dev->generic.bytes,descriptor,(int)request.ucr_actlen,
-        dev->vid,dev->pid,FREEPAD_STATE_DIR "/maps");
+        dev->vid,dev->pid,LIBREPAD_STATE_DIR "/maps");
     if (!ready) log_line("usb_hotplug: %04x:%04x gamepad descriptor could not be parsed (bytes=%u)",
                          dev->vid, dev->pid, (unsigned)request.ucr_actlen);
     return ready;
@@ -241,7 +241,7 @@ static int usb_fs_recv_packet(usb_slot_device_t *dev, uint8_t *buffer, uint32_t 
     /* Do not restart a transfer before consuming its completion. The old
      * short-timeout loop could discard press/release reports between calls. */
     if (!dev->in_pending) {
-        size_t report_size = freepad_profiles_report_size(dev->vid, dev->pid);
+        size_t report_size = librepad_profiles_report_size(dev->vid, dev->pid);
         if (!report_size || report_size > length) return -1;
         dev->fs_len[dev->in_index] = (uint32_t)report_size;
         ep->nFrames = 1;
@@ -309,10 +309,10 @@ static void *usb_reader_worker(void *arg)
 
         if (n > 0) {
             consecutive_errors = 0;
-            int parsed = freepad_profiles_parse(dev->vid, dev->pid, report, (size_t)n, &st);
+            int parsed = librepad_profiles_parse(dev->vid, dev->pid, report, (size_t)n, &st);
             if (dev->driver==CTRL_XBOX_XINPUT || dev->driver==CTRL_8BITDO_ADAPTER) {
                 parsed=usb_parse_stateful_report(dev->driver,report,(size_t)n,&dev->protocol_state,&st);
-                if (parsed) freepad_profiles_remap(dev->vid,dev->pid,&st);
+                if (parsed) librepad_profiles_remap(dev->vid,dev->pid,&st);
             }
             if (dev->driver==CTRL_GENERIC_HID &&
                 generic_profile.parse(dev->generic.bytes,report,n,&dev->generic_state)!=PARSE_NONE) {
@@ -321,7 +321,7 @@ static void *usb_reader_worker(void *arg)
                 st.lx=dev->generic_state.lx; st.ly=dev->generic_state.ly;
                 st.rx=dev->generic_state.rx; st.ry=dev->generic_state.ry;
                 st.l2=dev->generic_state.l2; st.r2=dev->generic_state.r2;
-                freepad_profiles_remap(dev->vid,dev->pid,&st); parsed=1;
+                librepad_profiles_remap(dev->vid,dev->pid,&st); parsed=1;
             }
 #ifdef __PROSPERO__
             if ((dev->driver==CTRL_XBOX_XINPUT || dev->driver==CTRL_8BITDO_ADAPTER) && dev->gip && report[0]==7 && n>=5 && (report[1]&0x10)) {
@@ -464,7 +464,7 @@ static void probe_usb_devices(void)
             if (vid == 0x045e && (pid == 0x02e6 || pid == 0x02fe)) {
                 close(fd); continue;
             }
-            if (!freepad_profiles_allowed(vid, pid)) {
+            if (!librepad_profiles_allowed(vid, pid)) {
                 close(fd);
                 continue;
             }
@@ -501,7 +501,7 @@ static void probe_usb_devices(void)
             sdev->pid = pid;
             sdev->name = ctrl_name;
             sdev->stop_thread = 0;
-            sdev->driver=freepad_profiles_driver(vid,pid);
+            sdev->driver=librepad_profiles_driver(vid,pid);
             pad_state_neutral(&sdev->protocol_state);
 
 #ifdef __PROSPERO__
@@ -566,13 +566,13 @@ int usb_hotplug_init(void)
     return 1;
 }
 
-int usb_hotplug_freepad_connected(void)
+int usb_hotplug_librepad_connected(void)
 {
     int connected = 0;
     pthread_mutex_lock(&g_usb_hotplug.lock);
     for (int i = 0; i < MAX_SLOTS; i++) {
         if (g_usb_hotplug.devices[i].active && !g_usb_hotplug.devices[i].stop_thread &&
-            freepad_profiles_allowed(g_usb_hotplug.devices[i].vid, g_usb_hotplug.devices[i].pid))
+            librepad_profiles_allowed(g_usb_hotplug.devices[i].vid, g_usb_hotplug.devices[i].pid))
             connected = 1;
     }
     pthread_mutex_unlock(&g_usb_hotplug.lock);

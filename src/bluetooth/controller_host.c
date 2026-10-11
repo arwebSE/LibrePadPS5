@@ -126,7 +126,7 @@ static void on_state(void *ud, int slot, const pad_state *input)
     }
     if (input->has_touch) { output.touch_down=input->touch[0].down; output.touch_x=input->touch[0].x; output.touch_y=input->touch[0].y; }
     if (input->has_battery) { output.battery_level=input->battery_pct; output.battery_charging=input->charging; }
-    freepad_profiles_remap(output.vid,output.pid,&output);
+    librepad_profiles_remap(output.vid,output.pid,&output);
     controller_update(&info,&output);
 }
 static void on_disconnect(void *ud, int slot)
@@ -153,7 +153,7 @@ void bluetooth_poll(void)
     switch (command) {
     case BT_PAIR: {
         vpad_slot_info_t pad={0}; vpad_get_slot_info(0,&pad);
-        if (usb_hotplug_freepad_connected() || controller_connected(0) || controller_connected(1) || controller_connected(2) || (!host && pad.status != VP_FREE)) {
+        if (usb_hotplug_librepad_connected() || controller_connected(0) || controller_connected(1) || controller_connected(2) || (!host && pad.status != VP_FREE)) {
             publish("Unplug USB controllers and release the virtual pad first"); break;
         }
     if (host) {
@@ -165,7 +165,7 @@ void bluetooth_poll(void)
         host_events events={.on_connect=on_connect,.on_state=on_state,
             .on_disconnect=on_disconnect,.idle=idle,.allow_device=approve};
         if (!hci_usb_open(&transport)) { publish("Bluetooth transport unavailable or unverified layout"); break; }
-        host=host_open(transport,FREEPAD_STATE_DIR "/bluetooth.db",&events);
+        host=host_open(transport,LIBREPAD_STATE_DIR "/bluetooth.db",&events);
         if (!host) { bluetooth_cleanup(); publish("Bluetooth host did not initialize; see log"); break; }
         if (!host_pair(host,120)) { bluetooth_cleanup(); publish("Could not begin pairing; see log"); break; }
         break;
