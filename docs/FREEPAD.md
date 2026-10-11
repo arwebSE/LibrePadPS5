@@ -78,6 +78,6 @@ clang -std=c11 -Wall -Wextra -Werror -pthread -fsanitize=address,undefined -g -I
 
 ## Credits
 
-Derived from [OmniPad PS5](https://github.com/diegobarbosaa/OmniPad-PS5) by diegobarbosaa. Thanks to [AnyPad](https://github.com/sinfiltros/AnyPad-PS5), [PoorDS4/Ghostcontrol](https://github.com/a-ddr/PoorDS4), [YetAnotherControllerEnabler](https://github.com/MegaCadeDev/YetAnotherControllerEnabler) and [PS5 Payload SDK](https://github.com/ps5-payload-dev/sdk) contributors. Upstream history and attribution retained.
+Derived from [OmniPad PS5](https://github.com/diegobarbosaa/OmniPad-PS5) by diegobarbosaa. Thanks to [AnyPad](https://github.com/sinfiltros/AnyPad-PS5), [PoorDS4/Ghostcontrol](https://github.com/a-ddr/PoorDS4), [YetAnotherControllerEnabler](https://github.com/MegaCadeDev/YetAnotherControllerEnabler) and [PS5 Payload SDK](https://github.com/ps5-payload-dev/sdk) contributors. Original source attribution retained; Git history contains this project's commits only.
 
 [GPL-3.0](../LICENSE). Not affiliated with Sony, Nintendo or controller manufacturers.
