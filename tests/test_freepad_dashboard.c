@@ -8,6 +8,7 @@
 static vpad_slot_info_t mock_pad, second_pad;
 static int last_slot;
 static int connected = 1, removed, added, pressed, rebound, stopped;
+static char last_response[DIAGNOSTIC_HEADER_LIMIT + DIAGNOSTIC_LOG_LIMIT + 1024];
 
 void log_line(const char *fmt, ...) { (void)fmt; }
 void freepad_request_stop(void) { stopped++; }
@@ -64,9 +65,10 @@ static void request(const char *raw, int status, const char *expected, int split
         assert(send(fds[0], raw + part, len - part, 0) == (ssize_t)(len - part));
     }
     shutdown(fds[0], SHUT_WR);
-    char response[20000] = {0}; size_t used = 0;
+    char *response = last_response; size_t used = 0;
+    memset(response,0,sizeof(last_response));
     ssize_t n;
-    while ((n = recv(fds[0], response + used, sizeof(response) - used - 1, 0)) > 0)
+    while ((n = recv(fds[0], response + used, sizeof(last_response) - used - 1, 0)) > 0)
         used += (size_t)n;
     close(fds[0]); pthread_join(worker_thread, NULL);
     char prefix[32]; snprintf(prefix, sizeof(prefix), "HTTP/1.1 %d ", status);
@@ -81,6 +83,37 @@ int main(void)
     mkdir("/data", 0700); mkdir(FREEPAD_STATE_DIR, 0700);
     unlink(FREEPAD_PROFILES_PATH);
     assert(freepad_profiles_init(FREEPAD_PROFILES_PATH));
+    /* Downloads work without a log; only fixed, non-secret files are read. */
+    unlink(FREEPAD_LOG_PATH);
+    request("GET /api/diagnostics HTTP/1.1\r\n\r\n",200,"Log file not created yet",0);
+    assert(strstr(last_response,"Content-Disposition: attachment; filename=\"LibrePadPS5-diagnostics-" LIBREPAD_VERSION ".txt\""));
+    assert(strstr(last_response,"Version: " LIBREPAD_VERSION));
+    assert(strstr(last_response,"--- Saved controller mappings ---"));
+    FILE *log = fopen(FREEPAD_LOG_PATH,"wb"); assert(log);
+    fputs("startup marker\nlog line: test controller failed\n",log); fclose(log);
+    FILE *bond = fopen(FREEPAD_STATE_DIR "/bluetooth.db","wb"); assert(bond);
+    fputs("PRIVATE_BOND_SECRET",bond); fclose(bond);
+    request("GET /api/diagnostics HTTP/1.1\r\n\r\n",200,"startup marker",0);
+    assert(strstr(last_response,"Complete log at capture time"));
+    assert(!strstr(last_response,"PRIVATE_BOND_SECRET"));
+    const char *body = strstr(last_response,"\r\n\r\n")+4;
+    size_t content_length=0;
+    assert(sscanf(strstr(last_response,"Content-Length: "),"Content-Length: %zu",&content_length)==1);
+    assert(content_length==strlen(body));
+    log=fopen(FREEPAD_LOG_PATH,"wb"); assert(log);
+    fputs("OLDER_ENTRY_MUST_BE_OMITTED\n",log);
+    for (int i=0; i<DIAGNOSTIC_LOG_LIMIT+1000; i++) fputc('a',log);
+    fputs("\nlatest failure marker\n",log); fclose(log);
+    request("GET /api/diagnostics HTTP/1.1\r\n\r\n",200,"latest failure marker",0);
+    assert(strstr(last_response,"Log truncated: latest 256 KiB"));
+    assert(!strstr(last_response,"OLDER_ENTRY_MUST_BE_OMITTED"));
+    body=strstr(last_response,"\r\n\r\n")+4;
+    assert(strlen(body)<DIAGNOSTIC_HEADER_LIMIT+DIAGNOSTIC_LOG_LIMIT);
+    request("GET /api/diagnostics?path=bluetooth.db HTTP/1.1\r\n\r\n",400,"Unknown request",0);
+    unlink(FREEPAD_LOG_PATH); unlink(FREEPAD_STATE_DIR "/bluetooth.db");
+    mkdir(FREEPAD_LOG_PATH,0700);
+    request("GET /api/diagnostics HTTP/1.1\r\n\r\n",500,"Could not read the payload log",0);
+    rmdir(FREEPAD_LOG_PATH);
     unlink(FREEPAD_STATE_DIR "/pause");
     mock_pad.status = VP_READY;
     mock_pad.user_id = 0x1234;

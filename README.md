@@ -2,7 +2,7 @@
 
 Use your gamepad on PS5.
 
-[Download v0.5.1](https://github.com/arwebSE/freepad-usb-ps5/releases/download/v0.5.1-preview/LibrePadPS5.elf) · [Releases](https://github.com/arwebSE/freepad-usb-ps5/releases) · [Issues](https://github.com/arwebSE/freepad-usb-ps5/issues)
+[Download v0.5.2](https://github.com/arwebSE/freepad-usb-ps5/releases/download/v0.5.2-preview/LibrePadPS5.elf) · [Releases](https://github.com/arwebSE/freepad-usb-ps5/releases) · [Issues](https://github.com/arwebSE/freepad-usb-ps5/issues)
 
 ## What it does
 
@@ -25,6 +25,8 @@ Use your gamepad on PS5.
 5. Bluetooth: unplug USB gamepads, release the virtual pad, enter the controller address and select **Enable & pair** while the controller is in pairing mode. Bluetooth starts disabled.
 
 Already using an older build? Keep `/data/pdp-pad/` and its profile files. Stop the old instance before loading this one.
+
+Having trouble? [Download a diagnostic report and attach it to a GitHub issue](docs/FREEPAD.md#share-a-diagnostic-report-on-github). Logs are optional.
 
 ## Remap
 

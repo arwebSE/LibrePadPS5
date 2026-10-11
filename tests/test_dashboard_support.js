@@ -1,0 +1,20 @@
+/* Issue links prefill only version/firmware; report data stays local. */
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const vm = require("node:vm");
+const script = fs.readFileSync(require("node:path").join(__dirname,"../web/dashboard.js"),"utf8");
+const start = script.indexOf("function supportIssueUrl(");
+const end = script.indexOf("async function refresh()",start);
+const context = vm.createContext({URL});
+vm.runInContext(script.slice(start,end),context);
+const state = {version:"0.5.2-preview",firmware:"13.60",users:[{name:"private",id:"secret"}],log:"private log"};
+const url = new URL(context.supportIssueUrl(state));
+assert.equal(url.origin,"https://github.com");
+assert.equal(url.pathname,"/arwebSE/freepad-usb-ps5/issues/new");
+assert.equal(url.searchParams.get("template"),"controller_problem.yml");
+assert.equal(url.searchParams.get("version"),state.version);
+assert.equal(url.searchParams.get("firmware"),state.firmware);
+assert.equal([...url.searchParams].length,3);
+assert(!url.href.includes("private") && !url.href.includes("secret"));
+assert.equal([...new URL(context.supportIssueUrl({})).searchParams].length,1);
+console.log("GitHub issue template, version/firmware prefill and local-only report data passed");

@@ -41,12 +41,13 @@ static atomic_int running;
 
 #include "dashboard/assets.h"
 
-static void reply(int fd, int status, const char *type, const char *body)
+static void reply_headers(int fd, int status, const char *type, const char *body, const char *extra)
 {
-    char header[256];
-    const char *reason = status == 200 ? "OK" : status == 403 ? "Forbidden" : status == 409 ? "Conflict" : "Bad Request";
+    char header[512];
+    const char *reason = status == 200 ? "OK" : status == 403 ? "Forbidden" : status == 409 ? "Conflict" : status == 500 ? "Internal Server Error" : "Bad Request";
     size_t length = strlen(body);
-    int n = snprintf(header, sizeof(header), "HTTP/1.1 %d %s\r\nContent-Type: %s\r\nContent-Length: %zu\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n", status, reason, type, length);
+    int n = snprintf(header, sizeof(header), "HTTP/1.1 %d %s\r\nContent-Type: %s\r\nContent-Length: %zu\r\nCache-Control: no-store\r\n%sConnection: close\r\n\r\n", status, reason, type, length, extra);
+    if (n < 0 || (size_t)n >= sizeof(header)) return;
     const char *parts[] = {header, body};
     size_t sizes[] = {(size_t)n, length};
     for (int i = 0; i < 2; i++) {
@@ -57,6 +58,11 @@ static void reply(int fd, int status, const char *type, const char *body)
             sent += (size_t)count;
         }
     }
+}
+
+static void reply(int fd, int status, const char *type, const char *body)
+{
+    reply_headers(fd, status, type, body, "");
 }
 
 static void escape_json(char *out, size_t size, const char *in)
@@ -195,6 +201,66 @@ static void log_reply(int fd)
         reply(fd, 200, "text/plain; charset=utf-8", log);
 
 }
+
+#define DIAGNOSTIC_LOG_LIMIT (256 * 1024)
+#define DIAGNOSTIC_HEADER_LIMIT 8192
+
+/* A fixed-size snapshot keeps old, growing logs from exhausting payload memory.
+ * No bond database, account list or arbitrary file path is exported. */
+static void diagnostics_reply(int fd)
+{
+    char *report = malloc(DIAGNOSTIC_HEADER_LIMIT + DIAGNOSTIC_LOG_LIMIT + 1);
+    if (!report) { reply(fd,500,"text/plain","Could not allocate diagnostic report. Try again."); return; }
+    uint32_t firmware = 0;
+#ifdef __PROSPERO__
+    firmware = kernel_get_fw_version();
+#endif
+    size_t used = (size_t)snprintf(report, DIAGNOSTIC_HEADER_LIMIT,
+        "LibrePadPS5 diagnostic report\nVersion: " LIBREPAD_VERSION "\nFirmware: %x.%02x (0x%08x)\n"
+        "Review before sharing: logs may contain profile names/IDs and device addresses.\n"
+        "Attach this .txt to your existing GitHub issue, or use the controller-problem template.\n\n"
+        "--- Controller snapshot ---\n",
+        (firmware >> 24) & 255, (firmware >> 16) & 255, firmware);
+    for (int slot=0; slot<MAX_SLOTS; slot++) {
+        vpad_slot_info_t pad = {0}; char name[64];
+        vpad_get_slot_info(slot,&pad); controller_name(slot,name,sizeof(name));
+        name[sizeof(name)-1]=0;
+        used += (size_t)snprintf(report+used,DIAGNOSTIC_HEADER_LIMIT-used,
+            "Pad %d: %s; connected=%d; status=%d; paused=%d; frames=%u; buttons=0x%08x; axes=%u,%u,%u,%u\n",
+            slot+1,name,controller_connected(slot),pad.status,controller_paused(slot),
+            pad.packets_injected,pad.buttons,pad.lx,pad.ly,pad.rx,pad.ry);
+    }
+    char bt[512], raw[256], profiles[FREEPAD_PROFILE_TEXT_MAX];
+    bluetooth_status(bt,sizeof(bt)); freepad_profiles_report(raw,sizeof(raw));
+    if (!freepad_profiles_export(profiles,sizeof(profiles))) snprintf(profiles,sizeof(profiles),"Unavailable\n");
+    used += (size_t)snprintf(report+used,DIAGNOSTIC_HEADER_LIMIT-used,
+        "\n--- Bluetooth snapshot ---\n%s\n\n--- Latest USB report ---\n%s\n"
+        "--- Saved controller mappings ---\n%s\n--- Payload log ---\n",bt,raw,profiles);
+    FILE *file = fopen(FREEPAD_LOG_PATH,"rb");
+    if (file) {
+        if (fseek(file,0,SEEK_END)) goto log_error;
+        long length=ftell(file);
+        if (length < 0) goto log_error;
+        long offset=length > DIAGNOSTIC_LOG_LIMIT ? length-DIAGNOSTIC_LOG_LIMIT : 0;
+        used += (size_t)snprintf(report+used,DIAGNOSTIC_HEADER_LIMIT-used,
+            offset ? "Log truncated: latest 256 KiB; older entries omitted. Full log: " FREEPAD_LOG_PATH "\n" : "Complete log at capture time.\n");
+        if (fseek(file,offset,SEEK_SET)) goto log_error;
+        size_t count=fread(report+used,1,(size_t)(length-offset),file);
+        if (ferror(file)) goto log_error;
+        used += count; report[used]=0;
+        fclose(file);
+    } else if (errno == ENOENT) {
+        snprintf(report+used,DIAGNOSTIC_HEADER_LIMIT-used,"Log file not created yet: " FREEPAD_LOG_PATH "\n");
+    } else goto log_error;
+    reply_headers(fd,200,"text/plain; charset=utf-8",report,
+        "Content-Disposition: attachment; filename=\"LibrePadPS5-diagnostics-" LIBREPAD_VERSION ".txt\"\r\n");
+    free(report);
+    return;
+log_error:
+    if (file) fclose(file);
+    free(report);
+    reply(fd,500,"text/plain","Could not read the payload log. Try again or retrieve " FREEPAD_LOG_PATH " through FTP.");
+}
 /* Data-driven routing; validation and ownership checks stay explicit. */
 static int get_route(int fd, const char *path)
 {
@@ -206,7 +272,8 @@ static int get_route(int fd, const char *path)
     };
     static const struct { const char *path; void (*handle)(int); } routes[] = {
         {"/api/state",state}, {"/api/profiles",profiles_reply},
-        {"/api/report",report_reply}, {"/api/log",log_reply}, {"/api/bluetooth",bluetooth_reply}
+        {"/api/report",report_reply}, {"/api/log",log_reply}, {"/api/bluetooth",bluetooth_reply},
+        {"/api/diagnostics",diagnostics_reply}
     };
     for (size_t i = 0; i < sizeof(assets)/sizeof(assets[0]); i++)
         if (!strcmp(path,assets[i].path)) {

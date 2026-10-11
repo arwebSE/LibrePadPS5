@@ -1,0 +1,66 @@
+name: Controller or startup problem
+description: Report a controller, adapter, startup or dashboard problem. Logs are optional.
+title: "[Controller] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for trying LibrePadPS5!
+        If you already have an issue, attach your report there instead of opening another.
+        To collect logs: reproduce the problem, open `http://<PS5_IP>:8096/`, then **Advanced > Logs & support > Download diagnostic report (.txt)**.
+        Review the file before sharing; logs may contain profile names/IDs and device addresses.
+        If the dashboard never opens, retrieve `/data/pdp-pad/pdp-pad.log` through FTP and include the ELF loader output.
+  - type: input
+    id: version
+    attributes:
+      label: LibrePadPS5 version
+      description: Shown beside the firmware in the dashboard or in the downloaded report.
+      placeholder: "0.5.2-preview, or unknown if it never starts"
+    validations:
+      required: true
+  - type: input
+    id: firmware
+    attributes:
+      label: PS5 firmware
+      placeholder: "13.60"
+    validations:
+      required: true
+  - type: input
+    id: hardware
+    attributes:
+      label: Controller and adapter
+      description: Include the exact controller model, adapter model and VID/PID if available. Use none for a startup-only problem.
+      placeholder: "DualShock 4 with 8BitDo USB Wireless Adapter 2, VID/PID ..."
+    validations:
+      required: true
+  - type: input
+    id: mode
+    attributes:
+      label: Connection and adapter mode
+      placeholder: "USB / XInput mode, Xbox Wireless, Bluetooth, or none"
+  - type: input
+    id: loader
+    attributes:
+      label: ELF loader and jailbreak setup
+      description: Name and version of the loader, jailbreak and kstuff if known.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: What did you expect, what actually happened, and which startup notification appeared?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Stop the old payload.
+        2. Load the preview and connect the controller.
+        3. ...
+  - type: textarea
+    id: logs
+    attributes:
+      label: Diagnostic report or loader output (optional)
+      description: Drag the downloaded .txt into this box, choose a file using GitHub's attachment control, or paste the relevant log lines. GitHub sign-in is required to submit.
+      placeholder: "Attach LibrePadPS5-diagnostics-<version>.txt here. If unavailable, describe what you saw and paste the loader output."

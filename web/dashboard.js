@@ -39,6 +39,13 @@ function updateOptions(id, options, selected) {
   select.value = selected;
 }
 let nativeProfilesSignature = "";
+function supportIssueUrl(state) {
+  const url = new URL("https://github.com/arwebSE/freepad-usb-ps5/issues/new");
+  url.searchParams.set("template", "controller_problem.yml");
+  if (state.version) url.searchParams.set("version", state.version);
+  if (state.firmware) url.searchParams.set("firmware", state.firmware);
+  return url.href;
+}
 async function refresh() {
   if (stopped) return;
   try {
@@ -68,6 +75,7 @@ async function refresh() {
     el("bt-status").textContent = bt.message + (bt.pairing ? " · " + bt.pairing + " seconds remaining" : "") +
       (bt.connected ? " · USB ID " + bt.vid.toString(16).padStart(4,"0") + ":" + bt.pid.toString(16).padStart(4,"0") : "");
     el("fw").textContent = (s.version ? "· " + s.version + " " : "") + "· FW " + s.firmware;
+    el("report-issue").href = supportIssueUrl(s);
     el("status").textContent = s.usb_connected
       ? s.live
         ? "Controller active"

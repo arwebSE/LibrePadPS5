@@ -56,7 +56,7 @@
       <p>Put the controller in pairing mode. Address is available from a PC's Bluetooth device details.
         Pairing lasts 120 seconds. Use Reconnect after releasing an already connected pad.</p>
     </div>
-    <p class="muted">Need to add an unrecognized gamepad or change button mappings? Open Advanced.</p>
+    <p class="muted">Need to add a gamepad, change mappings or download troubleshooting logs? Open Advanced.</p>
     </section>
     <section id="panel-advanced" role="tabpanel" aria-labelledby="tab-advanced" hidden>
     <p class="muted">Custom drivers, remapping and diagnostics. These settings are optional for recognized controllers.</p>
@@ -135,8 +135,18 @@
       <pre id="rawreport"></pre>
     </div>
     <div class="card">
-      <h2>Logs</h2>
-      <button onclick="logs()">Refresh log</button>
+      <h2>Logs &amp; support</h2>
+      <div class="row">
+        <button onclick="logs()">Refresh log</button>
+        <a class="button" href="/api/diagnostics" download>Download diagnostic report (.txt)</a>
+        <a id="report-issue" class="button" href="https://github.com/arwebSE/freepad-usb-ps5/issues/new?template=controller_problem.yml" target="_blank" rel="noopener noreferrer">Open GitHub issue</a>
+      </div>
+      <ol>
+        <li>Reproduce the problem, then download the report while the payload is running.</li>
+        <li>Open the .txt and review it. Logs may contain profile names/IDs and device addresses.</li>
+        <li>Drag the file into your existing GitHub issue's comment box, or use the issue form above. Include your controller model, adapter mode and loader.</li>
+      </ol>
+      <p class="muted">Includes version, firmware, controller state, saved mappings and up to 256 KiB of recent logs. Uploading is optional. If the dashboard never opens, retrieve /data/pdp-pad/pdp-pad.log through FTP and include your loader output.</p>
       <pre id="log"></pre>
     </div>
     </section>
