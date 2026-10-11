@@ -1,0 +1,11 @@
+{
+  "name": "FreePad USB",
+  "filename": "FreePad-USB.elf",
+  "url": "https://github.com/arwebSE/freepad-usb-ps5/releases/download/v0.3.1/FreePad-USB.elf",
+  "source": "https://github.com/arwebSE/freepad-usb-ps5",
+  "description": "Wired Switch controller support for PS5. LAN dashboard on port 8096. Separate console user required; see supported hardware in README.",
+  "version": "0.3.1",
+  "category": "Controller",
+  "install_source": "web_upload",
+  "source_name": "freepad-usb-ps5"
+}

@@ -28,4 +28,4 @@ RUN mkdir -p /tmp/sdk && \
     rm -rf /tmp/sdk*
 
 WORKDIR /work
-CMD ["make", "-f", "pdp.mk"]
+CMD ["make", "-f", "freepad.mk"]

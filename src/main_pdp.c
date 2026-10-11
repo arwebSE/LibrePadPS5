@@ -43,12 +43,12 @@ int main(void)
      * a PID from a stale file, and never load two instances of this build. */
     int lock_fd = open(STATE_DIR "/instance.lock", O_RDWR | O_CREAT, 0600);
     if (lock_fd < 0 || flock(lock_fd, LOCK_EX | LOCK_NB) != 0) {
-        puts("PDP payload: state directory unavailable or another instance is running");
+        puts("FreePad USB: state directory unavailable or another instance is running");
         if (lock_fd >= 0) close(lock_fd);
         return 1;
     }
     log_init(STATE_DIR "/pdp-pad.log");
-    log_line("PDP Faceoff USB payload with dashboard; no Bluetooth or autoload");
+    log_line("FreePad USB v0.3.1; wired Switch controller for PS5; no Bluetooth or autoload");
 
 #ifdef __PROSPERO__
     uint32_t fw = kernel_get_fw_version();
@@ -66,7 +66,7 @@ int main(void)
         return 1;
     }
     usb_hotplug_init();
-    if (!pdp_web_init(8096)) log_line("PDP dashboard failed to start");
+    if (!pdp_web_init(8096)) log_line("FreePad USB dashboard failed to start");
     log_line("Ready. Stop by creating " STOP_FLAG " or sending SIGTERM.");
     while (running && !atomic_load(&stop_requested)) {
         long now = now_ms();
@@ -81,7 +81,7 @@ int main(void)
     pdp_web_cleanup();
     usb_hotplug_cleanup();
     vpad_cleanup_all();
-    log_line("PDP payload stopped cleanly");
+    log_line("FreePad USB stopped cleanly");
     log_close();
     close(lock_fd);
     return 0;

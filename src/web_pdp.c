@@ -34,25 +34,25 @@ static atomic_int running;
 
 static const char PAGE[] =
 "<!doctype html><html lang='en'><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
-"<title>PDP Pad</title><style>body{margin:0;background:#111722;color:#e8eef7;font:16px system-ui}main{max-width:760px;margin:auto;padding:28px 18px}"
+"<title>FreePad USB</title><style>body{margin:0;background:#111722;color:#e8eef7;font:16px system-ui}main{max-width:760px;margin:auto;padding:28px 18px}"
 "h1{margin:0;font-size:30px}p{line-height:1.5;color:#b4c2d6}.card{background:#1b2535;border:1px solid #34445b;border-radius:14px;padding:20px;margin-top:18px}"
 ".row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}button,select{font:inherit;border:1px solid #58718e;border-radius:8px;padding:10px;background:#243951;color:#fff;cursor:pointer}"
 "button:disabled{opacity:.45;cursor:default}.danger{background:#5a2934}pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:300px;overflow:auto;font-size:12px}"
-".ok{color:#7ae5b2}.muted{color:#b4c2d6}label{display:block;margin:12px 0 8px}</style><main><h1>PDP Pad</h1><p>Wired controller manager <span id='fw'></span></p>"
+".ok{color:#7ae5b2}.muted{color:#b4c2d6}label{display:block;margin:12px 0 8px}</style><main><h1>FreePad USB</h1><p>Wired Switch controllers, liberated for PS5. <span id='fw'></span></p>"
 "<div class='card'><h2 id='status'>Connecting...</h2><p id='profile'></p><p id='input' class='muted'></p><div class='row'>"
 "<button id='home' onclick='act(\"home\")'>Press Home / PS</button><button onclick='act(\"release\")'>Release virtual pad</button>"
-"<button id='reconnect' onclick='act(\"reconnect\")'>Reconnect</button></div><label for='users'>Assign PDP controller to profile</label>"
+"<button id='reconnect' onclick='act(\"reconnect\")'>Reconnect</button></div><label for='users'>Assign Switch controller to profile</label>"
 "<div class='row'><select id='users'></select><button id='bind' onclick='act(\"rebind?user=\"+document.getElementById(\"users\").value)'>Assign profile</button></div></div>"
 "<div class='card'><h2>Native controllers</h2><p id='native'>Checking...</p><p>Release the virtual pad to check native controller behavior. If a DualSense cannot pair, connect it by USB and press PS.</p></div>"
 "<div class='card'><div class='row'><button onclick='logs()'>Refresh log</button><button class='danger' onclick='act(\"stop\")'>Stop payload</button></div><p id='message' role='status'></p><pre id='log'></pre></div></main>"
 "<script>let stopped=false;const el=id=>document.getElementById(id);async function refresh(){if(stopped)return;try{let r=await fetch('/api/state',{cache:'no-store'}),s=await r.json();"
 "el('fw').textContent='· FW '+s.firmware;el('status').textContent=s.usb_connected?(s.live?'Controller active':'USB connected · virtual pad released or unavailable'):'Controller unplugged';"
-"el('status').className=s.live?'ok':'';let u=s.users.find(u=>u.id===s.user);el('profile').textContent=s.live?(s.user==='ffffffff'?'Unassigned: press Home and choose the separate PDP profile.':'Assigned to '+(u?u.name:s.user)):'Select Reconnect to create the virtual pad.';"
+"el('status').className=s.live?'ok':'';let u=s.users.find(u=>u.id===s.user);el('profile').textContent=s.live?(s.user==='ffffffff'?'Unassigned: press Home and choose the separate controller profile.':'Assigned to '+(u?u.name:s.user)):'Select Reconnect to create the virtual pad.';"
 "el('input').textContent='L stick '+s.axes[0]+', '+s.axes[1]+' · R stick '+s.axes[2]+', '+s.axes[3]+' · Buttons 0x'+s.buttons.toString(16);"
 "let selected=el('users').value;el('users').replaceChildren();for(let u of s.users){let o=document.createElement('option');o.value=u.id;o.textContent=u.name+(u.foreground?' (active)':'')+(u.protected?' (reserved for DualSense)':'');o.disabled=u.protected;el('users').append(o);}"
 "if(s.users.some(u=>u.id===selected&&!u.protected))el('users').value=selected;else if(s.users.some(u=>u.id===s.user&&!u.protected))el('users').value=s.user;el('home').disabled=!s.live;let target=s.users.find(u=>u.id===el('users').value);el('bind').disabled=!s.live||!target||target.protected||target.native_connected;el('reconnect').disabled=!s.usb_connected||s.status===1||s.status===2||s.live;"
 "let native=s.users.filter(u=>u.native_connected===true),unknown=s.users.some(u=>u.native_connected===null);el('native').textContent=(native.length?'Connected: '+native.map(u=>u.name).join(', '):unknown?'Native connection status unavailable from this payload process.':'No connected native controller reported.')+' Protected profile: '+(s.users.find(u=>u.protected)?.name||'not configured');}"
-"catch(e){el('status').textContent='Dashboard offline';}}async function act(path){try{let r=await fetch('/api/'+path,{method:'POST',headers:{'X-PDP-Control':'1'}});let j=await r.json();el('message').textContent=j.message;"
+"catch(e){el('status').textContent='Dashboard offline';}}async function act(path){try{let r=await fetch('/api/'+path,{method:'POST',headers:{'X-FreePad-Control':'1'}});let j=await r.json();el('message').textContent=j.message;"
 "if(path==='stop'&&r.ok){stopped=true;el('status').textContent='Payload stopped';return;}await refresh();}catch(e){el('message').textContent='Request failed: '+e.message;}}"
 "async function logs(){try{el('log').textContent=await(await fetch('/api/log',{cache:'no-store'})).text();}catch(e){el('message').textContent=e.message;}}refresh();setInterval(refresh,1000);</script></html>";
 
@@ -129,8 +129,11 @@ static int control_header(const char *request)
     const char *line = strstr(request, "\r\n");
     while (line && line[2]) {
         line += 2;
-        if (strncasecmp(line, "X-PDP-Control:", 14) == 0) {
-            const char *value = line + 14;
+        /* Keep old clients working without changing the strict value check. */
+        size_t prefix = strncasecmp(line, "X-FreePad-Control:", 18) == 0 ? 18 :
+                        strncasecmp(line, "X-PDP-Control:", 14) == 0 ? 14 : 0;
+        if (prefix) {
+            const char *value = line + prefix;
             while (*value == ' ' || *value == '\t') value++;
             return value[0] == '1' && value[1] == '\r' && value[2] == '\n';
         }
@@ -265,7 +268,7 @@ int pdp_web_init(int port)
         server = -1;
         return 0;
     }
-    log_line("PDP dashboard listening on port %d", port);
+    log_line("FreePad USB dashboard listening on port %d", port);
     return 1;
 }
 

@@ -232,7 +232,7 @@ static int32_t get_user_id_for_slot(int slot)
             if (list[i] > 0 && list[i] != fg_user && list[i] != g_protected_user && is_user_logged_in(list[i]) &&
                 vpad_native_controller_connected(list[i]) != 1) return list[i];
         }
-        log_line("PDP: native controller occupies foreground profile; no free signed-in profile");
+        log_line("FreePad: native controller occupies foreground profile; no free signed-in profile");
         return -1;
     }
 #endif
@@ -460,10 +460,10 @@ int vpad_init(void)
     g_protected_user = read_user_config("/data/pdp-pad/native-user");
     g_pdp_user = read_user_config("/data/pdp-pad/pdp-user");
     if (g_protected_user < 0 || g_pdp_user < 0 || (g_pdp_user > 0 && g_pdp_user == g_protected_user)) {
-        log_line("PDP: invalid/conflicting profile configuration; refusing to initialize");
+        log_line("FreePad: invalid/conflicting profile configuration; refusing to initialize");
         return 0;
     }
-    log_line("PDP: protected native user 0x%08x; preferred PDP user 0x%08x", (unsigned)g_protected_user, (unsigned)g_pdp_user);
+    log_line("FreePad: protected native user 0x%08x; preferred controller user 0x%08x", (unsigned)g_protected_user, (unsigned)g_pdp_user);
 #endif
 
     if (!elevate_privileges()) {
@@ -670,7 +670,7 @@ static void finish_identification(long now)
 #ifdef PDP_ONLY
     /* Only submit data to a device uniquely observed during our AddDevice. */
     if (g_matches != 1) {
-        log_line("vpad: PDP device identification failed (%d matches)", g_matches);
+        log_line("vpad: FreePad device identification failed (%d matches)", g_matches);
         s->status = VP_FAILED;
         return;
     }
@@ -688,12 +688,12 @@ static void finish_identification(long now)
          * profile picker can sign in the separate PDP user; never bind
          * to the protected DualSense user just to get input working. */
         s->status = VP_READY;
-        log_line("PDP: virtual pad waiting unbound; press Home and choose the separate controller profile");
+        log_line("FreePad: virtual pad waiting unbound; press Home and choose the separate controller profile");
         return;
     }
     int32_t bind_result = -1;
     if (s->user_id > 0 && g_bind) bind_result = g_bind(s->device_id, s->user_id);
-    log_line("vpad: PDP bind device 0x%llx to user 0x%08x -> 0x%08x",
+    log_line("vpad: FreePad bind device 0x%llx to user 0x%08x -> 0x%08x",
              (unsigned long long)s->device_id, (unsigned)s->user_id, (unsigned)bind_result);
     if (bind_result != 0) {
         scePadVirtualDeviceDeleteDevice(s->handle);
@@ -703,7 +703,7 @@ static void finish_identification(long now)
         return;
     }
     s->status = VP_READY;
-    log_line("vpad: PDP ready (handle %d)", s->handle);
+    log_line("vpad: FreePad ready (handle %d)", s->handle);
     return;
 #endif
 
@@ -835,7 +835,7 @@ void vpad_poll(long now)
                 int32_t result = g_bind(s->device_id, target);
                 if (result == 0) s->user_id = target;
                 else s->status = VP_FAILED;
-                log_line("PDP: delayed profile bind user 0x%08x -> 0x%08x", (unsigned)target, (unsigned)result);
+                log_line("FreePad: delayed profile bind user 0x%08x -> 0x%08x", (unsigned)target, (unsigned)result);
             }
         }
         pthread_mutex_unlock(&g_vpad_mutex);
@@ -918,7 +918,7 @@ void vpad_poll(long now)
                 /* If handle fails repeatedly for > 250 consecutive ticks (~1000ms), handle is dead */
                 if (g_slots[i].consecutive_insert_errors >= 250) {
 #ifdef PDP_ONLY
-                    log_line("vpad: PDP input rejected; stopping this virtual pad");
+                    log_line("vpad: FreePad input rejected; stopping this virtual pad");
                     g_slots[i].status = VP_FAILED;
 #else
                     log_line("vpad: slot %d persistent InsertData error (0x%08x) — recycling virtual device",
@@ -1113,13 +1113,13 @@ int vpad_rebind_user(int slot, int32_t user_id)
     }
     if (target_user == g_protected_user || vpad_native_controller_connected(target_user) == 1) {
         pthread_mutex_unlock(&g_vpad_mutex);
-        log_line("PDP: refusing to bind over a connected native controller");
+        log_line("FreePad: refusing to bind over a connected native controller");
         return 0;
     }
     int32_t result = g_bind(s->device_id, target_user);
     if (result == 0) s->user_id = target_user;
     pthread_mutex_unlock(&g_vpad_mutex);
-    log_line("PDP dashboard: bind to user 0x%08x -> 0x%08x", (unsigned)target_user, (unsigned)result);
+    log_line("FreePad dashboard: bind to user 0x%08x -> 0x%08x", (unsigned)target_user, (unsigned)result);
     return result == 0;
 #endif
 #ifdef __PROSPERO__

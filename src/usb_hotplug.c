@@ -442,7 +442,7 @@ static void *usb_reader_worker(void *arg)
 
 #ifdef PDP_ONLY
                 if (st.buttons != last_buttons) {
-                    log_line("PDP: raw buttons=%02x%02x hat=%x -> PS buttons=0x%08x",
+                    log_line("FreePad: raw buttons=%02x%02x hat=%x -> PS buttons=0x%08x",
                              report[1], report[0], report[2] & 0x0f, (unsigned)st.buttons);
                     last_buttons = st.buttons;
                 }
