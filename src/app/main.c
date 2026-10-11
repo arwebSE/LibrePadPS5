@@ -6,7 +6,7 @@
 #include "input/controller_profiles.h"
 #include "bluetooth/controller_host.h"
 #ifdef LIBREPAD_WITH_XBOX
-#include "../../experimental/xbox/librepad_xbox.h"
+#include "../../modules/xbox/librepad_xbox.h"
 #endif
 
 #include <signal.h>
@@ -16,7 +16,7 @@
 #include <unistd.h>
 #include <sys/file.h>
 #include <sys/stat.h>
-#ifdef LIBREPAD_XBOX_EXPERIMENT
+#ifdef LIBREPAD_XBOX_STANDALONE
 #include <errno.h>
 #include <string.h>
 #endif
@@ -53,7 +53,7 @@ int main(void)
      * a PID from a stale file, and never load two instances of this build. */
     int lock_fd = open(STATE_DIR "/instance.lock", O_RDWR | O_CREAT, 0600);
     if (lock_fd < 0 || flock(lock_fd, LOCK_EX | LOCK_NB) != 0) {
-#ifdef LIBREPAD_XBOX_EXPERIMENT
+#ifdef LIBREPAD_XBOX_STANDALONE
         printf("LibrePadPS5 Xbox: instance lock fd=%d: %s (errno %d)\n", lock_fd, strerror(errno), errno);
 #endif
         puts("LibrePadPS5: state directory unavailable or another instance is running");
@@ -61,12 +61,12 @@ int main(void)
         return 1;
     }
     log_init(FREEPAD_LOG_PATH);
-#ifdef LIBREPAD_XBOX_EXPERIMENT
-    log_line("LibrePadPS5 Xbox experimental: native Xbox Wireless Adapter / MT76 / GIP");
+#ifdef LIBREPAD_XBOX_STANDALONE
+    log_line("LibrePadPS5 Xbox Wireless: native adapter / MT76 / GIP");
 #elif defined(LIBREPAD_WITH_XBOX)
     log_line("LibrePadPS5: USB and Xbox Wireless; opt-in Bluetooth; shared virtual slots");
 #else
-    log_line("LibrePadPS5 development build; USB and opt-in Bluetooth; no autoload");
+    log_line("LibrePadPS5: USB and opt-in Bluetooth; shared virtual slots");
 #endif
     if (!freepad_profiles_init(FREEPAD_PROFILES_PATH)) {
         log_line("Invalid/unreadable controller profiles; refusing startup");

@@ -3,7 +3,7 @@
   "filename": "LibrePadPS5.elf",
   "url": "https://github.com/arwebSE/freepad-usb-ps5/releases/download/v0.5.0-preview/LibrePadPS5.elf",
   "source": "https://github.com/arwebSE/freepad-usb-ps5",
-  "description": "Experimental USB and opt-in Bluetooth gamepads. LAN dashboard on port 8096. Separate console user required. Added hardware support is not physically verified.",
+  "description": "USB and opt-in Bluetooth gamepads. LAN dashboard on port 8096. Each virtual gamepad requires a separate console user.",
   "version": "0.5.0-preview",
   "category": "Controller",
   "install_source": "web_upload",

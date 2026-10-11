@@ -1,8 +1,8 @@
 # LibrePadPS5 setup and reference
 
-Use a USB or Bluetooth gamepad on a jailbroken PS5. Added drivers and Bluetooth are experimental; see [controller coverage](CONTROLLERS.md).
+Use a wired USB, Xbox Wireless or Bluetooth gamepad on a jailbroken PS5. See [tested hardware and controller coverage](CONTROLLERS.md).
 
-**[Download preview ELF](https://github.com/arwebSE/freepad-usb-ps5/releases/download/v0.5.0-preview/LibrePadPS5.elf)** · [Releases](https://github.com/arwebSE/freepad-usb-ps5/releases) · [Issues](https://github.com/arwebSE/freepad-usb-ps5/issues)
+**[Download v0.5.0 ELF](https://github.com/arwebSE/freepad-usb-ps5/releases/download/v0.5.0-preview/LibrePadPS5.elf)** · [Releases](https://github.com/arwebSE/freepad-usb-ps5/releases) · [Issues](https://github.com/arwebSE/freepad-usb-ps5/issues)
 
 ## Supported hardware
 
@@ -34,7 +34,7 @@ PDP and Xbox, use four separate signed-in profiles:
    The original `native-user` reservation remains protected. Additional IDs are
    saved atomically, one hexadecimal ID per line, in `native-users`.
 2. Connect the PDP and Xbox receiver. Stage the Xbox firmware as described in
-   [the radio module guide](../experimental/xbox/README.md#firmware).
+   [the radio module guide](../modules/xbox/README.md#firmware).
 3. Select each pad in **Control gamepad** and **Assign user** to its own signed-in
    profile. A profile already assigned to another virtual pad is refused.
 4. Join a game with local multiplayer support and verify each player's input.
@@ -74,7 +74,7 @@ Native connection status **unavailable** does not mean your DualSense is disconn
 
 These names describe the tested 8-byte preset. Other drivers normalize their own inputs to PS5 controls; use the dashboard to override outputs.
 
-## Bluetooth (preview)
+## Bluetooth
 
 1. Confirm native DualSense input works and protected-user settings are configured. Keep a USB data cable ready. Do not run competing controller payloads.
 2. Unplug USB gamepads and click **Release virtual pad**. Wait for removal.
@@ -88,7 +88,7 @@ Address approval covers Classic pairing, saved-bond reconnects and LE private-ad
 
 If native controllers stop working, stop the payload and fully reboot. Do not update firmware to troubleshoot. Added Bluetooth support has only been tested in simulation, not on this console.
 
-## Controller profiles & remapping (preview)
+## Controller profiles & remapping
 
 Requires the development build, not the older stable download. Release every virtual pad before saving shared mappings. Custom layouts are host-tested only; keep the previous release available.
 

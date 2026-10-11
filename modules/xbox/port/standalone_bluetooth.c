@@ -8,7 +8,7 @@ int bluetooth_disable(void) { return 1; }
 int bluetooth_forget(void) { return 0; }
 int bluetooth_reconnect(void) { return 0; }
 void bluetooth_status(char *out, size_t size) {
-    snprintf(out, size, "{\"enabled\":false,\"connected\":false,\"pairing\":0,\"message\":\"Xbox Wireless experimental payload\"}");
+    snprintf(out, size, "{\"enabled\":false,\"connected\":false,\"pairing\":0,\"message\":\"Xbox Wireless standalone payload\"}");
 }
 void bluetooth_poll(void) {}
 void bluetooth_cleanup(void) {}

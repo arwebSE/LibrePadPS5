@@ -29,7 +29,7 @@ LINKER := $(CXX)
 XBOX_ARCHIVE := dist/liblibrepad_xbox.a
 .PHONY: xbox-module
 xbox-module:
-	$(MAKE) -f experimental/xbox/xbox.mk xbox-module
+	$(MAKE) -f modules/xbox/xbox.mk xbox-module
 $(XBOX_ARCHIVE): xbox-module
 endif
 

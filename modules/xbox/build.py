@@ -1,4 +1,4 @@
-"""Build the isolated native Xbox radio payload with LLVM and PS5 SDK v0.43+."""
+"""Build LibrePadPS5 and its native Xbox Wireless module with LLVM and PS5 SDK v0.43+."""
 import argparse
 import pathlib
 import subprocess
@@ -8,7 +8,7 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 C_SOURCES = ["src/core/time_utils.c", "src/core/logging.c", "src/input/protocol_decoder.c",
              "src/input/controller_profiles.c", "src/input/controller_router.c", "src/ps5/system_bridge.c", "src/ps5/virtual_controller.c",
-             "src/dashboard/http_server.c", "src/app/main.c", "experimental/xbox/port/standalone_bluetooth.c"]
+             "src/dashboard/http_server.c", "src/app/main.c", "modules/xbox/port/standalone_bluetooth.c"]
 CPP_SOURCES = ["port/backend.cpp", "port/usb.cpp", "port/controller.cpp", "port/log.cpp", "vendor/xow/dongle/mt76.cpp", "vendor/xow/dongle/dongle.cpp", "vendor/xow/controller/gip.cpp"]
 
 
@@ -33,7 +33,7 @@ def main():
     common = ["-target", "x86_64-sie-ps5", "-isysroot", str(sdk), "-isystem", str(sdk / "target/include"),
               "-fno-stack-protector", "-fno-plt", "-femulated-tls", "-fvisibility-nodllstorageclass=default",
               "-O2", "-Wall", "-Wextra", "-ffunction-sections", "-fdata-sections", "-DFREEPAD_ONLY",
-              "-DLIBREPAD_WITH_XBOX" if args.combined else "-DLIBREPAD_XBOX_EXPERIMENT", "-D_DEFAULT_SOURCE", "-I", str(ROOT / "src"),
+              "-DLIBREPAD_WITH_XBOX" if args.combined else "-DLIBREPAD_XBOX_STANDALONE", "-D_DEFAULT_SOURCE", "-I", str(ROOT / "src"),
               "-I", str(ROOT / "vendor/anypad"),
               "-I", str(ROOT / "build/generated")]
     objects = []
@@ -45,7 +45,7 @@ def main():
         sources += [(ROOT / name, False) for name in ["src/input/usb_device.c", "src/bluetooth/controller_host.c"]]
         sources += [(ROOT / "vendor/anypad" / (name + ".c"), False) for name in
                     ["util", "crc32", "smp_crypto", "profiles", "generic", "host", "le", "hci_usb", "usb_desc", "evstream"]]
-    sources += [(ROOT / "experimental/xbox" / name, True) for name in CPP_SOURCES]
+    sources += [(ROOT / "modules/xbox" / name, True) for name in CPP_SOURCES]
     for source, cpp in sources:
         obj = build / (source.relative_to(ROOT).as_posix().replace("/", "_") + ".o")
         extra = ["-x", "c++", "-std=c++11", "-frtti", "-fexceptions", "-isystem", str(sdk / "target/include/c++/v1"),
@@ -60,16 +60,16 @@ def main():
     ar = compiler.with_name("llvm-ar.exe" if compiler.suffix == ".exe" else "llvm-ar")
     archive.unlink(missing_ok=True)
     subprocess.run([str(ar), "rcs", str(archive), *[obj for obj in objects if obj.endswith(".cpp.o")]], check=True)
-    shutil.copyfile(ROOT / "experimental/xbox/librepad_xbox.h", ROOT / "dist/librepad_xbox.h")
+    shutil.copyfile(ROOT / "modules/xbox/librepad_xbox.h", ROOT / "dist/librepad_xbox.h")
     print("Built optional module", archive)
     if args.module_only:
         return
     if not args.combined:
-        source = ROOT / "experimental/xbox/port/standalone.cpp"
+        source = ROOT / "modules/xbox/port/standalone.cpp"
         glue = build / "standalone_cpp.o"
         subprocess.run([str(compiler), *extra, *common, "-c", str(source), "-o", str(glue)], check=True)
         objects.append(str(glue))
-    output = ROOT / ("dist/LibrePadPS5.elf" if args.combined else "dist/LibrePadPS5-Xbox-Experimental.elf")
+    output = ROOT / ("dist/LibrePadPS5.elf" if args.combined else "dist/LibrePadPS5-Xbox.elf")
     output.parent.mkdir(exist_ok=True)
     subprocess.run([str(linker), "-m", "elf_x86_64", "-pie", "-T", str(sdk / "ldscripts/elf_x86_64.x"),
                     "--eh-frame-hdr", "-z", "max-page-size=0x4000", "-mllvm", "-emulated-tls", "--hash-style=gnu", "--gc-sections",

@@ -1,4 +1,4 @@
-"""Run native-host tests for the Xbox experimental transport and controller sink."""
+"""Run native-host tests for the Xbox Wireless transport and controller sink."""
 import argparse
 import pathlib
 import shutil
@@ -7,7 +7,7 @@ import sys
 import os
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-BASE = ROOT / "experimental/xbox"
+BASE = ROOT / "modules/xbox"
 
 
 def main():

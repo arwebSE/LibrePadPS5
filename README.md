@@ -2,7 +2,7 @@
 
 Use your gamepad on PS5.
 
-[Download v0.5.0 preview](https://github.com/arwebSE/freepad-usb-ps5/releases/download/v0.5.0-preview/LibrePadPS5.elf) · [Stable releases](https://github.com/arwebSE/freepad-usb-ps5/releases) · [Issues](https://github.com/arwebSE/freepad-usb-ps5/issues)
+[Download v0.5.0](https://github.com/arwebSE/freepad-usb-ps5/releases/download/v0.5.0-preview/LibrePadPS5.elf) · [Releases](https://github.com/arwebSE/freepad-usb-ps5/releases) · [Issues](https://github.com/arwebSE/freepad-usb-ps5/issues)
 
 ## What it does
 
@@ -13,7 +13,7 @@ Use your gamepad on PS5.
 - Custom USB IDs, raw report layouts and named button remapping.
 - LAN dashboard with per-gamepad controls, native-profile reservations, input, remapping and logs.
 
-**Experimental preview:** software tests pass; other added controllers and Bluetooth remain physically unverified. The PDP wired controller `0e6f:0184` and Xbox One model 1697 through adapter `045e:02e6` run simultaneously on PS5 12.60 with separate profiles. Game-specific four-player behavior remains unverified. [Controller coverage and limits](docs/CONTROLLERS.md).
+**Tested on PS5 12.60:** the PDP wired controller `0e6f:0184` and Xbox One model 1697 through adapter `045e:02e6` run simultaneously with separate profiles. Software regression checks pass. Other controller models, Bluetooth hardware and game-specific four-player behavior remain unverified. [Controller coverage and limits](docs/CONTROLLERS.md).
 
 ## Use
 
@@ -21,14 +21,14 @@ Use your gamepad on PS5.
 2. Stop other controller payloads and configure [protected-user settings](docs/FREEPAD.md#setup).
 3. Load `LibrePadPS5.elf`. Open `http://<PS5_IP>:8096/`.
    The **Controller** tab has connection controls; **Advanced** has profiles, remapping and diagnostics.
-4. USB/Xbox: select each gamepad in **Control gamepad**, click **Reconnect** if released, then assign its separate signed-in profile. Xbox Wireless requires [separately staged firmware](experimental/xbox/README.md#firmware).
+4. USB/Xbox: select each gamepad in **Control gamepad**, click **Reconnect** if released, then assign its separate signed-in profile. Xbox Wireless requires [separately staged firmware](modules/xbox/README.md#firmware).
 5. Bluetooth: unplug USB gamepads, release the virtual pad, enter the controller address and select **Enable & pair** while the controller is in pairing mode. Bluetooth starts disabled.
 
 Already using an older build? Keep `/data/pdp-pad/` and its profile files. Stop the old instance before loading this one.
 
 ## Remap
 
-Choose the driver and VID/PID in the dashboard, change the named outputs, then **Add / update**, **Release all virtual pads**, **Save & apply**, then reconnect each pad. Unknown USB devices can use **Generic USB HID** or a custom raw layout. [Configuration](docs/FREEPAD.md#controller-profiles--remapping-preview).
+Choose the driver and VID/PID in the dashboard, change the named outputs, then **Add / update**, **Release all virtual pads**, **Save & apply**, then reconnect each pad. Unknown USB devices can use **Generic USB HID** or a custom raw layout. [Configuration](docs/FREEPAD.md#controller-profiles--remapping).
 
 ## Safety and limits
 
@@ -40,4 +40,4 @@ Bluetooth uses shared console services. Address filtering and owned-handle clean
 
 ## Credits
 
-Derived from [OmniPad PS5](https://github.com/diegobarbosaa/OmniPad-PS5), with the [AnyPad Bluetooth core](vendor/anypad/README.md) and optional [xow radio port](experimental/xbox/README.md#source-provenance). Thanks to PoorDS4/Ghostcontrol, YetAnotherControllerEnabler and PS5 Payload SDK contributors. [GPL-3.0](LICENSE). No upstream Git history is imported.
+Derived from [OmniPad PS5](https://github.com/diegobarbosaa/OmniPad-PS5), with the [AnyPad Bluetooth core](vendor/anypad/README.md) and optional [xow radio port](modules/xbox/README.md#source-provenance). Thanks to PoorDS4/Ghostcontrol, YetAnotherControllerEnabler and PS5 Payload SDK contributors. [GPL-3.0](LICENSE). No upstream Git history is imported.

@@ -30,7 +30,7 @@ static pad_state_t latest;
 extern "C" int xbox_transport_stopping() { return stopping || failed; }
 extern "C" int xbox_sink_connect(void *controller, uint16_t vid, uint16_t pid) {
     std::lock_guard<std::mutex> lock(stateMutex);
-    if (owner) { log_line("xbox: additional controller ignored; experiment supports one pad"); return 0; }
+    if (owner) { log_line("xbox: additional controller ignored; radio backend supports one Xbox pad"); return 0; }
     owner = controller;
     pad_state_neutral(&latest);
     latest.vid = vid;

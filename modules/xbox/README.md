@@ -1,6 +1,6 @@
-# LibrePadPS5 Xbox Wireless experiment
+# LibrePadPS5 Xbox Wireless
 
-Native PS5 port experiment for Xbox One controller model **1697** and the original
+Native PS5 support for Xbox One controller model **1697** and the original
 Xbox Wireless Adapter **045e:02e6**. The slim **045e:02fe** is also allowlisted;
 it has not been tested here. The optional module integrates with the main payload
 through four C functions and a shared controller router. A separate Xbox-only
@@ -9,7 +9,7 @@ payload is retained for radio diagnostics.
 **Status: model 1697 paired through adapter 045e:02e6 on PS5 firmware 12.60.
 The user confirmed working controller input and PS5 navigation.** Five Xbox host
 test suites and the shared-router suite pass with ASan/UBSan. This is still an
-optional experimental backend.
+optional Xbox Wireless backend.
 
 ## What is implemented
 
@@ -32,7 +32,7 @@ optional experimental backend.
   PC relay, driver replacement on Windows, or generic HID parsing is used.
 
 Rumble, audio, touchpad, motion, custom Xbox remapping, Series-specific features
-and multiple Xbox controllers on one adapter are not implemented by this experiment.
+and multiple Xbox controllers on one adapter are not implemented by this backend.
 
 ## Small integration module
 
@@ -63,7 +63,7 @@ link step; the rest of LibrePadPS5 can remain C.
 To build only the optional module:
 
 ```sh
-python experimental/xbox/build.py --sdk /path/to/ps5-payload-sdk --clang /path/to/clang --module-only
+python modules/xbox/build.py --sdk /path/to/ps5-payload-sdk --clang /path/to/clang --module-only
 ```
 
 `port/standalone.cpp` is only the test payload's USB-manager adapter; exclude it
@@ -78,7 +78,7 @@ Use `WITH_XBOX=0` for a USB/Bluetooth-only build. On Windows, the portable build
 also builds the standard combined output:
 
 ```sh
-python experimental/xbox/build.py --combined --sdk /path/to/ps5-payload-sdk --clang /path/to/clang
+python modules/xbox/build.py --combined --sdk /path/to/ps5-payload-sdk --clang /path/to/clang
 ```
 
 This produces `dist/LibrePadPS5.elf`, preserving normal USB drivers and opt-in
@@ -91,15 +91,15 @@ and assign each virtual gamepad to a separate profile in the dashboard.
 From the repository root, using PS5 Payload SDK v0.43 and LLVM:
 
 ```sh
-python experimental/xbox/build.py --sdk /path/to/ps5-payload-sdk --clang /path/to/clang
+python modules/xbox/build.py --sdk /path/to/ps5-payload-sdk --clang /path/to/clang
 ```
 
 The Python builder works on Windows and Unix. A normal SDK/toolchain setup can
-also use `make -f experimental/xbox/xbox.mk`.
+also use `make -f modules/xbox/xbox.mk`.
 Add `--radio-debug` to the Python command for bounded packet diagnostics when
 investigating pairing. Normal builds omit those packet dumps.
 
-Outputs: `dist/liblibrepad_xbox.a` and `dist/LibrePadPS5-Xbox-Experimental.elf`. The ELF is a native x86-64 PS5 PIE
+Outputs: `dist/liblibrepad_xbox.a` and `dist/LibrePadPS5-Xbox.elf`. The ELF is a native x86-64 PS5 PIE
 payload with C++ statically linked and the usual console service imports.
 
 ## Firmware
@@ -115,7 +115,7 @@ package from [Microsoft's driver distribution](http://download.windowsupdate.com
 and extract `FW_ACC_00U.bin`. The staging helper accepts an explicit source:
 
 ```sh
-python experimental/xbox/copy_firmware_windows.py --source /path/to/FW_ACC_00U.bin --out /path/to/staging/firmware.bin
+python modules/xbox/copy_firmware_windows.py --source /path/to/FW_ACC_00U.bin --out /path/to/staging/firmware.bin
 ```
 
 Without `--source`, the helper reads `C:/Windows/System32/drivers/FW_ACC_00U.bin`.
@@ -145,7 +145,7 @@ it is not a firmware authenticity check. Missing firmware disables radio startup
 2. Keep the DualSense on its explicitly protected user and sign in a separate
    Xbox user, using the project's existing profile protection setup.
 3. Stage the firmware, then move the USB adapter from Windows to the PS5.
-4. Load `LibrePadPS5-Xbox-Experimental.elf` using the existing ELF loader.
+4. Load `LibrePadPS5-Xbox.elf` using the existing ELF loader.
 5. Open `http://<PS5_IP>:8096/`, then Read log. Confirm `radio endpoints opened`
    and `Dongle initialized`. If initialization fails, retain the exact error/log.
 6. Press the pairing buttons on the adapter and the 1697 controller. Confirm
@@ -170,8 +170,8 @@ radio-off writes after reader shutdown, allowing subsequent starts to recover.
 ## Verification performed
 
 ```sh
-python experimental/xbox/test.py --clang /path/to/clang++ --firmware /path/to/firmware.bin --sanitize
-python experimental/xbox/probe_windows.py --seconds 5
+python modules/xbox/test.py --clang /path/to/clang++ --firmware /path/to/firmware.bin --sanitize
+python modules/xbox/probe_windows.py --seconds 5
 ```
 
 Host tests cover controller mapping, 10-bit trigger conversion, stick extremes,
