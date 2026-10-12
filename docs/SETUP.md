@@ -2,20 +2,20 @@
 
 Use a wired USB, Xbox Wireless or Bluetooth gamepad on a jailbroken PS5. See [tested hardware and controller coverage](CONTROLLERS.md).
 
-**[Download v1.1.2 ELF](https://github.com/arwebSE/LibrePadPS5/releases/download/v1.1.2/LibrePadPS5.elf)** · [Releases](https://github.com/arwebSE/LibrePadPS5/releases) · [Issues](https://github.com/arwebSE/LibrePadPS5/issues)
+**[Download v1.1.3 ELF](https://github.com/arwebSE/LibrePadPS5/releases/download/v1.1.3/LibrePadPS5.elf)** · [Releases](https://github.com/arwebSE/LibrePadPS5/releases) · [Issues](https://github.com/arwebSE/LibrePadPS5/issues)
 
 ## Supported hardware
 
 - **Hardware verified:** PDP Faceoff Deluxe+ Audio Wired Switch controller, USB ID `0e6f:0184`. The current release also accepts configurable HID layouts; Xbox One model 1697 with Xbox Wireless Adapter `045e:02e6` is also verified individually on firmware 12.60; the adapter needs separately staged firmware.
 - Tested on **PS5 firmware 12.60**: sticks, buttons, D-pad, dashboard and separate-profile assignment. Individual games/emulators and other firmware are not explicitly verified.
-- **Tester reported:** 8BitDo USB Wireless Adapter 2 works on PS5 13.60 with Xbox Series and PS4 controllers, including PS4/PS5 games, emulators and homebrew. [Controller report](https://github.com/arwebSE/LibrePadPS5/issues/1#issuecomment-6115129726), [game coverage](https://github.com/arwebSE/LibrePadPS5/issues/1#issuecomment-6115038058). Those preview USB fixes are included in v1.1.2; exact game titles remain unconfirmed.
+- **Tester reported:** 8BitDo USB Wireless Adapter 2 works on PS5 13.60 with Xbox Series and PS4 controllers, including PS4/PS5 games, emulators and homebrew. [Controller report](https://github.com/arwebSE/LibrePadPS5/issues/1#issuecomment-6115129726), [game coverage](https://github.com/arwebSE/LibrePadPS5/issues/1#issuecomment-6115038058). Those preview USB fixes are included in v1.1.3; exact game titles remain unconfirmed.
 - No game-driven rumble, motion forwarding, controller audio or touchpad movement. Dedicated drivers preserve analog triggers where available; the 8-byte preset has digital triggers.
 
 ## Setup
 
 Requires an existing jailbreak and ELF loader or Payload Manager. Normal setup uses the dashboard; FTP is available for troubleshooting and manual legacy configuration.
 
-v1.1.2 stores settings in `/data/LibrePadPS5`, with automatic migration
+v1.1.3 fixes the v1.1.2 storage startup regression and stores settings in `/data/LibrePadPS5`, with automatic migration
 from older versions. Published v1.1.1-preview and earlier use the old location.
 See [storage paths and migration](STORAGE.md) before doing manual FTP configuration.
 
@@ -25,7 +25,7 @@ See [storage paths and migration](STORAGE.md) before doing manual FTP configurat
 2. Leave third-party gamepads and the Xbox receiver unplugged. Load `LibrePadPS5.elf` and open **`http://<PS5_IP>:8096/`**.
 3. In **Advanced / Input & native controllers**, reserve each signed-in profile used by a native DualSense. The dashboard saves the reservations immediately; no ID files or restart are needed. Existing `native-user` protection remains in force.
 4. Plug in your gamepad. For Xbox Wireless, use [the setup helper or dashboard firmware upload](XBOX.md#firmware), then unplug/replug the adapter and pair.
-5. Select the gamepad, click **Reconnect** if released, and assign a separate signed-in profile. If needed, press **Home / PS** and choose **`Gamepad`** in the console's user picker. Check both controllers. v1.1.2 automatically renews active virtual controllers after every account logs out; wait for registration to finish, then press Home.
+5. Select the gamepad, click **Reconnect** if released, and assign a separate signed-in profile. If needed, press **Home / PS** and choose **`Gamepad`** in the console's user picker. Check both controllers. v1.1.3 automatically renews active virtual controllers after every account logs out; wait for registration to finish, then press Home.
 
 Optional: save the gamepad user's ID in `controller-user` (`pdp-user` on older releases) in the same directory for automatic assignment. Settings are read on startup; restart after editing. Never copy IDs from another console. Invalid or identical protected/preferred IDs prevent startup. Protection does not override the console's own user picker.
 
@@ -134,7 +134,7 @@ The original protected-user settings and native-device ownership checks still ap
 
 ## 8BitDo USB Wireless Adapter 2
 
-Use [v1.1.2](https://github.com/arwebSE/LibrePadPS5/releases/tag/v1.1.2)
+Use [v1.1.3](https://github.com/arwebSE/LibrePadPS5/releases/tag/v1.1.3)
 for this adapter. It includes the preview's USB fixes, reported working on
 PS5 13.60 with Xbox Series and PS4 controllers. This is a USB connection to LibrePadPS5; the adapter
 handles the controller's wireless connection.
@@ -157,7 +157,7 @@ After logging every account out, Home/PS initially does nothing, including the
 dashboard's Home button. They [clarified that reconnecting the controller makes
 it register again and allows selection of their main account from the login
 screen](https://github.com/arwebSE/LibrePadPS5/issues/1#issuecomment-6115078167).
-Guest also works. v1.1.2 adds automatic re-registration after every account logs
+Guest also works. v1.1.3 adds automatic re-registration after every account logs
 out, preserving the physical USB connection. Wait for the controller to become
 active, then press Home and choose a profile. This new recovery path is covered
 by host tests and still needs console confirmation. If it fails, reconnect the
@@ -190,7 +190,7 @@ descriptor read failures from descriptors that contain no gamepad controls.
 
 An Adapter 2 tester's earlier v1.1.0 run reached **Ready** on PS5 13.60 but received
 no input reports. The preview's USB transport fixes resolved that reported
-failure and are included in v1.1.2. [Investigation and tester feedback](https://github.com/arwebSE/LibrePadPS5/issues/1).
+failure and are included in v1.1.3. [Investigation and tester feedback](https://github.com/arwebSE/LibrePadPS5/issues/1).
 
 ## Share a diagnostic report on GitHub
 
@@ -217,13 +217,14 @@ limit, retrieve the same file through FTP. For older releases, see [storage path
 
 ## Troubleshooting / upgrades
 
-- **Inactive pad:** click Reconnect, check the log and USB ID. If unassigned, press Home and select the separate user, or assign a signed-in profile in the dashboard. v1.1.2 automatically renews registrations after every account logs out; wait for registration to finish. If recovery fails, reconnect the controller manually. For game focus, try Home/PS.
+- **Inactive pad:** click Reconnect, check the log and USB ID. If unassigned, press Home and select the separate user, or assign a signed-in profile in the dashboard. v1.1.3 automatically renews registrations after every account logs out; wait for registration to finish. If recovery fails, reconnect the controller manually. For game focus, try Home/PS.
 - **Skipped D-pad taps:** use the current release and stop older instances. Report recurring problems with logs.
 - **DualSense cannot connect:** stop LibrePadPS5, unplug the USB controller and fully shut down the console, not Rest Mode. A development-session failure required a full reboot; its cause remains unconfirmed. If needed, [reset the DualSense](https://www.playstation.com/en-us/support/hardware/troubleshoot-dualsense/) and reconnect with a USB data cable. Do not update firmware just to troubleshoot.
-- **No startup notification / firmware 13.60:** the payload announces `starting` before opening its state/lock files and `ready` after its dashboard opens. Startup failures report the state-directory/lock, controller configuration, firmware check or virtual-pad initialization stage. If it says already running, open the existing dashboard and stop that instance before reloading. If no message appears, check `http://<PS5_IP>:8096/` and retrieve `/data/LibrePadPS5/LibrePadPS5.log` through FTP; confirm the new startup line contains `1.1.2`. For older releases, see [storage paths](STORAGE.md). No new log entry can mean the loader/SDK failed before reaching the entry point; include loader name/version and its output. Adapter 2 input on 13.60 is tester confirmed, but the original no-notification report still awaits feedback. Do not repeatedly inject while a previous instance is active.
+- **No startup notification / firmware 13.60:** the payload announces `starting` before opening its state/lock files and `ready` after its dashboard opens. Startup failures report the state-directory/lock, controller configuration, firmware check or virtual-pad initialization stage. If it says already running, open the existing dashboard and stop that instance before reloading. If no message appears, check `http://<PS5_IP>:8096/` and retrieve `/data/LibrePadPS5/LibrePadPS5.log` through FTP; confirm the new startup line contains `1.1.3`. For older releases, see [storage paths](STORAGE.md). No new log entry can mean the loader/SDK failed before reaching the entry point; include loader name/version and its output. Adapter 2 input on 13.60 is tester confirmed, but the original no-notification report still awaits feedback. Do not repeatedly inject while a previous instance is active.
+- **Cannot prepare storage / only `instance.lock` appears:** v1.1.2 has a startup regression. Upgrade to v1.1.3 without deleting settings; it recovers the interrupted migration. If it still fails, share the complete error notification or ELF loader output, including the operation, path and errno. The log may not exist because initialization stopped before logging. [Storage recovery](STORAGE.md).
 - **Dashboard offline:** check the console IP, HTTP and port `8096`. It closes when the payload stops.
 - **Stop through FTP:** upload an empty file named `stop` into the state directory.
-- **Upgrade compatibility:** v1.1.2 automatically migrates settings to `/data/LibrePadPS5`. Keep your existing settings when upgrading; see [storage paths and migration](STORAGE.md). Older release paths are documented there.
+- **Upgrade compatibility:** v1.1.3 automatically migrates settings to `/data/LibrePadPS5`. Keep your existing settings when upgrading; see [storage paths and migration](STORAGE.md). Older release paths are documented there.
 
 The payload manages its own virtual pad. Bluetooth scanning is opt-in and address-filtered; no shell-process injection, native-handle fallback or autoload. It uses elevated credentials and shared controller services: crashes/service issues remain possible. Do not run competing controller payloads.
 

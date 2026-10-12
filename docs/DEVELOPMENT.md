@@ -60,8 +60,14 @@ verification](XBOX.md) for arguments and firmware staging.
 ## Compatibility and naming
 
 New code uses LibrePad names. Active console paths are defined in
-[paths.h](../src/core/paths.h). [Storage migration](STORAGE.md) moves existing
-settings to `/data/LibrePadPS5` and keeps compatibility aliases for older payloads.
+[paths.h](../src/core/paths.h). [Storage migration](STORAGE.md) copies settings
+to `/data/LibrePadPS5`, retains a legacy rollback snapshot and locks both namespaces.
+The tested PS5 filesystem rejects symbolic links. SDK v0.43's raw libc stubs also
+leave misleading errno values on failure; see the [libc stubs](https://github.com/ps5-payload-dev/sdk/blob/v0.43/libc/syscalls.c)
+and [CRT gateway](https://github.com/ps5-payload-dev/sdk/blob/v0.43/crt/syscall.c).
+Do not require symbolic links or `realpath` for startup. Storage tests prohibit
+those calls and cover copy recovery, both locks, rollback and conflicting files.
+Startup failures report the exact operation/path and errno before file logging.
 The dashboard sends `X-LibrePad-Control`; the server also accepts the released
 `X-FreePad-Control` and `X-PDP-Control` headers with the same strict value checks.
 

@@ -114,8 +114,8 @@ DLM 9,132 bytes. SHA-256:
 
 ### Quick install on Windows
 
-1. Load the [v1.1.2 main ELF](https://github.com/arwebSE/LibrePadPS5/releases/tag/v1.1.2) and confirm `http://<PS5_IP>:8096/` opens.
-2. Download [LibrePadPS5-Xbox-Setup.zip](https://github.com/arwebSE/LibrePadPS5/releases/download/v1.1.2/LibrePadPS5-Xbox-Setup.zip), extract it, and double-click `setup.cmd`.
+1. Load the [v1.1.3 main ELF](https://github.com/arwebSE/LibrePadPS5/releases/tag/v1.1.3) and confirm `http://<PS5_IP>:8096/` opens.
+2. Download [LibrePadPS5-Xbox-Setup.zip](https://github.com/arwebSE/LibrePadPS5/releases/download/v1.1.3/LibrePadPS5-Xbox-Setup.zip), extract it, and double-click `setup.cmd`.
 3. Enter the PS5 IP address. The helper downloads Microsoft's driver package,
    extracts the tested image using Windows' built-in extractor, verifies the
    SHA-256 above and uploads it directly to the dashboard. Python, FTP and a
@@ -167,7 +167,7 @@ Upload the staged file through the console's existing FTP service to:
 /data/LibrePadPS5/xbox/firmware.bin
 ```
 
-v1.1.2 automatically migrates existing firmware and settings to the destination
+v1.1.3 automatically migrates existing firmware and settings to the destination
 above. See [storage paths and migration](STORAGE.md) for older release destinations.
 
 The installed Windows copy here was a 2015 image (70,008 bytes); it initialized

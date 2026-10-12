@@ -54,11 +54,14 @@ int main(void)
     int lock_fd = librepad_storage_open();
     if (lock_fd < 0) {
         int lock_error = errno;
-        printf("LibrePadPS5: instance lock fd=%d: %s (errno %d)\n", lock_fd, strerror(lock_error), lock_error);
+        const char *stage=librepad_storage_error_stage();
+        log_line("LibrePadPS5 " LIBREPAD_VERSION " storage initialization failed at %s: %s (errno %d)",
+                 stage,strerror(lock_error),lock_error);
         if (lock_error == EWOULDBLOCK || lock_error == EAGAIN)
             notify_ps5("LibrePadPS5 is already running. Open http://<PS5_IP>:8096/ or stop the old instance before loading this build.");
-        else notify_ps5("LibrePadPS5: cannot prepare " STATE_DIR ": %s", strerror(lock_error));
-        if (lock_fd >= 0) close(lock_fd);
+        else notify_ps5("LibrePadPS5: cannot prepare " STATE_DIR " at %s: %s (errno %d)",
+                        stage,strerror(lock_error),lock_error);
+        if (lock_fd >= 0) librepad_storage_close(lock_fd);
         return 1;
     }
     log_init(LIBREPAD_LOG_PATH);
@@ -75,7 +78,7 @@ int main(void)
         log_line("Invalid/unreadable controller profiles; refusing startup");
         notify_ps5("LibrePadPS5: controllers.conf is invalid or unreadable. Check " LIBREPAD_LOG_PATH);
         log_close();
-        close(lock_fd);
+        librepad_storage_close(lock_fd);
         return 1;
     }
 
@@ -86,7 +89,7 @@ int main(void)
         log_line("Unsupported firmware; exiting without touching virtual pads");
         notify_ps5("LibrePadPS5: unsupported firmware 0x%08x. Check " LIBREPAD_LOG_PATH, fw);
         log_close();
-        close(lock_fd);
+        librepad_storage_close(lock_fd);
         return 1;
     }
 #endif
@@ -95,7 +98,7 @@ int main(void)
         log_line("Virtual pad initialization failed");
         notify_ps5("LibrePadPS5: virtual pad initialization failed. Check " LIBREPAD_LOG_PATH " for the reason.");
         log_close();
-        close(lock_fd);
+        librepad_storage_close(lock_fd);
         return 1;
     }
     usb_hotplug_init();
@@ -132,6 +135,6 @@ int main(void)
     vpad_cleanup_all();
     log_line("LibrePadPS5 stopped cleanly");
     log_close();
-    close(lock_fd);
+    librepad_storage_close(lock_fd);
     return 0;
 }

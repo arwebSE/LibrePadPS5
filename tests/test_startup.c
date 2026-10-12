@@ -3,6 +3,10 @@
 #define __PROSPERO__
 #define LIBREPAD_STATE_DIR "build/startup-state"
 #define LIBREPAD_LEGACY_STATE_DIR "build/startup-legacy"
+#include <sys/stat.h>
+static int injected_mkdir_error;
+static int startup_mkdir(const char *path, mode_t mode);
+#define mkdir startup_mkdir
 #define main payload_main
 #include "../src/app/main.c"
 #undef main
@@ -13,6 +17,14 @@
 static uint32_t firmware = 0x13600001;
 static int profiles_ok=1, vpad_ok=1, web_ok=1, usb_starts, cleanups;
 static char notifications[4096], logs[4096];
+#undef mkdir
+static int startup_mkdir(const char *path, mode_t mode)
+{
+    if (injected_mkdir_error && !strcmp(path,STATE_DIR)) {
+        errno=injected_mkdir_error; return -1;
+    }
+    return mkdir(path,mode);
+}
 static void append(char *buffer, const char *fmt, va_list args)
 {
     size_t used = strlen(buffer);
@@ -47,9 +59,16 @@ static void reset(void)
 }
 static void remove_state(void)
 {
-    unlink(LIBREPAD_LEGACY_STATE_DIR);
-    unlink(STATE_DIR "/pdp-user"); unlink(STATE_DIR "/pdp-pad.log");
-    unlink(STATE_DIR "/instance.lock"); rmdir(STATE_DIR);
+    const char *dirs[]={LIBREPAD_LEGACY_STATE_DIR,STATE_DIR};
+    for (unsigned i=0;i<2;i++) {
+        char path[256];
+        const char *names[]={"pdp-user","pdp-pad.log","controller-user","LibrePadPS5.log",
+                             "instance.lock",".storage-migration",".storage-copy.tmp"};
+        for (unsigned n=0;n<sizeof(names)/sizeof(names[0]);n++) {
+            snprintf(path,sizeof(path),"%s/%s",dirs[i],names[n]); unlink(path);
+        }
+        rmdir(dirs[i]);
+    }
 }
 int main(void)
 {
@@ -74,6 +93,13 @@ int main(void)
     assert(strstr(notifications,"already running"));
     close(lock);
     remove_state();
+    reset(); injected_mkdir_error=EACCES; assert(payload_main()==1);
+    assert(!usb_starts && !cleanups);
+    assert(strstr(notifications,"create current directory") && strstr(notifications,"errno"));
+    assert(strstr(logs,"storage initialization failed at create current directory"));
+    assert(!access(LIBREPAD_LEGACY_STATE_DIR "/instance.lock",F_OK));
+    assert(access(LIBREPAD_LOG_PATH,F_OK)==-1); /* Failure predates file logging. */
+    injected_mkdir_error=0;
     reset(); assert(payload_main()==0); /* All failure paths release their lock. */
     remove_state();
     puts("Startup: 13.60, firmware rejection, profiles, virtual pads, HTTP and duplicate-instance diagnostics passed");

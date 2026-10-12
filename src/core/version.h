@@ -1,6 +1,6 @@
 #ifndef LIBREPAD_VERSION_H
 #define LIBREPAD_VERSION_H
 
-#define LIBREPAD_VERSION "1.1.2"
+#define LIBREPAD_VERSION "1.1.3"
 
 #endif
