@@ -43,6 +43,8 @@ Having trouble? In the dashboard, open **Advanced > Logs & support** to download
 
 ## Credits
 
+Shoutout to [thaikhoa](https://github.com/thaikhoa) for testing the 8BitDo USB Wireless Adapter 2 with Xbox Series and PS4 controllers, sharing logs and helping catch bugs.
+
 Shoutout to [MODDED WARFARE](https://www.youtube.com/@MODDEDWARFARE) for covering similar tools and sharing setup instructions with the PlayStation homebrew community.
 
 Built on [OmniPad PS5](https://github.com/diegobarbosaa/OmniPad-PS5), [AnyPad](vendor/anypad/README.md) and [xow](docs/XBOX.md#source-provenance). Thanks to PoorDS4/Ghostcontrol, YetAnotherControllerEnabler and PS5 Payload SDK contributors.
