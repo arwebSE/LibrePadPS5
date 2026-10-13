@@ -13,6 +13,7 @@
 #include <dev/usb/usb.h>
 #include <dev/usb/usb_ioctl.h>
 #include <dev/usb/usb_endian.h>
+#include <dev/usb/usbdi.h>
 #endif
 
 /* Adapter 2 exposes this non-gamepad identity while no controller is connected.
@@ -156,17 +157,31 @@ int usb_init_controller_handshake(int fd, usb_controller_type_t type, uint8_t in
         return 0;
     }
     else if (type == CTRL_SONY_DS3) {
-        /* DualShock 3 magic initialization report */
-        uint8_t ds3_init[] = { 0x42, 0x03, 0x00, 0x00 };
-        memset(&req, 0, sizeof(req));
-        req.ucr_request.bmRequestType = 0x21;
-        req.ucr_request.bRequest = 0x09;
-        USETW(req.ucr_request.wValue, 0x03f4);
-        USETW(req.ucr_request.wIndex, interface);
-        USETW(req.ucr_request.wLength, sizeof(ds3_init));
-        req.ucr_data = ds3_init;
-        ioctl(fd, USB_DO_REQUEST, &req);
-        log_line("usb_ctrl: DualShock 3 magic initialization sent");
+        /* USB operational mode uses GET_REPORT F2, followed by F5 for compatible
+         * controllers. SET_REPORT F4/42/03 is the Bluetooth sequence.
+         * See Linux drivers/hid/hid-sony.c:sixaxis_set_operational_usb. */
+        static const struct { uint8_t id, length; } reports[] = {{0xf2,17},{0xf5,8}};
+        for (size_t i=0; i<sizeof(reports)/sizeof(reports[0]); i++) {
+            uint8_t feature[17]={0};
+            memset(&req, 0, sizeof(req));
+            req.ucr_request.bmRequestType = 0xa1; /* Device to host, class, interface */
+            req.ucr_request.bRequest = 0x01;      /* GET_REPORT */
+            USETW(req.ucr_request.wValue, 0x0300 | reports[i].id);
+            USETW(req.ucr_request.wIndex, interface);
+            USETW(req.ucr_request.wLength, reports[i].length);
+            req.ucr_flags = USB_SHORT_XFER_OK;
+            req.ucr_data = feature;
+            int result=ioctl(fd, USB_DO_REQUEST, &req);
+            int error=result ? errno : 0;
+            log_line("usb_ctrl: DS3 USB GET_REPORT F%X (interface=%u, result=%d, errno=%d, actual=%u, expected=%u)",
+                     (unsigned)(reports[i].id & 15),interface,result,error,
+                     (unsigned)req.ucr_actlen,reports[i].length);
+            if (result || req.ucr_actlen!=reports[i].length) {
+                log_line("usb_ctrl: DS3 USB wake-up failed; controller not initialized");
+                return -1;
+            }
+        }
+        log_line("usb_ctrl: DS3 USB wake-up completed; press the controller's physical PS button to start input");
         return 0;
     }
     else if (type == CTRL_XBOX_XINPUT || type == CTRL_8BITDO_ADAPTER) {

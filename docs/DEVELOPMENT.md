@@ -57,6 +57,17 @@ The portable LLVM builder is [tools/xbox/build.py](../tools/xbox/build.py).
 It supports combined, standalone and module-only builds. See [Xbox setup and
 verification](XBOX.md) for arguments and firmware staging.
 
+For a separately identified test payload, pass `--version` to the portable
+builder. This overrides the startup and diagnostic version without changing the
+default version in `src/core/version.h`:
+
+```sh
+python tools/xbox/build.py --combined --sdk /path/to/ps5-payload-sdk --version 1.1.4-ds3-test.1
+```
+
+Use matching test-version metadata when distributing that ELF through Payload
+Manager. Keep stable release metadata in `config/payload/` unchanged.
+
 ## Compatibility and naming
 
 New code uses LibrePad names. Active console paths are defined in

@@ -19,6 +19,7 @@ def main():
     parser.add_argument("--module-only", action="store_true", help="Build the optional static module without a standalone payload")
     parser.add_argument("--combined", action="store_true", help="Build USB, opt-in Bluetooth and Xbox Wireless together")
     parser.add_argument("--radio-debug", action="store_true", help="Log firmware and radio calibration diagnostics")
+    parser.add_argument("--version", help="Override the displayed version for a test build")
     args = parser.parse_args()
     sdk = args.sdk.resolve()
     clang = shutil.which(args.clang)
@@ -37,6 +38,10 @@ def main():
               "-I", str(ROOT / "vendor/anypad"),
               "-I", str(ROOT / "vendor"),
               "-I", str(ROOT / "build/generated")]
+    if args.version:
+        if not all(c.isalnum() or c in ".-+_" for c in args.version):
+            parser.error("version must contain only letters, numbers, dots, hyphens, plus signs or underscores")
+        common.append('-DLIBREPAD_VERSION="' + args.version + '"')
     objects = []
     if not args.module_only:
         subprocess.run([sys.executable, str(ROOT / "tools/embed_dashboard.py")], check=True)

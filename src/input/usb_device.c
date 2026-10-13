@@ -70,6 +70,7 @@ typedef struct {
     int                   in_ready, out_ready;
     uint32_t              in_requested;
     long                  last_read_error_log;
+    int                   input_seen;
     void                 *fs_frame[4];
     uint32_t              fs_len[4];
     uint8_t               rx_buf[64];
@@ -186,8 +187,13 @@ static int usb_fs_collect(usb_slot_device_t *dev)
     struct usb_fs_complete complete={0};
     if (ioctl(dev->fd,USB_FS_COMPLETE,&complete)) {
         if (errno==EBUSY || errno==EAGAIN || errno==EWOULDBLOCK || errno==ETIMEDOUT) return 0;
-        log_line("usb_hotplug: %04x:%04x USB_FS_COMPLETE failed (errno=%d: %s)",
-                 dev->vid,dev->pid,errno,strerror(errno));
+        int error=errno;
+        long now=now_ms();
+        if (!dev->last_read_error_log || now-dev->last_read_error_log>=3000) {
+            dev->last_read_error_log=now;
+            log_line("usb_hotplug: %04x:%04x USB_FS_COMPLETE failed (errno=%d: %s)",
+                     dev->vid,dev->pid,error,strerror(error));
+        }
         return -1;
     }
     if (complete.ep_index==dev->in_index) {
@@ -282,6 +288,10 @@ static int setup_generic(usb_slot_device_t *dev)
 
 static int wake_device(usb_slot_device_t *dev)
 {
+    if (dev->driver==CTRL_SONY_DS3) {
+        if (!usb_fs_start_input(dev)) return 0;
+        return usb_init_controller_handshake(dev->fd,dev->driver,dev->interface)==0;
+    }
     if ((dev->driver==CTRL_XBOX_XINPUT || dev->driver==CTRL_8BITDO_ADAPTER) && !dev->gip) {
         /* xpad arms the input URB before its optional vendor request. XInput
          * LED commands use the OUT endpoint, not HID SET_REPORT on EP0. */
@@ -338,6 +348,11 @@ static int usb_fs_recv_packet(usb_slot_device_t *dev, uint8_t *buffer, uint32_t 
         uint32_t count = dev->fs_len[dev->in_index];
         if (count>dev->in_requested || count>length || count>sizeof(dev->rx_buf)) return -1;
         memcpy(buffer, dev->rx_buf, count);
+        if (count && !dev->input_seen) {
+            dev->input_seen=1;
+            if (dev->driver==CTRL_SONY_DS3)
+                log_line("usb_hotplug: DS3 first USB input (bytes=%u, report_id=0x%02x)",count,buffer[0]);
+        }
         return (int)count;
     }
     fd_set reads;
