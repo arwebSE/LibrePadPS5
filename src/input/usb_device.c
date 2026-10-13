@@ -60,13 +60,14 @@ typedef struct {
     pad_state_t protocol_state;
 
 #ifdef __PROSPERO__
+    int                   control_fd; /* DS3 EP0; never used for USB_FS */
     struct usb_fs_endpoint endpoints[4];
     uint8_t               in_index;
     uint8_t               out_address;
     uint8_t               tx_buf[64];
     int                   has_output;
     int                   gip;
-    uint8_t               interface, in_address;
+    uint8_t               interface, interface_index, in_address;
     int                   use_fs;
     int                   in_pending;
     int                   in_ready, out_ready;
@@ -106,13 +107,61 @@ static uint8_t find_usb_input_endpoint(usb_slot_device_t *dev)
     if (!length || length > sizeof(raw) ||
         !usb_select_input_interface(raw, length, dev->driver, &selected)) return 0;
     dev->interface = selected.interface;
+    dev->interface_index = selected.interface_index;
     dev->gip = selected.gip;
     dev->out_address = selected.out_address;
     return selected.in_address;
 }
 
+/* FreeBSD libusb20_ugen20.c uses two independent opens for EP0 and USB_FS
+ * because of kernel locking. A dup would share the same FIFO/USB_FS state. */
+static int ds3_open_control(usb_slot_device_t *dev)
+{
+    dev->control_fd=open(dev->dev_path,O_RDWR|O_NONBLOCK);
+    if (dev->control_fd<0) {
+        log_line("usb_hotplug: DS3 control open failed (errno=%d)",errno);
+        return 0;
+    }
+    struct usb_device_descriptor descriptor={0};
+    int result=ioctl(dev->control_fd,USB_GET_DEVICE_DESC,&descriptor);
+    if (result || UGETW(descriptor.idVendor)!=dev->vid || UGETW(descriptor.idProduct)!=dev->pid) {
+        log_line("usb_hotplug: DS3 control identity rejected (result=%d, errno=%d, VID=%04x PID=%04x)",
+                 result,result ? errno : 0,UGETW(descriptor.idVendor),UGETW(descriptor.idProduct));
+        return 0;
+    }
+    /* Only the known DS3 identity may detach a kernel driver. A custom saved
+     * DS3 layout on another device must not change native driver ownership. */
+    if (dev->vid==0x054c && dev->pid==0x0268) {
+        int index=dev->interface_index;
+        result=ioctl(dev->control_fd,USB_IFACE_DRIVER_ACTIVE,&index);
+        int error=result ? errno : 0;
+        log_line("usb_hotplug: DS3 kernel driver query (index=%d, result=%d, errno=%d)",index,result,error);
+        if (!result) {
+            result=ioctl(dev->control_fd,USB_IFACE_DRIVER_DETACH,&index);
+            log_line("usb_hotplug: DS3 kernel driver detach (index=%d, result=%d, errno=%d)",index,result,result ? errno : 0);
+            if (result) return 0;
+        } else if (error!=ENXIO && error!=ENOTTY) return 0;
+    }
+    log_line("usb_hotplug: DS3 independent control handle ready; EP0 separated from USB_FS");
+    return 1;
+}
+
+static void usb_fs_release(usb_slot_device_t *dev)
+{
+    if (dev->use_fs && dev->fd>=0) {
+        struct usb_fs_uninit uninit={0};
+        ioctl(dev->fd,USB_FS_UNINIT,&uninit);
+    }
+    dev->use_fs=0;
+    if (dev->control_fd>=0) {
+        close(dev->control_fd);
+        dev->control_fd=-1;
+    }
+}
+
 static int usb_fs_setup_device(usb_slot_device_t *sdev)
 {
+    if (sdev->driver==CTRL_SONY_DS3 && !ds3_open_control(sdev)) return 0;
     int iface = sdev->interface;
     int claimed=ioctl(sdev->fd, USB_CLAIM_INTERFACE, &iface);
     if (sdev->driver==CTRL_SONY_DS3) {
@@ -297,7 +346,7 @@ static int wake_device(usb_slot_device_t *dev)
 {
     if (dev->driver==CTRL_SONY_DS3) {
         if (!usb_fs_start_input(dev)) return 0;
-        return usb_init_controller_handshake(dev->fd,dev->driver,dev->interface)==0;
+        return usb_init_controller_handshake(dev->control_fd,dev->driver,dev->interface)==0;
     }
     if ((dev->driver==CTRL_XBOX_XINPUT || dev->driver==CTRL_8BITDO_ADAPTER) && !dev->gip) {
         /* xpad arms the input URB before its optional vendor request. XInput
@@ -353,7 +402,7 @@ static int ds3_configure_output(usb_slot_device_t *dev)
     USETW(req.ucr_request.wIndex,dev->interface);
     USETW(req.ucr_request.wLength,sizeof(output));
     req.ucr_data=output;
-    int result=ioctl(dev->fd,USB_DO_REQUEST,&req);
+    int result=ioctl(dev->control_fd,USB_DO_REQUEST,&req);
     int error=result ? errno : 0;
     int ok=!result && req.ucr_actlen==sizeof(output);
     log_line("usb_ctrl: DS3 deferred USB output %s (interface=%u, player=%u, result=%d, errno=%d, actual=%u, expected=%zu)",
@@ -410,18 +459,15 @@ static int usb_fs_recv_packet(usb_slot_device_t *dev, uint8_t *buffer, uint32_t 
  * Closing before clearing buffers also cancels any surviving kernel transfer. */
 static int ds3_reopen_transport(usb_slot_device_t *dev)
 {
+    usb_fs_release(dev);
     if (dev->fd>=0) {
-        if (dev->use_fs) {
-            struct usb_fs_uninit uninit={0};
-            ioctl(dev->fd,USB_FS_UNINIT,&uninit);
-        }
         close(dev->fd);
     }
     dev->fd=-1; dev->use_fs=0;
     dev->in_pending=dev->in_ready=dev->out_ready=dev->has_output=0;
     dev->input_seen=dev->ds3_output_attempted=0;
     dev->in_requested=0; dev->last_read_error_log=0;
-    dev->in_address=dev->out_address=dev->interface=0; dev->gip=0;
+    dev->in_address=dev->out_address=dev->interface=dev->interface_index=0; dev->gip=0;
     memset(dev->endpoints,0,sizeof(dev->endpoints));
     memset(dev->fs_frame,0,sizeof(dev->fs_frame));
     memset(dev->fs_len,0,sizeof(dev->fs_len));
@@ -442,9 +488,7 @@ static int ds3_reopen_transport(usb_slot_device_t *dev)
     }
     dev->in_address=find_usb_input_endpoint(dev);
     if (dev->in_address && usb_fs_setup_device(dev) && wake_device(dev)) return 1;
-    if (dev->use_fs) {
-        struct usb_fs_uninit uninit={0}; ioctl(dev->fd,USB_FS_UNINIT,&uninit);
-    }
+    usb_fs_release(dev);
     close(dev->fd); dev->fd=-1; dev->use_fs=0;
     return 0;
 }
@@ -589,12 +633,7 @@ static void *usb_reader_worker(void *arg)
 
 
 #ifdef __PROSPERO__
-    if (dev->use_fs && dev->fd >= 0) {
-        struct usb_fs_uninit uninit;
-        memset(&uninit, 0, sizeof(uninit));
-        ioctl(dev->fd, USB_FS_UNINIT, &uninit);
-        dev->use_fs = 0;
-    }
+    usb_fs_release(dev);
 #endif
 
     log_line("usb_hotplug: Reader thread stopped for slot %d", dev->slot);
@@ -710,6 +749,9 @@ static void probe_usb_devices(void)
             sdev->active = 1;
             sdev->slot = slot;
             sdev->fd = fd;
+#ifdef __PROSPERO__
+            sdev->control_fd = -1;
+#endif
             snprintf(sdev->dev_path, sizeof(sdev->dev_path), "%s", path);
             sdev->vid = vid;
             sdev->pid = pid;
@@ -733,12 +775,13 @@ static void probe_usb_devices(void)
             }
             if (!usb_fs_setup_device(sdev)) {
                 log_line("usb_hotplug: Failed to setup usb_fs for %s, closing", path);
+                usb_fs_release(sdev);
                 close(fd);
                 memset(sdev, 0, sizeof(usb_slot_device_t));
                 continue;
             }
             if (!wake_device(sdev)) {
-                struct usb_fs_uninit uninit={0}; ioctl(fd,USB_FS_UNINIT,&uninit);
+                usb_fs_release(sdev);
                 close(fd); memset(sdev,0,sizeof(*sdev)); continue;
             }
 #else
@@ -754,7 +797,7 @@ static void probe_usb_devices(void)
                 vid == 0x0e6f && pid == 0x0184 ? "PDP Switch controller" : ctrl_name);
             if (sdev->slot < 0) {
 #ifdef __PROSPERO__
-                struct usb_fs_uninit uninit={0}; ioctl(fd,USB_FS_UNINIT,&uninit);
+                usb_fs_release(sdev);
 #endif
                 close(fd); memset(sdev,0,sizeof(*sdev)); continue;
             }
@@ -762,7 +805,7 @@ static void probe_usb_devices(void)
             if (thread_error) {
                 log_line("usb_hotplug: Reader creation failed (%d), closing %s", thread_error, path);
 #ifdef __PROSPERO__
-                struct usb_fs_uninit uninit={0}; ioctl(fd,USB_FS_UNINIT,&uninit);
+                usb_fs_release(sdev);
 #else
                 for (int e=0; e<6; e++) if (sdev->ep_fd[e]>=0) close(sdev->ep_fd[e]);
 #endif

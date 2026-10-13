@@ -19,7 +19,8 @@ typedef enum {
 #define CTRL_BLUETOOTH_MAPPING 100
 
 typedef struct {
-    uint8_t interface, in_address, out_address;
+    /* HID requests use bInterfaceNumber; FreeBSD driver ioctls use its index. */
+    uint8_t interface, interface_index, in_address, out_address;
     int gip;
 } usb_input_interface_t;
 

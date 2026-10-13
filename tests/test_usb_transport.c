@@ -29,6 +29,9 @@ static int ds3_wake_logs, ds3_failure_logs, ds3_input_logs, complete_logs;
 static int ds3_output_controls, ds3_output_error, ds3_output_length, ds3_queue_on_output;
 static int open_calls, close_calls, fail_opens, reject_identity, fail_descriptor;
 static int fs_inits, fs_uninits, interface_claims, cancel_on_sleep;
+static int kernel_active, kernel_queries, kernel_detaches, fail_detach;
+static int kernel_query_error;
+static int fail_control_open, reject_control_identity, fail_fs_open;
 static int stop_after_updates, updates;
 static pad_state_t updated[4];
 static long clock_ms=10000;
@@ -52,13 +55,14 @@ static void queue(int index) { assert(queue_count<8); queued[queue_count++]=inde
 static int test_open(const char *path, int flags, ...)
 {
     assert(!strcmp(path,device->dev_path) && flags==(O_RDWR|O_NONBLOCK));
-    assert(device->fd==-1 && !device->use_fs && !device->in_pending);
+    assert(!device->use_fs && !device->in_pending);
     open_calls++;
+    if (device->fd>=0 && fail_control_open) { errno=EACCES; return -1; }
     if (fail_opens) { fail_opens--; errno=ENXIO; return -1; }
     return 7+open_calls;
 }
 static int test_close(int fd)
-{ assert(fd==device->fd && fd>=0); close_calls++; return 0; }
+{ assert((fd==device->fd || fd==device->control_fd) && fd>=0); close_calls++; return 0; }
 void controller_update(void *owner, const pad_state_t *state)
 {
     assert(owner==device && updates<4);
@@ -76,14 +80,20 @@ void librepad_profiles_remap(uint16_t vid, uint16_t pid, pad_state_t *state)
 const pad_profile generic_profile={0};
 static int test_ioctl(int fd, unsigned long request, ...)
 {
-    assert(fd==device->fd);
+    int control=device->driver==CTRL_SONY_DS3 &&
+        (request==USB_DO_REQUEST || request==USB_IFACE_DRIVER_ACTIVE || request==USB_IFACE_DRIVER_DETACH);
+    /* Model the backend contract: EP0 may not share the USB_FS handle. */
+    int expected_fd=control ? device->control_fd : device->fd;
+    if (request==USB_GET_DEVICE_DESC && fd==device->control_fd) expected_fd=device->control_fd;
+    assert(fd==expected_fd);
+    if (control) assert(device->control_fd>=0 && device->control_fd!=device->fd);
     va_list args; va_start(args,request); void *arg=va_arg(args,void *); va_end(args);
     switch (request) {
     case USB_GET_DEVICE_DESC: {
         if (fail_descriptor) { errno=ENXIO; return -1; }
         struct usb_device_descriptor *desc=arg;
         USETW(desc->idVendor,reject_identity ? 0x054c : device->vid);
-        USETW(desc->idProduct,reject_identity ? 0x0ce6 : device->pid);
+        USETW(desc->idProduct,reject_identity || (fd==device->control_fd && reject_control_identity) ? 0x0ce6 : device->pid);
         return 0;
     }
     case USB_GET_FULL_DESC: {
@@ -95,12 +105,24 @@ static int test_ioctl(int fd, unsigned long request, ...)
         return 0;
     }
     case USB_CLAIM_INTERFACE: assert(*(int *)arg==2); interface_claims++; return 0;
+    case USB_IFACE_DRIVER_ACTIVE:
+        assert(*(int *)arg==0 && !device->use_fs && !device->in_pending);
+        kernel_queries++;
+        if (kernel_query_error) { errno=kernel_query_error; return -1; }
+        if (kernel_active) return 0;
+        errno=ENXIO; return -1;
+    case USB_IFACE_DRIVER_DETACH:
+        assert(*(int *)arg==0 && !device->use_fs && !device->in_pending && kernel_active);
+        kernel_detaches++;
+        if (fail_detach) { errno=EPERM; return -1; }
+        kernel_active=0; return 0;
     case USB_GET_CONFIG: *(int *)arg=0; return 0;
     case USB_FS_INIT:
         fs_inits++; controls=0; memset(starts,0,sizeof(starts));
         fail_complete=0; return 0;
     case USB_FS_OPEN: {
         struct usb_fs_open *ep=arg;
+        if (fail_fs_open) { errno=ENXIO; return -1; }
         assert(ep->ep_index==0 && ep->ep_no==0x81); return 0;
     }
     case USB_FS_UNINIT: fs_uninits++; queue_head=queue_count=0; return 0;
@@ -174,6 +196,7 @@ static int test_ioctl(int fd, unsigned long request, ...)
 static void reset(usb_slot_device_t *d)
 {
     memset(d,0,sizeof(*d)); device=d;
+    d->control_fd=-1;
     d->fd=7; d->vid=0x2dc8; d->pid=0x3106; d->driver=CTRL_8BITDO_ADAPTER;
     snprintf(d->dev_path,sizeof(d->dev_path),"/dev/ugen1.2");
     d->name="Test controller";
@@ -185,6 +208,9 @@ static void reset(usb_slot_device_t *d)
     ds3_output_controls=ds3_output_error=ds3_queue_on_output=0; ds3_output_length=35;
     open_calls=close_calls=fail_opens=reject_identity=fail_descriptor=0;
     fs_inits=fs_uninits=interface_claims=cancel_on_sleep=stop_after_updates=updates=0;
+    kernel_active=kernel_queries=kernel_detaches=fail_detach=0;
+    kernel_query_error=0;
+    fail_control_open=reject_control_identity=fail_fs_open=0;
     memset(updated,0,sizeof(updated));
     memset(packet,0,sizeof(packet));
     memcpy(packet,(uint8_t[]){0,20,1,0x10,70,200},6);
@@ -195,6 +221,7 @@ static void reset_ds3(usb_slot_device_t *d)
 {
     reset(d);
     d->vid=0x054c; d->pid=0x0268; d->driver=CTRL_SONY_DS3; d->has_output=0;
+    d->control_fd=70;
     input_length=49;
     memset(packet,0,sizeof(packet));
     packet[0]=1; packet[2]=0x10; packet[3]=0x40; packet[4]=1;
@@ -275,34 +302,42 @@ static void ds3_transport_recovery(void)
     assert(d.ds3_output_attempted);
     long before=clock_ms;
     assert(ds3_recover_transport(&d));
-    assert(clock_ms-before==100 && open_calls==1 && close_calls==1);
+    assert(clock_ms-before==100 && open_calls==2 && close_calls==2);
     assert(d.active==1 && d.slot==3 && d.conn_type==CONN_USB_WIRED && !d.stop_thread && !d.recovering);
     assert(d.fd==8 && d.use_fs && d.in_pending && !d.ds3_output_attempted && !d.input_seen);
+    assert(d.control_fd==9 && kernel_queries==1 && !kernel_detaches);
     assert(fs_inits==1 && fs_uninits==1 && interface_claims==1);
     assert(usb_fs_recv_packet(&d,buffer,sizeof(buffer),15)==49 && ds3_output_controls==2);
 
     reset_ds3(&d); fail_opens=1; before=clock_ms;
     assert(ds3_recover_transport(&d));
-    assert(clock_ms-before==300 && open_calls==2 && close_calls==1 && !d.recovering);
+    assert(clock_ms-before==300 && open_calls==3 && close_calls==2 && !d.recovering);
 
     reset_ds3(&d); fail_opens=3; before=clock_ms;
     assert(!ds3_recover_transport(&d));
-    assert(clock_ms-before==700 && open_calls==3 && close_calls==1 && d.fd==-1 && !d.use_fs && !d.recovering);
+    assert(clock_ms-before==700 && open_calls==3 && close_calls==2 && d.fd==-1 && d.control_fd==-1 && !d.use_fs && !d.recovering);
 
     /* A native DualSense replacing the DS3 on the same path is never claimed. */
     reset_ds3(&d); reject_identity=1;
     assert(!ds3_recover_transport(&d));
-    assert(open_calls==3 && close_calls==4 && !fs_inits && !interface_claims && !controls);
+    assert(open_calls==3 && close_calls==5 && !fs_inits && !interface_claims && !controls && !kernel_queries);
     reset_ds3(&d); fail_descriptor=1;
     assert(!ds3_recover_transport(&d) && open_calls==3 && !fs_inits && !controls);
 
     reset_ds3(&d); ds3_fail_request=1;
     assert(!ds3_recover_transport(&d));
-    assert(open_calls==3 && close_calls==4 && fs_inits==3 && fs_uninits==4 && !d.use_fs);
+    assert(open_calls==6 && close_calls==8 && fs_inits==3 && fs_uninits==4 && !d.use_fs && d.control_fd==-1);
 
     reset_ds3(&d); cancel_on_sleep=1; before=clock_ms;
     assert(!ds3_recover_transport(&d));
     assert(clock_ms-before==100 && !open_calls && !close_calls && !d.recovering && d.stop_thread);
+
+    reset_ds3(&d); fail_control_open=1;
+    assert(!ds3_recover_transport(&d));
+    assert(open_calls==6 && close_calls==5 && d.fd==-1 && d.control_fd==-1 && !fs_inits);
+    reset_ds3(&d); reject_control_identity=1;
+    assert(!ds3_recover_transport(&d));
+    assert(open_calls==6 && close_calls==8 && !kernel_queries && !fs_inits && d.control_fd==-1);
 
     /* Run the actual worker: clear held input, reopen, deliver the next report
      * through the same owner, then stop on the mock's explicit shutdown. */
@@ -311,10 +346,52 @@ static void ds3_transport_recovery(void)
     usb_reader_worker(&d);
     assert(updates==2 && updated[0].buttons==0 && updated[0].lx==128);
     assert(updated[1].buttons==(PAD_BTN_CROSS|PAD_BTN_PS|PAD_DPAD_UP));
-    assert(open_calls==1 && d.active==1 && d.slot==2 && d.stop_thread && !d.use_fs);
+    assert(open_calls==2 && d.active==1 && d.slot==2 && d.stop_thread && !d.use_fs && d.control_fd==-1);
     reset_ds3(&d); assert(wake_device(&d)); fail_complete=1; fail_opens=3;
     usb_reader_worker(&d);
     assert(updates==1 && updated[0].buttons==0 && open_calls==3 && d.stop_thread && d.fd==-1);
+}
+
+static void ds3_control_ownership(void)
+{
+    usb_slot_device_t d;
+    reset_ds3(&d); d.control_fd=-1; d.use_fs=0;
+    kernel_active=1;
+    assert(usb_fs_setup_device(&d));
+    assert(d.fd==7 && d.control_fd==8 && kernel_queries==1 && kernel_detaches==1);
+    assert(wake_device(&d) && controls==2);
+    usb_fs_release(&d);
+    assert(close_calls==1 && fs_uninits==1 && d.control_fd==-1 && d.fd==7);
+    usb_fs_release(&d); assert(close_calls==1 && fs_uninits==1);
+
+    /* Never proceed with input/wake-up if a competing driver cannot detach. */
+    reset_ds3(&d); d.control_fd=-1; d.use_fs=0; kernel_active=fail_detach=1;
+    assert(!usb_fs_setup_device(&d) && !fs_inits && !controls && !starts[0]);
+    usb_fs_release(&d); assert(close_calls==1 && d.control_fd==-1);
+
+    reset_ds3(&d); d.control_fd=-1; d.use_fs=0; kernel_query_error=ENOTTY;
+    assert(usb_fs_setup_device(&d) && !kernel_detaches);
+    usb_fs_release(&d);
+    reset_ds3(&d); d.control_fd=-1; d.use_fs=0; kernel_query_error=EPERM;
+    assert(!usb_fs_setup_device(&d) && !fs_inits && !kernel_detaches);
+    usb_fs_release(&d);
+
+    reset_ds3(&d); d.control_fd=-1; d.use_fs=0; fail_control_open=1;
+    assert(!usb_fs_setup_device(&d) && !kernel_queries && !fs_inits);
+    usb_fs_release(&d); assert(!close_calls);
+    /* A DualSense replacing the DS3 between opens receives no driver ioctl. */
+    reset_ds3(&d); d.control_fd=-1; d.use_fs=0; reject_control_identity=1;
+    assert(!usb_fs_setup_device(&d) && !kernel_queries && !fs_inits && !controls);
+    usb_fs_release(&d); assert(close_calls==1);
+
+    reset_ds3(&d); d.control_fd=-1; d.use_fs=0; fail_fs_open=1;
+    assert(!usb_fs_setup_device(&d) && fs_inits==1 && !controls);
+    usb_fs_release(&d); assert(close_calls==1 && d.control_fd==-1);
+
+    /* Saved DS3 layouts on other identities never detach native drivers. */
+    reset_ds3(&d); d.control_fd=-1; d.use_fs=0; d.vid=0x0e6f; d.pid=0x0184;
+    assert(usb_fs_setup_device(&d) && !kernel_queries && !kernel_detaches);
+    usb_fs_release(&d);
 }
 
 int main(void)
@@ -370,5 +447,6 @@ int main(void)
     ds3_initialization();
     ds3_deferred_output();
     ds3_transport_recovery();
-    puts("PS5 USB transport: DS3 wake-up, output, bounded recovery and worker, queued input, XInput and error tests passed");
+    ds3_control_ownership();
+    puts("PS5 USB transport: DS3 independent control, ownership, wake-up, output, recovery and worker; XInput and error tests passed");
 }

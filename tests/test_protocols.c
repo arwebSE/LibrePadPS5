@@ -19,9 +19,9 @@ static void adapter_interfaces(void)
     assert(usb_select_input_interface(descriptor,sizeof(descriptor),CTRL_8BITDO_ADAPTER,&selected));
     assert(selected.interface==1 && selected.in_address==0x82 && selected.out_address==2 && !selected.gip);
     assert(usb_select_input_interface(descriptor,sizeof(descriptor),CTRL_XBOX_XINPUT,&selected));
-    assert(selected.interface==1);
+    assert(selected.interface==1 && selected.interface_index==1);
     assert(usb_select_input_interface(descriptor,sizeof(descriptor),CTRL_GENERIC_HID,&selected));
-    assert(selected.interface==2 && selected.in_address==0x83 && !selected.out_address);
+    assert(selected.interface==2 && selected.interface_index==2 && selected.in_address==0x83 && !selected.out_address);
     descriptor[15]=descriptor[16]=0; /* Non-boot HID ahead of XInput. */
     assert(usb_select_input_interface(descriptor,sizeof(descriptor),CTRL_8BITDO_ADAPTER,&selected));
     assert(selected.interface==1 && selected.in_address==0x82 && selected.out_address==2);
@@ -32,6 +32,13 @@ static void adapter_interfaces(void)
     assert(usb_select_input_interface(descriptor+25,23,CTRL_8BITDO_ADAPTER,&selected));
     assert(selected.interface==1);
     assert(!usb_select_input_interface(descriptor+25,23,CTRL_GENERIC_HID,&selected));
+    /* Kernel interface indices are independent of bInterfaceNumber, and
+     * alternate settings do not allocate another index. */
+    uint8_t sparse[]={9,4,4,0,1,3,1,1,0,7,5,0x82,3,8,0,1,
+                      9,4,4,1,1,3,1,1,0,7,5,0x82,3,8,0,1,
+                      9,4,7,0,1,3,0,0,0,7,5,0x81,3,64,0,1};
+    assert(usb_select_input_interface(sparse,sizeof(sparse),CTRL_SONY_DS3,&selected));
+    assert(selected.interface==7 && selected.interface_index==1 && selected.in_address==0x81);
     descriptor[28]=1; /* Only alternate settings with index zero are supported. */
     assert(!usb_select_input_interface(descriptor+25,23,CTRL_8BITDO_ADAPTER,&selected));
     descriptor[28]=0;

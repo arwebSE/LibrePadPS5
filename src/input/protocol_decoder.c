@@ -85,6 +85,7 @@ int usb_select_input_interface(const uint8_t *data, size_t length,
     memset(out, 0, sizeof(*out));
     usb_input_interface_t candidate = {0}, selected = {0};
     int suitable = 0, selected_score = 0;
+    unsigned interface_index = 0;
     for (size_t offset = 0; offset < length;) {
         if (length-offset < 2) return 0;
         size_t entry = data[offset];
@@ -102,6 +103,8 @@ int usb_select_input_interface(const uint8_t *data, size_t length,
             int xbox = driver == CTRL_XBOX_XINPUT || driver == CTRL_8BITDO_ADAPTER;
             suitable = d[3] != 0 ? 0 : xbox && (gip || xinput) ? 2 : hid ? 1 : 0;
             candidate.interface = d[2]; candidate.gip = gip;
+            candidate.interface_index = (uint8_t)interface_index;
+            if (d[3] == 0) interface_index++;
         } else if (d[1] == 5) {
             if (entry < 7) return 0;
             uint8_t address = d[2], type = d[3] & 3;
