@@ -71,6 +71,7 @@ typedef struct {
     uint32_t              in_requested;
     long                  last_read_error_log;
     int                   input_seen;
+    int                   ds3_output_attempted;
     void                 *fs_frame[4];
     uint32_t              fs_len[4];
     uint8_t               rx_buf[64];
@@ -326,6 +327,35 @@ static int wake_device(usb_slot_device_t *dev)
     return usb_init_controller_handshake(dev->fd,dev->driver,dev->interface)==0;
 }
 
+/* Sixaxis USB accepts output on EP0 without the report ID in its data. Defer
+ * configuration until input starts, as in Linux hid-sony: earlier writes are
+ * discarded until the physical PS button is pressed. Both motors stay off. */
+static int ds3_configure_output(usb_slot_device_t *dev)
+{
+    uint8_t output[35]={0};
+    output[0]=1; output[1]=0xff; output[3]=0xff;
+    output[9]=(uint8_t)(2u << (dev->slot & 3));
+    for (unsigned i=0; i<4; i++) {
+        unsigned offset=10+5*i;
+        output[offset]=0xff; output[offset+1]=0x27;
+        output[offset+2]=0x10; output[offset+4]=0x32;
+    }
+    struct usb_ctl_request req={0};
+    req.ucr_request.bmRequestType=0x21;
+    req.ucr_request.bRequest=0x09; /* SET_REPORT: output report 1 */
+    USETW(req.ucr_request.wValue,0x0201);
+    USETW(req.ucr_request.wIndex,dev->interface);
+    USETW(req.ucr_request.wLength,sizeof(output));
+    req.ucr_data=output;
+    int result=ioctl(dev->fd,USB_DO_REQUEST,&req);
+    int error=result ? errno : 0;
+    int ok=!result && req.ucr_actlen==sizeof(output);
+    log_line("usb_ctrl: DS3 deferred USB output %s (interface=%u, player=%u, result=%d, errno=%d, actual=%u, expected=%zu)",
+             ok ? "completed" : "failed",dev->interface,(unsigned)(dev->slot & 3)+1,
+             result,error,(unsigned)req.ucr_actlen,sizeof(output));
+    return ok;
+}
+
 static int usb_fs_recv_packet(usb_slot_device_t *dev, uint8_t *buffer, uint32_t length, int timeout_ms)
 {
     if (!dev->use_fs) return -1;
@@ -352,6 +382,12 @@ static int usb_fs_recv_packet(usb_slot_device_t *dev, uint8_t *buffer, uint32_t 
             dev->input_seen=1;
             if (dev->driver==CTRL_SONY_DS3)
                 log_line("usb_hotplug: DS3 first USB input (bytes=%u, report_id=0x%02x)",count,buffer[0]);
+        }
+        if (dev->driver==CTRL_SONY_DS3 && count>=49 && buffer[0]==1 && !dev->ds3_output_attempted) {
+            dev->ds3_output_attempted=1;
+            /* The current report is already copied. Keep the next read armed
+             * during EP0 output, and retain input even if output fails. */
+            if (usb_fs_start_input(dev)) ds3_configure_output(dev);
         }
         return (int)count;
     }

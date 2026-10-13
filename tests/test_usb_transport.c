@@ -21,6 +21,7 @@ static int input_status, input_length, output_status, fail_start, fail_complete;
 static int controls, cancels, timeouts, transfer_logs, fail_output;
 static int ds3_fail_request, ds3_short_request, ds3_short_length;
 static int ds3_wake_logs, ds3_failure_logs, ds3_input_logs, complete_logs;
+static int ds3_output_controls, ds3_output_error, ds3_output_length, ds3_queue_on_output;
 static long clock_ms=10000;
 static uint8_t packet[64];
 
@@ -53,8 +54,28 @@ static int test_ioctl(int fd, unsigned long request, ...)
     }
     case USB_DO_REQUEST: {
         struct usb_ctl_request *req=arg;
-        assert(starts[0]==1); /* Input must be armed before initialization. */
         assert(UGETW(req->ucr_request.wIndex)==device->interface);
+        if (device->driver==CTRL_SONY_DS3 && req->ucr_request.bmRequestType==0x21) {
+            assert(controls==2 && starts[0]>=2 && device->in_pending && device->input_seen);
+            assert(req->ucr_request.bRequest==9 && UGETW(req->ucr_request.wValue)==0x0201);
+            assert(UGETW(req->ucr_request.wLength)==35 && req->ucr_flags==0);
+            const uint8_t *output=req->ucr_data;
+            assert(output[0]==1 && output[1]==0xff && output[3]==0xff);
+            assert(output[2]==0 && output[4]==0); /* Both motors off. */
+            assert(output[9]==(2u << (device->slot & 3)));
+            for (unsigned i=0; i<4; i++) {
+                unsigned offset=10+5*i;
+                assert(output[offset]==0xff && output[offset+1]==0x27 && output[offset+2]==0x10);
+                assert(output[offset+3]==0 && output[offset+4]==0x32);
+            }
+            for (unsigned i=30; i<35; i++) assert(output[i]==0);
+            ds3_output_controls++;
+            if (ds3_queue_on_output) { packet[3]=0x80; queue(0); }
+            if (ds3_output_error) { errno=EPIPE; return -1; }
+            req->ucr_actlen=(uint16_t)ds3_output_length;
+            return 0;
+        }
+        assert(starts[0]==1); /* Input must be armed before initialization. */
         controls++;
         if (device->driver==CTRL_SONY_DS3) {
             assert(controls<=2);
@@ -99,6 +120,7 @@ static void reset(usb_slot_device_t *d)
     controls=cancels=timeouts=transfer_logs=fail_output=fail_start=fail_complete=0;
     ds3_fail_request=ds3_short_request=ds3_short_length=0;
     ds3_wake_logs=ds3_failure_logs=ds3_input_logs=complete_logs=0;
+    ds3_output_controls=ds3_output_error=ds3_queue_on_output=0; ds3_output_length=35;
     memset(packet,0,sizeof(packet));
     memcpy(packet,(uint8_t[]){0,20,1,0x10,70,200},6);
     input_status=output_status=USB_ERR_NORMAL_COMPLETION; input_length=20;
@@ -123,13 +145,14 @@ static void ds3_initialization(void)
         assert(wake_device(&d));
         assert(controls==2 && starts[0]==1 && starts[1]==0 && ds3_wake_logs==1);
         assert(!ds3_failure_logs && !ds3_input_logs);
-        assert(usb_fs_recv_packet(&d,buffer,sizeof(buffer),15)==49 && starts[0]==1);
+        assert(usb_fs_recv_packet(&d,buffer,sizeof(buffer),15)==49 && starts[0]==2);
         assert(ds3_input_logs==1 && d.input_seen);
+        assert(ds3_output_controls==1 && d.ds3_output_attempted);
         assert(usb_parse_input_report(CTRL_SONY_DS3,buffer,49,&state));
         assert(state.buttons==(PAD_BTN_CROSS|PAD_BTN_PS|PAD_DPAD_UP));
         assert(state.lx==13 && state.ly==27 && state.rx==201 && state.ry==250);
         queue(0);
-        assert(usb_fs_recv_packet(&d,buffer,sizeof(buffer),15)==49 && ds3_input_logs==1);
+        assert(usb_fs_recv_packet(&d,buffer,sizeof(buffer),15)==49 && ds3_input_logs==1 && ds3_output_controls==1);
     }
     for (int request=1; request<=2; request++) {
         reset_ds3(&d); ds3_fail_request=request;
@@ -146,6 +169,37 @@ static void ds3_initialization(void)
     }
     reset_ds3(&d); fail_start=1;
     assert(!wake_device(&d) && !controls && !ds3_wake_logs);
+}
+static void ds3_deferred_output(void)
+{
+    usb_slot_device_t d; uint8_t buffer[64]; pad_state_t state;
+    for (int slot=0; slot<4; slot++) {
+        reset_ds3(&d); d.slot=slot; ds3_queue_on_output=1;
+        assert(wake_device(&d) && !ds3_output_controls);
+        assert(usb_fs_recv_packet(&d,buffer,sizeof(buffer),15)==49);
+        /* The control write may queue another packet, but cannot replace this one. */
+        assert(usb_parse_input_report(CTRL_SONY_DS3,buffer,49,&state));
+        assert(state.buttons==(PAD_BTN_CROSS|PAD_BTN_PS|PAD_DPAD_UP));
+        assert(usb_fs_recv_packet(&d,buffer,sizeof(buffer),15)==49);
+        assert(usb_parse_input_report(CTRL_SONY_DS3,buffer,49,&state));
+        assert(state.buttons==(PAD_BTN_SQUARE|PAD_BTN_PS|PAD_DPAD_UP));
+        assert(ds3_output_controls==1 && starts[0]==2);
+    }
+    /* Output failure/short writes never discard input or repeatedly write. */
+    for (int failure=0; failure<2; failure++) {
+        reset_ds3(&d); ds3_output_error=failure; ds3_output_length=34; ds3_queue_on_output=1;
+        assert(wake_device(&d));
+        assert(usb_fs_recv_packet(&d,buffer,sizeof(buffer),15)==49 && ds3_output_controls==1);
+        assert(usb_fs_recv_packet(&d,buffer,sizeof(buffer),15)==49 && ds3_output_controls==1);
+    }
+    reset_ds3(&d); assert(wake_device(&d)); input_length=10;
+    assert(usb_fs_recv_packet(&d,buffer,sizeof(buffer),15)==10 && !ds3_output_controls);
+    input_length=49; packet[0]=2; queue(0);
+    assert(usb_fs_recv_packet(&d,buffer,sizeof(buffer),15)==49 && !ds3_output_controls);
+    packet[0]=1; queue(0);
+    assert(usb_fs_recv_packet(&d,buffer,sizeof(buffer),15)==49 && ds3_output_controls==1);
+    reset_ds3(&d); assert(wake_device(&d)); fail_start=1;
+    assert(usb_fs_recv_packet(&d,buffer,sizeof(buffer),15)==49 && !ds3_output_controls);
 }
 int main(void)
 {
@@ -198,5 +252,6 @@ int main(void)
     reset(&d); d.has_output=0;
     assert(wake_device(&d) && controls==1 && starts[0]==1 && !starts[1]);
     ds3_initialization();
-    puts("PS5 USB transport: DS3 F2/F5 wake-up, queued input, failed/short transfers, XInput, timeout and error tests passed");
+    ds3_deferred_output();
+    puts("PS5 USB transport: DS3 F2/F5 and deferred output, queued input, failed/short transfers, XInput and error tests passed");
 }
