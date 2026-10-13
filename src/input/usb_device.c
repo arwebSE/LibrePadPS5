@@ -15,6 +15,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <pthread.h>
+#include <stdatomic.h>
 #include <sys/ioctl.h>
 #include <sys/select.h>
 #include <sys/time.h>
@@ -52,6 +53,7 @@ typedef struct {
     pad_conn_type_t       conn_type;
     pthread_t             thread;
     volatile int          stop_thread;
+    atomic_int            recovering;
     usb_controller_type_t driver;
     union { max_align_t alignment; unsigned char bytes[PROFILE_CTX_MAX]; } generic;
     pad_state generic_state;
@@ -112,7 +114,11 @@ static uint8_t find_usb_input_endpoint(usb_slot_device_t *dev)
 static int usb_fs_setup_device(usb_slot_device_t *sdev)
 {
     int iface = sdev->interface;
-    ioctl(sdev->fd, USB_CLAIM_INTERFACE, &iface);
+    int claimed=ioctl(sdev->fd, USB_CLAIM_INTERFACE, &iface);
+    if (sdev->driver==CTRL_SONY_DS3) {
+        int error=claimed ? errno : 0;
+        log_line("usb_hotplug: DS3 interface claim (interface=%d, result=%d, errno=%d)",iface,claimed,error);
+    }
 
     int config = 0;
     if (ioctl(sdev->fd, USB_GET_CONFIG, &config) == 0 && (config & 0xff) == 0xff) {
@@ -399,6 +405,70 @@ static int usb_fs_recv_packet(usb_slot_device_t *dev, uint8_t *buffer, uint32_t 
     return 0;
 }
 
+/* USB_FS can become unusable while the same ugen device is still present.
+ * Replace only its transport: router ownership and virtual-user binding remain.
+ * Closing before clearing buffers also cancels any surviving kernel transfer. */
+static int ds3_reopen_transport(usb_slot_device_t *dev)
+{
+    if (dev->fd>=0) {
+        if (dev->use_fs) {
+            struct usb_fs_uninit uninit={0};
+            ioctl(dev->fd,USB_FS_UNINIT,&uninit);
+        }
+        close(dev->fd);
+    }
+    dev->fd=-1; dev->use_fs=0;
+    dev->in_pending=dev->in_ready=dev->out_ready=dev->has_output=0;
+    dev->input_seen=dev->ds3_output_attempted=0;
+    dev->in_requested=0; dev->last_read_error_log=0;
+    dev->in_address=dev->out_address=dev->interface=0; dev->gip=0;
+    memset(dev->endpoints,0,sizeof(dev->endpoints));
+    memset(dev->fs_frame,0,sizeof(dev->fs_frame));
+    memset(dev->fs_len,0,sizeof(dev->fs_len));
+    memset(dev->rx_buf,0,sizeof(dev->rx_buf));
+    memset(dev->tx_buf,0,sizeof(dev->tx_buf));
+    dev->fd=open(dev->dev_path,O_RDWR|O_NONBLOCK);
+    if (dev->fd<0) {
+        log_line("usb_hotplug: DS3 recovery open failed (errno=%d)",errno);
+        return 0;
+    }
+    struct usb_device_descriptor descriptor={0};
+    int read=ioctl(dev->fd,USB_GET_DEVICE_DESC,&descriptor);
+    if (read || UGETW(descriptor.idVendor)!=dev->vid || UGETW(descriptor.idProduct)!=dev->pid) {
+        int error=read ? errno : 0;
+        log_line("usb_hotplug: DS3 recovery identity rejected (result=%d, errno=%d, VID=%04x PID=%04x)",
+                 read,error,UGETW(descriptor.idVendor),UGETW(descriptor.idProduct));
+        close(dev->fd); dev->fd=-1; return 0;
+    }
+    dev->in_address=find_usb_input_endpoint(dev);
+    if (dev->in_address && usb_fs_setup_device(dev) && wake_device(dev)) return 1;
+    if (dev->use_fs) {
+        struct usb_fs_uninit uninit={0}; ioctl(dev->fd,USB_FS_UNINIT,&uninit);
+    }
+    close(dev->fd); dev->fd=-1; dev->use_fs=0;
+    return 0;
+}
+
+static int ds3_recover_transport(usb_slot_device_t *dev)
+{
+    static const unsigned delays_ms[]={100,200,400};
+    dev->recovering=1;
+    log_line("usb_hotplug: DS3 USB transport lost; attempting recovery without removing virtual slot %d",dev->slot);
+    for (size_t i=0; i<sizeof(delays_ms)/sizeof(delays_ms[0]); i++) {
+        if (dev->stop_thread) break;
+        usleep(delays_ms[i]*1000);
+        if (dev->stop_thread) break;
+        if (ds3_reopen_transport(dev)) {
+            dev->recovering=0;
+            log_line("usb_hotplug: DS3 USB transport recovered (attempt=%u); virtual slot %d retained",(unsigned)i+1,dev->slot);
+            return 1;
+        }
+    }
+    dev->recovering=0;
+    log_line("usb_hotplug: DS3 USB transport recovery failed or stopped; releasing device");
+    return 0;
+}
+
 #endif /* __PROSPERO__ */
 
 static void *usb_reader_worker(void *arg)
@@ -487,6 +557,21 @@ static void *usb_reader_worker(void *arg)
                 controller_update(dev, &st);
             }
         } else if (n < 0) {
+#ifdef __PROSPERO__
+            if (dev->driver==CTRL_SONY_DS3) {
+                /* Release held inputs immediately, but retain the owned virtual
+                 * device while trying to restore a short-lived USB failure. */
+                pad_state_neutral(&st);
+                st.conn_type=dev->conn_type; st.vid=dev->vid; st.pid=dev->pid;
+                snprintf(st.controller_name,sizeof(st.controller_name),"%s",dev->name);
+                controller_update(dev,&st);
+                if (ds3_recover_transport(dev)) {
+                    consecutive_errors=0; last_data_time=now_ms(); last_buttons=UINT32_MAX;
+                    continue;
+                }
+                dev->stop_thread=1; break;
+            }
+#endif
             consecutive_errors++;
             if (consecutive_errors >= 50) {
                 log_line("usb_hotplug: slot %d disconnected (read error n=%d, errs=%d): terminating reader",
@@ -726,7 +811,7 @@ void usb_hotplug_poll(long now)
     pthread_mutex_lock(&g_usb_hotplug.lock);
     for (int i = 0; i < MAX_SLOTS; i++) {
         if (g_usb_hotplug.devices[i].active) {
-            if (access(g_usb_hotplug.devices[i].dev_path, F_OK) != 0 ||
+            if ((!g_usb_hotplug.devices[i].recovering && access(g_usb_hotplug.devices[i].dev_path, F_OK) != 0) ||
                 g_usb_hotplug.devices[i].stop_thread) {
                 log_line("usb_hotplug: Controller disconnected from %s (slot %d)",
                          g_usb_hotplug.devices[i].dev_path, i);
