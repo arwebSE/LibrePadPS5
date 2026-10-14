@@ -68,6 +68,34 @@ python tools/xbox/build.py --combined --sdk /path/to/ps5-payload-sdk --version 1
 Use matching test-version metadata when distributing that ELF through Payload
 Manager. Keep stable release metadata in `config/payload/` unchanged.
 
+## Share diagnostic builds in issues
+
+Diagnostic builds belong in the relevant GitHub issue, not in GitHub Releases.
+Do not create releases or release tags for controller experiments, retries or
+individual tester builds. Keep the normal download pointing to the
+[latest stable ELF](https://github.com/arwebSE/LibrePadPS5/releases/latest/download/LibrePadPS5.elf).
+
+Build with a distinct `--version`, then package a ZIP containing:
+
+- `LibrePadPS5.elf` from that build.
+- `LibrePadPS5.elf.json` with the same test version. Copy the stable metadata
+  into the ignored build directory before editing it; do not change the stable
+  metadata. Remove its stable-release `url` until an actual test attachment URL
+  exists, so the test metadata cannot download a different ELF.
+- `LibrePadPS5.elf.sha256`, calculated from the packaged ELF.
+- A short note with the source commit, relevant issue, purpose, instructions
+  and checks performed. State which behavior still needs console confirmation.
+
+Use an identifiable filename such as `LibrePadPS5-issue-4-ds3-test-6.zip`.
+Attach the ZIP in the issue's comment editor and post the test instructions
+with it. GitHub accepts ZIP attachments; an ELF should be placed inside the ZIP.
+An ordinary source commit is sufficient; distributing a test does not require
+a release or tag. See [GitHub attachment instructions](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/attaching-files).
+
+DS3 tests 1 through 5 have been retired from release downloads. Their release
+pages now point to the stable build; their source tags and diagnostic history
+remain available. This retirement does not establish that DS3 input is fixed.
+
 ## Compatibility and naming
 
 New code uses LibrePad names. Active console paths are defined in
@@ -84,4 +112,5 @@ The dashboard sends `X-LibrePad-Control`; the server also accepts the released
 
 Add runtime code under `src/`, tests under `tests/`, and tools under `tools/`.
 Keep third-party code and notices under `vendor/`. Edit `web/` rather than its
-generated C assets. Historical release binaries remain attached to their tags.
+generated C assets. Historical source tags remain available; retired diagnostic
+release pages point to the stable download and no longer host test binaries.
