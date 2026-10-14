@@ -92,9 +92,17 @@ with it. GitHub accepts ZIP attachments; an ELF should be placed inside the ZIP.
 An ordinary source commit is sufficient; distributing a test does not require
 a release or tag. See [GitHub attachment instructions](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/attaching-files).
 
-DS3 tests 1 through 5 have been retired from release downloads. Their release
-pages now point to the stable build; their source tags and diagnostic history
-remain available. This retirement does not establish that DS3 input is fixed.
+For distribution using GitHub CLI only, GitHub's attachment endpoint currently
+rejects ZIP files. Store the ZIP on a separate `codex/issue-<number>-test-builds`
+branch and post an immutable raw download link in the issue. This is an
+issue-linked download, not a native attachment. Keep binary test bundles out
+of `main`; do not create a release as a workaround.
+
+DS3 tests 1 through 5 have been retired from release downloads. The test 1 page
+still points to the stable build because GitHub's recent page-traffic report
+includes it; the other four test release pages were deleted. Source tags and
+diagnostic history remain available. This retirement does not establish that
+DS3 input is fixed.
 
 ## Compatibility and naming
 
