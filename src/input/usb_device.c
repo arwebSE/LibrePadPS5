@@ -72,6 +72,8 @@ typedef struct {
     int                   in_pending;
     int                   in_ready, out_ready;
     uint32_t              in_requested;
+    uint32_t              input_reports, input_timeouts, input_starts;
+    long                  input_started_ms, input_report_ms;
     long                  last_read_error_log;
     int                   input_seen;
     int                   ds3_output_attempted;
@@ -281,6 +283,8 @@ static int usb_fs_start_input(usb_slot_device_t *dev)
         return 0;
     }
     dev->in_pending=1;
+    dev->input_starts++;
+    dev->input_started_ms=now_ms();
     return 1;
 }
 
@@ -420,7 +424,7 @@ static int usb_fs_recv_packet(usb_slot_device_t *dev, uint8_t *buffer, uint32_t 
     if (!dev->in_ready && usb_fs_collect(dev)<0) return -1;
     if (dev->in_ready) {
         dev->in_ready=0;
-        if (ep->status==USB_ERR_TIMEOUT) return 0;
+        if (ep->status==USB_ERR_TIMEOUT) { dev->input_timeouts++; return 0; }
         if (ep->status != USB_ERR_NORMAL_COMPLETION && ep->status != USB_ERR_SHORT_XFER) {
             long now=now_ms();
             if (!dev->last_read_error_log || now-dev->last_read_error_log>=3000) {
@@ -433,6 +437,7 @@ static int usb_fs_recv_packet(usb_slot_device_t *dev, uint8_t *buffer, uint32_t 
         uint32_t count = dev->fs_len[dev->in_index];
         if (count>dev->in_requested || count>length || count>sizeof(dev->rx_buf)) return -1;
         memcpy(buffer, dev->rx_buf, count);
+        if (count) { dev->input_reports++; dev->input_report_ms=now_ms(); }
         if (count && !dev->input_seen) {
             dev->input_seen=1;
             if (dev->driver==CTRL_SONY_DS3)
@@ -467,6 +472,8 @@ static int ds3_reopen_transport(usb_slot_device_t *dev)
     dev->in_pending=dev->in_ready=dev->out_ready=dev->has_output=0;
     dev->input_seen=dev->ds3_output_attempted=0;
     dev->in_requested=0; dev->last_read_error_log=0;
+    dev->input_reports=dev->input_timeouts=dev->input_starts=0;
+    dev->input_started_ms=dev->input_report_ms=0;
     dev->in_address=dev->out_address=dev->interface=dev->interface_index=0; dev->gip=0;
     memset(dev->endpoints,0,sizeof(dev->endpoints));
     memset(dev->fs_frame,0,sizeof(dev->fs_frame));
@@ -525,6 +532,9 @@ static void *usb_reader_worker(void *arg)
     long last_log_t = 0;
     int consecutive_errors = 0;
     uint32_t last_buttons = UINT32_MAX;
+#ifdef __PROSPERO__
+    long last_input_health=now_ms();
+#endif
 
     log_line("usb_hotplug: Reader thread started for slot %d (%s on %s)",
              dev->slot, dev->name, dev->dev_path);
@@ -628,6 +638,17 @@ static void *usb_reader_worker(void *arg)
             log_line("usb_hotplug: slot %d idle/standby (n=%d, use_fs=%d)",
                      dev->slot, n, dev->use_fs);
         }
+
+#ifdef __PROSPERO__
+        long input_health_time=now_ms();
+        if (dev->driver==CTRL_SONY_DS3 && input_health_time-last_input_health>=3000) {
+            last_input_health=input_health_time;
+            log_line("usb_hotplug: DS3 physical input (reports=%u, timeouts=%u, starts=%u, pending=%d, pending_ms=%ld, last_report_age_ms=%ld)",
+                     (unsigned)dev->input_reports,(unsigned)dev->input_timeouts,(unsigned)dev->input_starts,
+                     dev->in_pending,dev->in_pending ? input_health_time-dev->input_started_ms : 0,
+                     dev->input_report_ms ? input_health_time-dev->input_report_ms : -1);
+        }
+#endif
 
     }
 

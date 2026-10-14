@@ -160,9 +160,9 @@ int usb_init_controller_handshake(int fd, usb_controller_type_t type, uint8_t in
         return 0;
     }
     else if (type == CTRL_SONY_DS3) {
-        /* USB operational mode uses GET_REPORT F2, followed by F5 for compatible
-         * controllers. SET_REPORT F4/42/03 is the Bluetooth sequence.
-         * See Linux drivers/hid/hid-sony.c:sixaxis_set_operational_usb. */
+        /* Preserve Linux's F2/F5 path, then explicitly enable USB reporting
+         * using F4/42/0c, as in USB Host Shield PS3USB::enable_sixaxis and
+         * Open PS2 Loader DS3USB_init. F4/42/03 is the Bluetooth sequence. */
         static const struct { uint8_t id, length; } reports[] = {{0xf2,17},{0xf5,8}};
         for (size_t i=0; i<sizeof(reports)/sizeof(reports[0]); i++) {
             uint8_t feature[17]={0};
@@ -184,6 +184,21 @@ int usb_init_controller_handshake(int fd, usb_controller_type_t type, uint8_t in
                 return -1;
             }
         }
+        uint8_t enable_usb[]={0x42,0x0c,0x00,0x00};
+        memset(&req,0,sizeof(req));
+        req.ucr_request.bmRequestType=0x21;
+        req.ucr_request.bRequest=0x09;
+        USETW(req.ucr_request.wValue,0x03f4);
+        USETW(req.ucr_request.wIndex,interface);
+        USETW(req.ucr_request.wLength,sizeof(enable_usb));
+        req.ucr_data=enable_usb;
+        int enabled=ioctl(fd,USB_DO_REQUEST,&req);
+        int error=enabled ? errno : 0;
+        int complete=!enabled && req.ucr_actlen==sizeof(enable_usb);
+        log_line("usb_ctrl: DS3 USB streaming enable F4/42/0c %s (interface=%u, result=%d, errno=%d, actual=%u, expected=%zu)",
+                 complete ? "completed" : "failed",interface,enabled,error,(unsigned)req.ucr_actlen,sizeof(enable_usb));
+        /* Some controllers use F2/F5 alone. An unsupported enable request must
+         * not discard their input; physical-report diagnostics confirm flow. */
         log_line("usb_ctrl: DS3 USB wake-up completed; press the controller's physical PS button to start input");
         return 0;
     }
