@@ -79,6 +79,9 @@ appear as LibrePadPS5 gamepads. See [compatibility and limits](CONTROLLERS.md).
 
 Use the dashboard on a trusted LAN; it has no authentication. Do not expose it publicly.
 
+The dashboard defaults to dark mode. Use the sun/moon button in the navbar to
+switch themes; your browser remembers the choice.
+
 - **Home / PS:** sends a PS-button press through the selected virtual pad.
 - **Assign user:** binds the selected pad to an eligible signed-in profile.
 - **Release virtual pad:** removes the selected virtual pad and keeps it paused across reloads/replugging.

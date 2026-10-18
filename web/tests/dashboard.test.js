@@ -7,6 +7,7 @@ import { defaultMap, stageRow } from '../src/lib/mappings';
 let wrapper, state, xbox, calls, offline, failure;
 const row = '0e6f:0184 switch8 ' + defaultMap.join(',') + '\n';
 beforeEach(() => {
+  localStorage.clear(); delete document.documentElement.dataset.theme;
   vi.useFakeTimers(); calls = []; offline = false; failure = '';
   state = { version: 'local-test', firmware: '12.60', users: [
     { id: '00000001', name: 'Native player', protected: true, primary_protected: true },
@@ -46,6 +47,27 @@ const posts = () => calls.filter(call => call.options.method === 'POST');
 async function poll() { await vi.advanceTimersByTimeAsync(1000); await flushPromises(); }
 
 describe('dashboard controls', () => {
+  it('defaults to dark, toggles in the navbar and remembers the choice after reload', async () => {
+    await open();
+    expect(document.documentElement.dataset.theme).toBe('dark');
+    expect(wrapper.get('header [aria-label="Dark mode"]').attributes('aria-pressed')).toBe('true');
+    await wrapper.get('[aria-label="Dark mode"]').trigger('click');
+    expect(document.documentElement.dataset.theme).toBe('light');
+    expect(localStorage.getItem('librepad-theme')).toBe('light');
+    wrapper.unmount(); await open();
+    expect(document.documentElement.dataset.theme).toBe('light');
+    await wrapper.get('[aria-label="Dark mode"]').trigger('click');
+    expect(document.documentElement.dataset.theme).toBe('dark');
+  });
+  it('keeps the theme toggle working when browser storage is blocked', async () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('Blocked'); });
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('Blocked'); });
+    await open();
+    expect(document.documentElement.dataset.theme).toBe('dark');
+    await wrapper.get('[aria-label="Dark mode"]').trigger('click');
+    expect(document.documentElement.dataset.theme).toBe('light');
+    expect(wrapper.get('[aria-label="Dark mode"]').attributes('aria-pressed')).toBe('false');
+  });
   it('shows all slots, a live selected pad, unique headings and reserved users', async () => {
     await open();
     expect(wrapper.findAll('.controller-tile')).toHaveLength(4);

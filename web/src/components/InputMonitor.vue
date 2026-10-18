@@ -11,7 +11,7 @@ const position = v => Math.max(8, Math.min(92, (v ?? 128) / 255 * 100)) + '%';
     <div class="stick-grid">
       <div v-for="(name, index) in ['Left stick', 'Right stick']" :key="name" class="stick-box">
         <div class="stick-plane"><span class="stick-cross horizontal"></span><span class="stick-cross vertical"></span><span class="stick-range"></span><span class="stick-position" :style="{ left: position(pad?.usb_connected ? pad.axes[index * 2] : 128), top: position(pad?.usb_connected ? pad.axes[index * 2 + 1] : 128) }"></span></div>
-        <div class="flex items-center justify-between gap-2"><span class="text-xs font-medium">{{ name }}</span><span class="mono text-[10px] text-stone-500">{{ pad?.usb_connected ? pad.axes[index*2] + ', ' + pad.axes[index*2+1] : '128, 128' }}</span></div>
+        <div class="flex items-center justify-between gap-2"><span class="text-xs font-medium">{{ name }}</span><span class="mono text-[10px] text-muted">{{ pad?.usb_connected ? pad.axes[index*2] + ', ' + pad.axes[index*2+1] : '128, 128' }}</span></div>
       </div>
     </div>
     <div class="button-monitor" aria-label="PS5 button states"><span v-for="[label, bit, name] in controls" :key="bit" :title="name" :aria-label="name + (pad?.buttons & (1 << bit) ? ' pressed' : ' released')" :class="{ pressed: pad?.usb_connected && (pad.buttons & (1 << bit)) }">{{ label }}</span></div>
