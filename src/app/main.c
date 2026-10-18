@@ -22,6 +22,7 @@
 
 #ifdef __PROSPERO__
 #include <ps5/kernel.h>
+#include <sys/syscall.h>
 #endif
 
 #include "core/paths.h"
@@ -30,6 +31,7 @@
 #define STOP_FLAG STATE_DIR "/stop"
 
 static volatile sig_atomic_t running = 1;
+static volatile sig_atomic_t stop_signal_received;
 static atomic_int stop_requested;
 
 void librepad_request_stop(void)
@@ -39,12 +41,15 @@ void librepad_request_stop(void)
 
 static void stop_signal(int sig)
 {
-    (void)sig;
+    stop_signal_received = sig;
     running = 0;
 }
 
 int main(void)
 {
+#ifdef __PROSPERO__
+    syscall(SYS_thr_set_name, -1, "LibrePadPS5.elf");
+#endif
     signal(SIGINT, stop_signal);
     signal(SIGTERM, stop_signal);
     signal(SIGPIPE, SIG_IGN);
@@ -66,6 +71,7 @@ int main(void)
     }
     log_init(LIBREPAD_LOG_PATH);
     log_line("LibrePadPS5 version " LIBREPAD_VERSION);
+    log_line("Payload process: PID %d", (int)getpid());
     log_line("Settings directory: " STATE_DIR);
 #ifdef LIBREPAD_XBOX_STANDALONE
     log_line("LibrePadPS5 Xbox Wireless: native adapter / MT76 / GIP");
@@ -121,11 +127,14 @@ int main(void)
         librepad_xbox_poll(now);
 #endif
         if (access(STOP_FLAG, F_OK) == 0) {
+            log_line("LibrePadPS5 stop file detected");
             unlink(STOP_FLAG);
             running = 0;
         }
         usleep(4000);
     }
+    log_line("LibrePadPS5 shutdown requested (signal=%d, dashboard=%d)",
+             (int)stop_signal_received, atomic_load(&stop_requested));
     librepad_web_cleanup();
     bluetooth_cleanup();
     usb_hotplug_cleanup();

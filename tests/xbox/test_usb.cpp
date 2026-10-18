@@ -12,6 +12,8 @@ static std::atomic<bool> stopped(false);
 static std::atomic<int> failures(0);
 static unsigned threshold = 3, started, finished, closed, uninitialized;
 static bool timeoutRead, shortWrite, failOpen;
+static unsigned configurations;
+static int currentConfig;
 extern "C" void log_line(const char *, ...) {}
 extern "C" int xbox_transport_stopping() { return stopped; }
 int xbox_test_open(const char *, int) { assert(false); return -1; }
@@ -19,9 +21,13 @@ int xbox_test_close(int fd) { assert(fd == 123); ++closed; return 0; }
 int xbox_test_ioctl(int fd, unsigned long request, void *arg) {
     assert(fd == 123);
     switch (request) {
-    case USB_DEVICEENUMERATE: case USB_SET_CONFIG:
-        assert(*static_cast<int *>(arg) == 0); return 0;
-    case USB_GET_CONFIG: *static_cast<int *>(arg) = 0; return 0;
+    case USB_DEVICEENUMERATE:
+        // Asynchronous on FreeBSD: invalidates endpoints opened after return.
+        assert(false && "startup must not schedule a USB bus reset"); return -1;
+    case USB_SET_CONFIG:
+        assert(currentConfig != 0 && *static_cast<int *>(arg) == 0);
+        currentConfig = 0; ++configurations; return 0;
+    case USB_GET_CONFIG: *static_cast<int *>(arg) = currentConfig; return 0;
     case USB_CLAIM_INTERFACE: case USB_RELEASE_INTERFACE: return 0;
     case USB_FS_INIT: {
         auto init = static_cast<usb_fs_init *>(arg);
@@ -104,5 +110,13 @@ int main() {
     try { UsbDevice device(123, [] { ++failures; }); assert(false); }
     catch (const UsbException &) {}
     assert(closed == 2 && uninitialized == 2);
-    puts("Xbox USB transport: concurrent endpoint dispatch / firmware chunk / timeout / cleanup tests passed");
+    // Reopening the still-attached adapter reuses its configuration. An
+    // unconfigured adapter is configured once, without scheduling a bus reset.
+    stopped = false; failOpen = false;
+    for (int i = 0; i < 3; ++i) { UsbDevice device(123, [] { ++failures; }); }
+    assert(configurations == 0 && closed == 5 && uninitialized == 5);
+    currentConfig = -1;
+    { UsbDevice device(123, [] { ++failures; }); }
+    assert(configurations == 1 && currentConfig == 0 && closed == 6 && uninitialized == 6);
+    puts("Xbox USB transport: endpoint dispatch / firmware chunk / timeout / cleanup / restart configuration tests passed");
 }

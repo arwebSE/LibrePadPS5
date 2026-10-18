@@ -2,6 +2,7 @@
 #include "xow/dongle/dongle.h"
 #include "xbox/sink.h"
 #include "xbox/firmware.h"
+#include "xbox/reconnect.h"
 #include <cassert>
 #include <cstring>
 #include <cstdio>
@@ -13,10 +14,13 @@ static std::map<unsigned, uint32_t> registers;
 static int connects, disconnects, inputs;
 static void *owner;
 static bool uploading;
+static Bytes remembered;
+Bytes xbox_last_controller() { return remembered; }
+void xbox_remember_controller(const Bytes &address) { remembered = address; }
 extern "C" int xbox_sink_connect(void *controller, uint16_t vid, uint16_t pid) {
     assert(vid == 0x045e && pid == 0x02dd); ++connects; owner = controller; return 1;
 }
-extern "C" void xbox_sink_disconnect(void *controller) { if (controller == owner) ++disconnects; }
+extern "C" void xbox_sink_disconnect(void *controller) { if (controller == owner) { ++disconnects; owner = nullptr; } }
 extern "C" void xbox_sink_input(void *controller, const pad_state_t *) { assert(controller == owner); ++inputs; }
 extern "C" void log_line(const char *, ...) {}
 UsbDevice::UsbDevice(int descriptor, Terminate callback) : fd(descriptor), terminate(callback) {}
@@ -28,7 +32,13 @@ bool UsbDevice::bulkWrite(uint8_t endpoint, Bytes &packet) {
 }
 int UsbDevice::bulkRead(uint8_t, FixedBytes<USB_MAX_BULK_TRANSFER_SIZE> &) { return -1; }
 void UsbDevice::controlTransfer(ControlPacket packet, bool write) {
-    if (write && !packet.length) { registers[0x0230] = packet.value == 0x12 ? 1 : 0x80000000; return; }
+    if (write && !packet.length) {
+        // DEV_MODE 0x01 stops the resident image for a new upload. A warm
+        // restart without upload must execute IVB (0x12), just like xone.
+        assert(packet.value == 0x12);
+        registers[0x0230] = uploading ? 0x05 : 0x80000004;
+        return;
+    }
     assert(packet.length == 4);
     if (write) memcpy(&registers[packet.index], packet.data, 4);
     else memcpy(packet.data, &registers[packet.index], 4);
@@ -49,6 +59,7 @@ public:
         macAddress = {0x62, 0x45, 0xb4, 0xe7, 0x24, 0x99};
     }
     using Dongle::handleBulkData;
+    bool reconnecting() const { return automaticReconnect; }
 };
 static Bytes envelope(const Bytes &payload) {
     uint32_t header = static_cast<uint32_t>(payload.size()) | (1u << 19);
@@ -130,5 +141,43 @@ int main() {
             dongle.handleBulkData(Bytes(request, 0, request.size() - size));
     }
     assert(disconnects == 1);
-    puts("Xbox radio: pairing / reassociation / duplicate WCID / warm restart / bundled cold upload tests passed");
+    assert(remembered == client);
+    {
+        RadioHarness dongle;
+        assert(dongle.reconnecting());
+        uint32_t scanHeader = 0x4aa08084; // captured channel-selection completion
+        Bytes scan; scan.append(scanHeader); scan.append(Bytes(132)); scan.append(scanHeader);
+        output.clear(); dongle.handleBulkData(scan);
+        assert(dongle.reconnecting() && output.size() == 3);
+        Bytes request = wlan(0x20, Bytes(16));
+        Bytes unknown = request; unknown[51] ^= 1; // last byte of WLAN source MAC
+        output.clear(); dongle.handleBulkData(unknown);
+        assert(output.empty() && connects == 1 && dongle.reconnecting());
+        dongle.handleBulkData(request);
+        assert(!dongle.reconnecting());
+        assert(output.size() == 7 && output[2][24] == (3 << 4));
+        Bytes announce(32); announce[0] = 2; announce[1] = 0x20; announce[2] = 1; announce[3] = 28;
+        announce[12] = 0x5e; announce[13] = 4; announce[14] = 0xdd; announce[15] = 2;
+        Bytes qos(4); qos.append(announce);
+        dongle.handleBulkData(wlan(0x88, qos));
+        assert(connects == 2 && remembered == client);
+        uint32_t lostHeader = 0x4ae00004;
+        Bytes lost; lost.append(lostHeader); lost.append(uint32_t(1)); lost.append(lostHeader);
+        dongle.handleBulkData(lost);
+        assert(disconnects == 2 && dongle.reconnecting());
+    }
+    assert(disconnects == 2);
+    {
+        RadioHarness dongle;
+        assert(dongle.reconnecting());
+        uint32_t header = 0x4a400004; // actual adapter pairing-button event
+        Bytes button; button.append(header); button.append(uint32_t(0)); button.append(header);
+        dongle.handleBulkData(button);
+        assert(!dongle.reconnecting());
+        Bytes request = wlan(0x20, Bytes(16)); request[51] ^= 1;
+        output.clear(); dongle.handleBulkData(request);
+        assert(output.size() == 4); // explicit button allows a replacement pad
+        assert(remembered == client); // association alone does not replace the saved pad
+    }
+    puts("Xbox radio: pairing / reassociation / warm restart / cold upload / saved-controller reconnect passed");
 }

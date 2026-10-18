@@ -67,4 +67,6 @@ private:
 
     std::mutex controllerMutex;
     std::array<std::unique_ptr<Controller>, MT_WCID_COUNT> controllers;
+    Bytes reconnectAddress;
+    bool automaticReconnect = false;
 };

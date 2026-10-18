@@ -5,13 +5,14 @@
 
 static unsigned product, descriptors, claimed, mutations, closed;
 static bool stopped;
+static bool highAddress;
 extern "C" void log_line(const char *, ...) {}
 extern "C" int xbox_transport_stopping() { return stopped; }
 int xbox_test_open(const char *path, int) {
     if (!std::strcmp(path, "/dev/ugen0.1")) return 1; // native DualSense
     if (!std::strcmp(path, "/dev/ugen0.2")) return 2; // wired PDP
     if (!std::strcmp(path, "/dev/ugen0.3")) return 3; // Microsoft, unsupported PID
-    if (!std::strcmp(path, "/dev/ugen0.4")) return 4; // supported adapter, when present
+    if (!std::strcmp(path, highAddress ? "/dev/ugen5.127" : "/dev/ugen0.4")) return 4;
     return -1;
 }
 int xbox_test_close(int) { ++closed; return 0; }
@@ -26,6 +27,8 @@ int xbox_test_ioctl(int fd, unsigned long request, void *arg) {
     }
     // No resets, claims, endpoint opens or vendor writes on unrelated pads.
     assert(fd == 4 && (product == 0x02e6 || product == 0x02fe));
+    assert(request != USB_DEVICEENUMERATE && request != USB_SET_CONFIG);
+    if (request == USB_GET_CONFIG) { *static_cast<int *>(arg) = 0; return 0; }
     ++mutations;
     if (request == USB_CLAIM_INTERFACE) ++claimed;
     return 0;
@@ -40,6 +43,11 @@ int main() {
         auto adapter = find();
         assert(adapter && claimed > 0);
     }
-    assert(claimed == 2);
-    puts("Xbox discovery: DualSense / PDP / unsupported Microsoft devices untouched; both adapter IDs accepted");
+    highAddress = true;
+    for (unsigned i = 0; i < 3; ++i) {
+        auto adapter = find();
+        assert(adapter); // repeated service starts with the adapter still attached
+    }
+    assert(claimed == 5);
+    puts("Xbox discovery: unrelated pads untouched / both IDs / high USB addresses / repeated starts passed");
 }

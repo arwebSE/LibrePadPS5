@@ -99,6 +99,8 @@ protected:
         EVT_EVENT_DFS_DETECT_RSP,
         // Pressed the dongle's button
         EVT_BUTTON_PRESS = 0x04,
+        // Channel-selection report from the adapter firmware.
+        EVT_CHANNEL_SELECTION = 0x0a,
         // Received a packet from a client
         EVT_PACKET_RX = 0x0c,
         // Lost connection to a client

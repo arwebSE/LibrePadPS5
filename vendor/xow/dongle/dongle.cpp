@@ -18,12 +18,19 @@
 
 #include "dongle.h"
 #include "../utils/log.h"
+#include "xbox/reconnect.h"
 
 Dongle::Dongle(
     std::unique_ptr<UsbDevice> usbDevice
 ) : Mt76(std::move(usbDevice)), stopThreads(false)
 {
     Log::info("Dongle initialized");
+    reconnectAddress = xbox_last_controller();
+    if (reconnectAddress.size()) {
+        automaticReconnect = true;
+        if (!setPairingStatus(true)) throw Mt76Exception("Failed to advertise Xbox reconnect");
+        Log::info("Advertising reconnect for the saved Xbox controller");
+    }
 #ifndef XBOX_RADIO_TEST
     threads.emplace_back(
         &Dongle::readBulkPackets,
@@ -56,6 +63,10 @@ void Dongle::handleControllerConnect(Bytes address, bool reassociation)
 {
     std::lock_guard<std::mutex> lock(controllerMutex);
 
+    // Reconnect advertising accepts only the previously announced controller.
+    // The physical adapter button still enables pairing a different gamepad.
+    if (automaticReconnect && address != reconnectAddress) return;
+
     Log::debug("Controller %s request: %s", reassociation ? "reassociation" : "association",
               Log::formatBytes(address).c_str());
     uint8_t wcid = associateClient(address, reassociation);
@@ -76,8 +87,13 @@ void Dongle::handleControllerConnect(Bytes address, bool reassociation)
     );
 
     if (!controllers[wcid - 1]) {
-        controllers[wcid - 1].reset(new Controller(sendPacket));
+        controllers[wcid - 1].reset(new Controller(sendPacket, [address] { xbox_remember_controller(address); }));
         Log::info("Controller '%d' connected", wcid);
+    }
+    if (automaticReconnect) {
+        automaticReconnect = false;
+        setPairingStatus(false);
+        Log::info("Saved Xbox controller reconnected without the adapter button");
     }
 }
 
@@ -107,10 +123,17 @@ void Dongle::handleControllerDisconnect(uint8_t wcid)
     }
 
     Log::info("Controller '%d' disconnected", wcid);
+    reconnectAddress = xbox_last_controller();
+    if (reconnectAddress.size()) {
+        automaticReconnect = true;
+        setPairingStatus(true);
+    }
 }
 
 void Dongle::handleControllerPair(Bytes address, const Bytes &packet)
 {
+    std::lock_guard<std::mutex> lock(controllerMutex);
+    if (automaticReconnect && address != reconnectAddress) return;
     // Ignore invalid packets
     if (packet.size() < sizeof(ReservedFrame))
     {
@@ -293,9 +316,25 @@ void Dongle::handleBulkData(const Bytes &data)
 
         switch (info->eventType)
         {
+            case EVT_CHANNEL_SELECTION:
+                // Channel selection is asynchronous and can replace the
+                // initial beacon. Publish reconnect advertising afterwards.
+                {
+                    std::lock_guard<std::mutex> lock(controllerMutex);
+                    if (automaticReconnect) {
+                        setPairingStatus(true);
+                        Log::info("Refreshed saved-controller advertising after channel selection");
+                    }
+                }
+                break;
+
             case EVT_BUTTON_PRESS:
-                // Setting the pairing status doesn't require locking the mutex
-                setPairingStatus(true);
+                // An explicit button press permits pairing a different pad.
+                {
+                    std::lock_guard<std::mutex> lock(controllerMutex);
+                    automaticReconnect = false;
+                    setPairingStatus(true);
+                }
                 break;
 
             case EVT_PACKET_RX:

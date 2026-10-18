@@ -19,6 +19,7 @@ void Controller::deviceAnnounced(uint8_t id, const AnnounceData *data) {
     state.conn_type = CONN_USB_DONGLE_24G;
     snprintf(state.controller_name, sizeof(state.controller_name), "Xbox One Wireless / LibrePadPS5");
     connected = xbox_sink_connect(this, state.vid, state.pid) != 0;
+    if (connected && onConnect) onConnect();
 }
 
 void Controller::statusReceived(uint8_t, const StatusData *data) {

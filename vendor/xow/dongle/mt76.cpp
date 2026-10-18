@@ -789,7 +789,6 @@
 
 // Firmware defines
 // DLM offset differs from OpenWrt source
-#define MT_FW_RESET_IVB 0x01
 #define MT_MCU_ILM_OFFSET 0x80000
 #define MT_MCU_DLM_OFFSET 0x100000 + 0x10800
 #define MT_FW_CHUNK_SIZE 0x3800
@@ -1435,11 +1434,15 @@ bool Mt76::loadFirmware()
 
         // Mandatory for already initialized radios
         controlWrite(MT_RF_PATCH, patch, MT_VEND_WRITE_CFG);
-        controlWrite(MT_FW_RESET_IVB, 0, MT_VEND_DEV_MODE);
+        // Restart the resident image, as xone does. DEV_MODE 0x01 resets
+        // into the loader and needs a new upload; it cannot be combined with
+        // the resident-image fast path below. USB writes still succeed in
+        // that state, giving a misleading "initialized" but silent radio.
+        controlWrite(MT_FW_LOAD_IVB, 0, MT_VEND_DEV_MODE);
 
         // Wait for firmware to reset
         bool successful = pollTimeout([this] {
-            return controlRead(MT_FCE_DMA_ADDR, MT_VEND_READ_CFG) != 0x80000000;
+            return !(controlRead(MT_FCE_DMA_ADDR, MT_VEND_READ_CFG) & BIT(31));
         });
 
         if (!successful)
@@ -1499,7 +1502,7 @@ bool Mt76::loadFirmware()
 
     // Wait for firmware to start
     bool successful = pollTimeout([this] {
-        return controlRead(MT_FCE_DMA_ADDR, MT_VEND_READ_CFG) != 0x01;
+        return !(controlRead(MT_FCE_DMA_ADDR, MT_VEND_READ_CFG) & BIT(0));
     });
 
     if (!successful)

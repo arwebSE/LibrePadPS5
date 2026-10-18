@@ -26,15 +26,17 @@ extern "C" {
 
 UsbDevice::UsbDevice(int descriptor, Terminate onTerminate) : fd(descriptor), terminate(onTerminate) {
     try {
-        // Match libusb_reset_device before claiming/opening any endpoints.
-        int reset = 0;
-        if (ioctl(fd, USB_DEVICEENUMERATE, &reset))
-            throw UsbException("USB_DEVICEENUMERATE failed: " + std::to_string(errno));
+        // FreeBSD's USB_DEVICEENUMERATE only schedules a bus reset. Opening
+        // USB_FS immediately afterwards races that reset and loses endpoints.
+        // The MT76 firmware path already restarts a resident radio; keep its
+        // existing USB configuration intact across payload/service restarts.
         int config = -1;
         if (ioctl(fd, USB_GET_CONFIG, &config)) throw UsbException("USB_GET_CONFIG failed");
         // FreeBSD uses a configuration INDEX, so index zero is USB configuration 1.
-        config = 0;
-        if (ioctl(fd, USB_SET_CONFIG, &config)) throw UsbException("USB_SET_CONFIG failed");
+        if (config != 0) {
+            config = 0;
+            if (ioctl(fd, USB_SET_CONFIG, &config)) throw UsbException("USB_SET_CONFIG failed");
+        }
         int iface = 0;
         if (ioctl(fd, USB_CLAIM_INTERFACE, &iface)) throw UsbException("USB_CLAIM_INTERFACE failed");
         claimed = true;
@@ -155,7 +157,8 @@ bool UsbDevice::bulkWrite(uint8_t endpoint, Bytes &data) {
 
 std::unique_ptr<UsbDevice> UsbDeviceManager::getDevice(std::initializer_list<HardwareId> ids, UsbDevice::Terminate terminate) {
     while (!xbox_transport_stopping()) {
-        for (int bus = 0; bus <= 5; ++bus) for (int device = 1; device <= 20; ++device) {
+        // USB addresses can advance after enumeration; 20 is not a bus limit.
+        for (int bus = 0; bus <= 5; ++bus) for (int device = 1; device < 128; ++device) {
             char path[32];
             snprintf(path, sizeof(path), "/dev/ugen%d.%d", bus, device);
             int fd = open(path, O_RDWR | O_NONBLOCK);
@@ -164,7 +167,10 @@ std::unique_ptr<UsbDevice> UsbDeviceManager::getDevice(std::initializer_list<Har
             bool match = false;
             if (ioctl(fd, USB_GET_DEVICE_DESC, &desc) == 0)
                 for (const auto &id : ids) if (UGETW(desc.idVendor) == id.vendorId && UGETW(desc.idProduct) == id.productId) match = true;
-            if (match) return std::unique_ptr<UsbDevice>(new UsbDevice(fd, terminate));
+            if (match) {
+                log_line("xbox USB: adapter %04x:%04x found at %s", UGETW(desc.idVendor), UGETW(desc.idProduct), path);
+                return std::unique_ptr<UsbDevice>(new UsbDevice(fd, terminate));
+            }
             close(fd);
         }
         for (unsigned i = 0; i < 100 && !xbox_transport_stopping(); ++i)

@@ -9,7 +9,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 C_SOURCES = ["src/core/time_utils.c", "src/core/storage.c", "src/core/logging.c", "src/input/protocol_decoder.c",
              "src/input/controller_profiles.c", "src/input/controller_router.c", "src/ps5/system_bridge.c", "src/ps5/virtual_controller.c",
              "src/dashboard/http_server.c", "src/app/main.c", "src/xbox/standalone_bluetooth.c"]
-CPP_SOURCES = ["src/xbox/backend.cpp", "src/xbox/usb.cpp", "src/xbox/controller.cpp", "src/xbox/firmware.cpp", "src/xbox/log.cpp", "vendor/xow/dongle/mt76.cpp", "vendor/xow/dongle/dongle.cpp", "vendor/xow/controller/gip.cpp"]
+CPP_SOURCES = ["src/xbox/backend.cpp", "src/xbox/usb.cpp", "src/xbox/controller.cpp", "src/xbox/firmware.cpp", "src/xbox/reconnect.cpp", "src/xbox/log.cpp", "vendor/xow/dongle/mt76.cpp", "vendor/xow/dongle/dongle.cpp", "vendor/xow/controller/gip.cpp"]
 
 
 def main():

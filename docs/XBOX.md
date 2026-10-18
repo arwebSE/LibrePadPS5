@@ -53,6 +53,11 @@ Firmware transfers start only after detecting adapter `045e:02e6` or
 on a warm adapter can be restarted without uploading it again; unplugging the
 adapter clears that state.
 
+Current source builds remember the last successfully connected controller in
+`/data/LibrePadPS5/xbox-controller` and advertise for it after a service restart
+or disconnect. Leave the adapter plugged in and turn the controller on. The
+adapter's pairing button still allows replacing it with a different controller.
+
 The dashboard shows **Firmware included** when using the bundle, or **Firmware
 installed** when a saved console copy takes priority. Both are ready states;
 firmware readiness alone does not mean a controller is paired or assigned to
@@ -141,7 +146,8 @@ and [supported controllers](https://github.com/medusalix/xow#supported-devices).
 Local changes to that code: replace USB/log/controller interfaces; reject truncated
 and chunked GIP messages; validate firmware bounds; avoid stepping iterators past
 the firmware image; support reassociation and deduplicate radio clients; skip
-channel-scan responses; reuse firmware after warm reset. The protocol/radio core
+channel-scan responses; restart resident firmware; reconnect the saved controller
+without pressing the adapter button. The protocol/radio core
 remains recognizably upstream.
 
 [xone](https://github.com/medusalix/xone) was inspected as a reference. Its Linux

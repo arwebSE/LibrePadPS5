@@ -38,6 +38,7 @@ def main():
         ("usb", ["tests/xbox/test_usb.cpp", "src/xbox/usb.cpp"], ["-DXBOX_USB_TEST"]),
         ("discovery", ["tests/xbox/test_discovery.cpp", "src/xbox/usb.cpp"], ["-DXBOX_USB_TEST"]),
         ("firmware", ["tests/xbox/test_firmware.cpp", "src/xbox/firmware.cpp"], ['-DFIRMWARE="build/xbox/tests/override.bin"']),
+        ("reconnect", ["tests/xbox/test_reconnect.cpp", "src/xbox/reconnect.cpp"], ['-DLIBREPAD_XBOX_CONTROLLER_PATH="build/xbox/tests/controller-address"']),
         ("backend", ["tests/xbox/test_backend.cpp", "src/xbox/backend.cpp"], ["-DXBOX_BACKEND_TEST", '-DFIRMWARE="test-firmware"']),
         ("radio", ["tests/xbox/test_radio.cpp", "src/xbox/firmware.cpp", "vendor/xow/dongle/mt76.cpp", "vendor/xow/dongle/dongle.cpp",
                    "src/xbox/controller.cpp", "vendor/xow/controller/gip.cpp", "src/xbox/log.cpp"],
