@@ -20,8 +20,8 @@ can lag behind it. Bundled Xbox adapter firmware is merged into `main` but has
 not yet been published in a release. Build from source to use it now, or follow
 the [manual firmware instructions](XBOX.md#advanced) with an older ELF.
 
-Builds and host tests pass for bundling; its cold-start path still needs a PS5
-check. This does not expand the hardware-tested controller list.
+Bundled firmware cold startup and Xbox One model 1697 input are confirmed on
+PS5 12.60. See [controller coverage](CONTROLLERS.md) for other tested combinations.
 
 An older dashboard asking for one-time firmware setup needs a manual install.
 An existing working install continues to work; it becomes an override when

@@ -5,7 +5,7 @@
 | Controller | Connection | PS5 firmware | Verification |
 |---|---|---|---|
 | PDP Faceoff Deluxe+ (`0e6f:0184`) | Wired USB | 12.60 | Maintainer tested |
-| Xbox One model 1697 + Microsoft Wireless Adapter (`045e:02e6`) | Xbox Wireless | 12.60 | Maintainer tested |
+| Xbox One model 1697 + Microsoft Wireless Adapter (`045e:02e6`) | Xbox Wireless | 12.60 | Maintainer tested, including cold startup with bundled firmware |
 | DualShock 3 (`054c:0268`) | Wired USB | 11.40 | [Tester confirmed](https://github.com/arwebSE/LibrePadPS5/issues/4#issuecomment-6228485447) |
 | Xbox Series or DualShock 4 + 8BitDo USB Wireless Adapter 2 | USB adapter | 13.60 | [Tester confirmed](https://github.com/arwebSE/LibrePadPS5/issues/1#issuecomment-6115129726), including [games, emulators and homebrew](https://github.com/arwebSE/LibrePadPS5/issues/1#issuecomment-6115038058) |
 
