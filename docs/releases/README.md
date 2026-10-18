@@ -6,8 +6,8 @@ Use [current setup](../SETUP.md) and [controller compatibility](../CONTROLLERS.m
 for present guidance. Published downloads are on the [Releases page](https://github.com/arwebSE/LibrePadPS5/releases).
 
 Older releases required a separate Xbox firmware install and some shipped an
-Xbox setup ZIP. Current source embeds that firmware; future standard releases
-contain the ELF, Payload Manager JSON and checksum. The manual helpers remain
+Xbox setup ZIP. The latest release embeds that firmware and contains only the
+ELF, Payload Manager JSON and checksum. The manual helpers remain
 in `tools/xbox/`. See [source versus release availability](../README.md#source-builds-and-published-downloads).
 
 The `v1.1.4-ds3-test.*` files preserve the DS3 investigation. Those builds are

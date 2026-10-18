@@ -15,10 +15,9 @@ users and assign each gamepad to its own PS5 user.
 
 ## Source builds and published downloads
 
-These guides describe the current source on `main`. The latest published ELF
-can lag behind it. The Vue dashboard and bundled Xbox adapter firmware are
-merged into `main` but have not yet been published in a release. Build from source to use it now, or follow
-the [manual firmware instructions](XBOX.md#advanced) with an older ELF.
+The latest release includes the Vue dashboard, bundled Xbox adapter firmware
+and automatic Xbox reconnection after service restarts. These guides describe
+the current source on `main`; release notes record changes in each published build.
 
 Bundled firmware cold startup and Xbox One model 1697 input are confirmed on
 PS5 12.60. See [controller coverage](CONTROLLERS.md) for other tested combinations.

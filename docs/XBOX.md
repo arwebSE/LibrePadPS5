@@ -4,9 +4,8 @@ Microsoft's USB receiver handles Xbox Wireless pairing for the controller.
 Leave LibrePadPS5's built-in Bluetooth disabled for this connection. For an
 8BitDo receiver, use [Adapter 2 setup](SETUP.md#8bitdo-usb-wireless-adapter-2).
 
-Bundled firmware is available in current source builds and awaits a published
-release. For an older ELF requesting one-time setup, use the [manual install](#advanced).
-See [source versus release availability](README.md#source-builds-and-published-downloads).
+The latest release includes the adapter firmware. For an older ELF requesting
+one-time setup, use the [manual install](#advanced).
 
 ## Setup
 
@@ -53,7 +52,7 @@ Firmware transfers start only after detecting adapter `045e:02e6` or
 on a warm adapter can be restarted without uploading it again; unplugging the
 adapter clears that state.
 
-Current source builds remember the last successfully connected controller and its identity in
+LibrePadPS5 remembers the last successfully connected controller and its identity in
 `/data/LibrePadPS5/xbox-controller` and advertise for it after a service restart
 or disconnect. Leave the adapter plugged in and turn the controller on. The
 adapter's pairing button still allows replacing it with a different controller.

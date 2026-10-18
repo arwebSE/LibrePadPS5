@@ -5,8 +5,7 @@ Requires a jailbroken PS5 and an ELF loader or Payload Manager.
 
 [Download latest ELF](https://github.com/arwebSE/LibrePadPS5/releases/latest/download/LibrePadPS5.elf) · [Payload Manager JSON](https://github.com/arwebSE/LibrePadPS5/releases/latest/download/LibrePadPS5.elf.json)
 
-Bundled Xbox firmware is currently in source builds; published downloads may
-still request a manual install. See [source and release differences](README.md#source-builds-and-published-downloads).
+The latest release includes Xbox adapter firmware; no separate setup download is needed.
 
 ## Setup
 
