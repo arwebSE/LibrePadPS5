@@ -1,6 +1,6 @@
 {
   "sources": {
-    "index.html": "b8a485b9a0f57df451c33256c4cdce4fab216f32919349ffa18e0db068bffce8",
+    "index.html": "538acc6002b55a8352656560caeaaba857e9497d229e0bae4b2040d1ea9784af",
     "package-lock.json": "2a762e6befd2a0fdfd3f4b5a629619e6ea2114163c868454be17d69e7c46aa9c",
     "package.json": "21c98f99404bfc368de2319d766667127341c31fc0d44001af838a86b594f95e",
     "public/favicon.svg": "cd368cb05287338ac7288f979c58c399f1bbc54f2ef5707c18cc1136f49dd87e",
@@ -9,25 +9,25 @@
     "src/components/AppNav.vue": "a88aea60438da1a4fed47bd2f205c482bb5550c48027e5d5736771eb08ad64f2",
     "src/components/ConnectionsPanel.vue": "a7297e8c75d6e42b452969fa2d600dad2976df8c5235f90fae01acaf5bb9ed0f",
     "src/components/ControllerPanel.vue": "4de8d8b7e84ad20f2be452d94be6525016cddcb2072f49ad10c16a7bd450e011",
-    "src/components/GamepadArt.vue": "8461c862bbfb4eb177a329e6f8a833466e7427c09387c5f9b16cc70983856a78",
+    "src/components/GamepadArt.vue": "196a6411479f0cf97a161e3dd9c41704d34f6d12e1c518376f495d8934570ebb",
     "src/components/Icon.vue": "f584d26ba1b0de7486f947eba8231684be40073f173638a34bf6c33c100a21f9",
     "src/components/InputMonitor.vue": "2e8217b1b0b72e6be0aca70a695b5f2990cf5cd286d5eccba67074f6b43f2767",
     "src/components/MappingEditor.vue": "a67f2c09d9cfedd6e40e3b27b9fdf1e79a17cfe25effaf19f9b06cbdb81b985f",
     "src/components/NativeProfiles.vue": "5f996ef545fa313e75b866e6ac64082c8abb00302d33ceabfd29d4188f0e145d",
     "src/components/SupportPanel.vue": "5d24f6fd32f522f21391456538b44f0f376b08a405460fa78f6821ce348251da",
     "src/composables/useDashboard.js": "4047873f5881143e7f97682f3b9f96ae94833abcac518c826a3b9cbb52e38026",
-    "src/composables/useTheme.js": "dcd319e1d4050bd7830633b234aaeac55204fdbaf18e17bd725c69938391d53a",
+    "src/composables/useTheme.js": "1dc247b424e4a79e8344a62253157c07ebd665fd1e2686312ae5b0129b1f35f7",
     "src/dev/preview.js": "2910d7a5ee628d4bfbc10deea33b1609745eb5b9440e86d81a136f503ebefed2",
     "src/lib/api.js": "558b25198cb42ba4dadcf379791e0e809bc51a1ee7e67f4f12bbeab5b94bd751",
     "src/lib/mappings.js": "36dba34903df357b7ca4679dacad19710f8a88284efb7ba9a566ee717795b89f",
     "src/main.js": "3ec2ed6f55e961981c81f998e48f80905de8bd945384551f2d8c4961f3e5b2e5",
-    "src/styles.css": "0f74ce04f512701253e6809f6e177d0da863ea9c1895c307e6297bbced2d65ae",
+    "src/styles.css": "2058eec176e8c7178da1ad15c7160d9ab8e6c1229062ac988ca1180ad2d9ed73",
     "vite.config.js": "19f5a81afb28cb31dd68b54c63ae25719980634633c86fc6f8f792581339e82a"
   },
   "assets": {
-    "index.html": "5d8d3de950f6e6eb2b4690df4b8ed4dd769ad715b1cdcbe16a93659169036138",
-    "dashboard.css": "8f761d79798199cb3869650c3e6371cba36fa0ff02583bee732fd53427fc2d01",
-    "dashboard.js": "9dcbe44ef184e7f90f82fbfbc957940a0b70c9c65f447925d18f194847e44a35",
+    "index.html": "f24ad8abde768505dd7a13e06f08694e080f8cf4c0e990a69d722b37e6033dbb",
+    "dashboard.css": "f4872e14058d7d41862689be462b24174cb9dbb531ac334646d150302355a16a",
+    "dashboard.js": "5479e9b9ddf2e8a2593e339b7399563bf6cb5e641c2509b590a84ea5f21b5d5a",
     "favicon.svg": "cd368cb05287338ac7288f979c58c399f1bbc54f2ef5707c18cc1136f49dd87e"
   }
 }

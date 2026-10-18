@@ -9,7 +9,7 @@ export function useTheme() {
   const theme = ref(savedTheme());
   function apply() {
     document.documentElement.dataset.theme = theme.value;
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme.value === 'dark' ? '#141713' : '#f5f6f2');
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme.value === 'dark' ? '#101112' : '#f5f6f2');
   }
   function toggle() {
     theme.value = theme.value === 'dark' ? 'light' : 'dark';
