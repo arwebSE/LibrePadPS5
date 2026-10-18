@@ -2,6 +2,10 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
+#ifdef __cplusplus
+#include "xow/utils/bytes.h"
+bool xbox_load_firmware(Bytes &out);
+#endif
 static inline bool xbox_firmware_valid(const uint8_t *bytes, size_t size) {
     if (!bytes || size < 32 || size > 1024 * 1024) return false;
     uint32_t ilm = (uint32_t)bytes[0] | ((uint32_t)bytes[1] << 8) |

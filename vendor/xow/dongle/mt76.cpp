@@ -21,7 +21,6 @@
 #include "xbox/firmware.h"
 
 #include <chrono>
-#include <fstream>
 
 #define BITS_PER_LONG (sizeof(long) * 8)
 #define BIT(nr) (1UL << (nr))
@@ -1423,36 +1422,8 @@ bool Mt76::initChannels()
 
 bool Mt76::loadFirmware()
 {
-    std::ifstream file(FIRMWARE, std::ios::binary | std::ios::ate);
-
-    if (!file)
-    {
-        Log::error("Failed to open %s", FIRMWARE);
-        Log::info("Install Xbox Wireless firmware from the LibrePadPS5 dashboard");
-
-        return false;
-    }
-
-    std::streampos fileSize = file.tellg();
-    if (fileSize < 32 || fileSize > 1024 * 1024) {
-        Log::error("Invalid radio firmware size");
-        return false;
-    }
-    Bytes firmware(fileSize);
-
-    file.seekg(0, std::ios::beg);
-
-    if (!file.read(reinterpret_cast<char*>(firmware.raw()), fileSize))
-    {
-        Log::error("Failed to read firmware");
-
-        return false;
-    }
-
-    if (!xbox_firmware_valid(firmware.raw(), firmware.size())) {
-        Log::error("Invalid radio firmware memory lengths; no firmware transfers sent");
-        return false;
-    }
+    Bytes firmware;
+    if (!xbox_load_firmware(firmware)) return false;
 
     if (controlRead(MT_FCE_DMA_ADDR, MT_VEND_READ_CFG))
     {

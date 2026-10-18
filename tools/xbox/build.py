@@ -9,7 +9,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 C_SOURCES = ["src/core/time_utils.c", "src/core/storage.c", "src/core/logging.c", "src/input/protocol_decoder.c",
              "src/input/controller_profiles.c", "src/input/controller_router.c", "src/ps5/system_bridge.c", "src/ps5/virtual_controller.c",
              "src/dashboard/http_server.c", "src/app/main.c", "src/xbox/standalone_bluetooth.c"]
-CPP_SOURCES = ["src/xbox/backend.cpp", "src/xbox/usb.cpp", "src/xbox/controller.cpp", "src/xbox/log.cpp", "vendor/xow/dongle/mt76.cpp", "vendor/xow/dongle/dongle.cpp", "vendor/xow/controller/gip.cpp"]
+CPP_SOURCES = ["src/xbox/backend.cpp", "src/xbox/usb.cpp", "src/xbox/controller.cpp", "src/xbox/firmware.cpp", "src/xbox/log.cpp", "vendor/xow/dongle/mt76.cpp", "vendor/xow/dongle/dongle.cpp", "vendor/xow/controller/gip.cpp"]
 
 
 def main():
@@ -43,6 +43,7 @@ def main():
             parser.error("version must contain only letters, numbers, dots, hyphens, plus signs or underscores")
         common.append('-DLIBREPAD_VERSION="' + args.version + '"')
     objects = []
+    subprocess.run([sys.executable, str(ROOT / "tools/embed_xbox_firmware.py")], check=True)
     if not args.module_only:
         subprocess.run([sys.executable, str(ROOT / "tools/embed_dashboard.py")], check=True)
     sources = [] if args.module_only else [(ROOT / name, False) for name in C_SOURCES]

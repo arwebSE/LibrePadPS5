@@ -13,11 +13,6 @@ extern "C" {
 #include <mutex>
 #include <thread>
 #include <chrono>
-#include <unistd.h>
-#ifdef XBOX_BACKEND_TEST
-extern "C" int xbox_test_access(const char *path, int mode);
-#define access xbox_test_access
-#endif
 
 static std::atomic<bool> stopping(false), failed(false), connected(false);
 static std::atomic<bool> reloadRequested(false);
@@ -86,11 +81,7 @@ extern "C" int librepad_xbox_start() {
     stopping = false;
     failed = false;
     pad_state_neutral(&latest);
-    // Missing firmware must not cause any vendor writes to the radio.
-    if (access(FIRMWARE, R_OK) != 0) {
-        log_line("LibrePadPS5 Xbox: firmware missing: %s; radio disabled", FIRMWARE);
-        return 0;
-    }
+    // Discovery waits for an allowlisted adapter before loading any firmware.
     worker = std::thread(runRadio);
     return 1;
 }

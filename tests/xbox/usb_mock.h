@@ -29,3 +29,4 @@ enum { USB_ERR_NORMAL_COMPLETION = 0, USB_ERR_SHORT_XFER = 1, USB_ERR_TIMEOUT = 
 #define USB_FS_FLAG_SINGLE_SHORT_OK 1
 int xbox_test_ioctl(int fd, unsigned long request, void *argument);
 int xbox_test_close(int fd);
+int xbox_test_open(const char *path, int flags);

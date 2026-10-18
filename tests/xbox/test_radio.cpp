@@ -1,6 +1,7 @@
 #include "xow/dongle/mt76.h"
 #include "xow/dongle/dongle.h"
 #include "xbox/sink.h"
+#include "xbox/firmware.h"
 #include <cassert>
 #include <cstring>
 #include <cstdio>
@@ -11,6 +12,7 @@ static std::vector<Bytes> output;
 static std::map<unsigned, uint32_t> registers;
 static int connects, disconnects, inputs;
 static void *owner;
+static bool uploading;
 extern "C" int xbox_sink_connect(void *controller, uint16_t vid, uint16_t pid) {
     assert(vid == 0x045e && pid == 0x02dd); ++connects; owner = controller; return 1;
 }
@@ -20,11 +22,13 @@ extern "C" void log_line(const char *, ...) {}
 UsbDevice::UsbDevice(int descriptor, Terminate callback) : fd(descriptor), terminate(callback) {}
 UsbDevice::~UsbDevice() {}
 bool UsbDevice::bulkWrite(uint8_t endpoint, Bytes &packet) {
-    assert(endpoint == 4); output.push_back(packet); return true;
+    assert(endpoint == 4); output.push_back(packet);
+    if (uploading) registers[0x0234] |= 0xc0000000; // DMA completion
+    return true;
 }
 int UsbDevice::bulkRead(uint8_t, FixedBytes<USB_MAX_BULK_TRANSFER_SIZE> &) { return -1; }
 void UsbDevice::controlTransfer(ControlPacket packet, bool write) {
-    if (write && !packet.length) { registers[0x0230] = 0x80000000; return; }
+    if (write && !packet.length) { registers[0x0230] = packet.value == 0x12 ? 1 : 0x80000000; return; }
     assert(packet.length == 4);
     if (write) memcpy(&registers[packet.index], packet.data, 4);
     else memcpy(packet.data, &registers[packet.index], 4);
@@ -95,6 +99,19 @@ int main() {
     output.clear();
     assert(radio.loadFirmware() && output.empty());
     std::remove(FIRMWARE);
+    assert(radio.loadFirmware() && output.empty()); // same warm restart using bundled image
+    registers[0x0230] = 0; uploading = true;
+    assert(radio.loadFirmware()); // fresh adapter, no console firmware file
+    Bytes bundled, transferred;
+    assert(xbox_load_firmware(bundled));
+    for (const Bytes &packet : output) {
+        unsigned size = packet[0] | (packet[1] << 8);
+        assert(size <= 0x3800 && packet.size() >= size + 4);
+        transferred.append(packet.begin() + 4, packet.begin() + 4 + size);
+    }
+    assert(transferred.size() == bundled.size() - 32);
+    assert(!memcmp(transferred.raw(), bundled.raw() + 32, transferred.size()));
+    uploading = false;
     {
         RadioHarness dongle;
         Bytes request = wlan(0x20, Bytes(16)); // controller's real reassociation subtype
@@ -113,5 +130,5 @@ int main() {
             dongle.handleBulkData(Bytes(request, 0, request.size() - size));
     }
     assert(disconnects == 1);
-    puts("Xbox radio: pairing response / reassociation / duplicate WCID / warm restart tests passed");
+    puts("Xbox radio: pairing / reassociation / duplicate WCID / warm restart / bundled cold upload tests passed");
 }

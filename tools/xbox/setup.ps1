@@ -1,4 +1,4 @@
-# One-time Xbox Wireless setup. Uses Windows' built-in CAB extractor and HTTP.
+# Optional Xbox firmware override. Normal setup uses firmware built into the ELF.
 [CmdletBinding()]
 param([string]$PS5Address, [string]$FirmwarePath)
 $ErrorActionPreference = 'Stop'

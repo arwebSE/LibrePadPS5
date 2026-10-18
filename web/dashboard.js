@@ -142,11 +142,13 @@ async function refreshXbox() {
     const xbox = await response.json();
     el("xbox-setup").hidden = !xbox.enabled;
     if (!xbox.enabled) return;
+    const ready = xbox.firmware === "bundled" || xbox.firmware === "installed";
     el("xbox-status").textContent = xbox.connected ? "Xbox controller connected" :
+      xbox.firmware === "bundled" ? "Firmware included. Plug in the Xbox Wireless Adapter and pair your controller." :
       xbox.firmware === "installed" ? "Firmware installed. Plug in the adapter and pair your Xbox controller." :
       xbox.firmware === "missing" ? "One-time firmware setup needed" : "Adapter firmware is " + xbox.firmware + ". Install a valid firmware file.";
     // Keep an explicitly opened replacement form open during polling.
-    if (xbox.firmware !== "installed") el("xbox-install").hidden = false;
+    if (!ready) el("xbox-install").hidden = false;
     else if (!el("xbox-install").dataset.opened) el("xbox-install").hidden = true;
   } catch (error) {
     el("xbox-status").textContent = error.message;

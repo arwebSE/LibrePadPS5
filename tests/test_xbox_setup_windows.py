@@ -1,7 +1,7 @@
 """Windows-only helper integration test; Microsoft download, disposable local HTTP server.
 
 Run from the repository root. No console is contacted. Requires Python and
-Windows PowerShell; the shipped setup helper itself needs no Python.
+Windows PowerShell; the optional repository helper itself needs no Python.
 """
 import hashlib, http.server, json, pathlib, subprocess, threading
 
@@ -17,7 +17,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(body)
     def do_GET(self):
         assert self.path == '/api/xbox'
-        self.reply({'enabled':True, 'firmware':'missing'})
+        self.reply({'enabled':True, 'firmware':'bundled'})
     def do_POST(self):
         assert self.path == '/api/xbox/firmware'
         assert self.headers['X-LibrePad-Control'] == '1'

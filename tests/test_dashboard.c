@@ -104,7 +104,7 @@ int main(void)
     mkdir("/data", 0700); mkdir(LIBREPAD_STATE_DIR, 0700);
     mkdir(LIBREPAD_STATE_DIR "/xbox", 0700);
     unlink(LIBREPAD_XBOX_FIRMWARE_PATH);
-    request("GET /api/xbox HTTP/1.1\r\n\r\n",200,"\"firmware\":\"missing\"",0);
+    request("GET /api/xbox HTTP/1.1\r\n\r\n",200,"\"firmware\":\"bundled\"",0);
     firmware_upload(70620,70620,1,"X-LibrePad-Control: 1\r\n",200);
     assert(xbox_reloads==1);
     request("GET /api/xbox HTTP/1.1\r\n\r\n",200,"\"firmware\":\"installed\"",0);

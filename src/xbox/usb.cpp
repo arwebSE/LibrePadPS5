@@ -16,6 +16,7 @@ extern "C" {
 #include <chrono>
 #include <thread>
 #ifdef XBOX_USB_TEST
+#define open xbox_test_open
 #define ioctl xbox_test_ioctl
 #define close xbox_test_close
 #ifndef O_NONBLOCK

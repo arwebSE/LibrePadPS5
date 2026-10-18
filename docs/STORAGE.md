@@ -16,7 +16,7 @@ it does not create symbolic links.
 | `controller-user` | Optional preferred profile for the first gamepad |
 | `controllers.conf`, `maps/` | Saved controller layouts and button mappings |
 | `bluetooth.db` | Bluetooth bonds |
-| `xbox/firmware.bin` | Xbox Wireless Adapter firmware |
+| `xbox/firmware.bin` | Optional Xbox adapter firmware override; otherwise the ELF supplies it |
 | `pause`, `pause-N` | Saved gamepad release state |
 | `stop` | Request a clean shutdown |
 | `instance.lock` | Prevent simultaneous payload instances |

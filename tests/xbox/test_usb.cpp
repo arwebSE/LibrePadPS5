@@ -14,6 +14,7 @@ static unsigned threshold = 3, started, finished, closed, uninitialized;
 static bool timeoutRead, shortWrite, failOpen;
 extern "C" void log_line(const char *, ...) {}
 extern "C" int xbox_transport_stopping() { return stopped; }
+int xbox_test_open(const char *, int) { assert(false); return -1; }
 int xbox_test_close(int fd) { assert(fd == 123); ++closed; return 0; }
 int xbox_test_ioctl(int fd, unsigned long request, void *arg) {
     assert(fd == 123);

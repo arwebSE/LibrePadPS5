@@ -7,13 +7,9 @@ extern "C" {
 #include <cassert>
 #include <cstring>
 #include <cstdio>
-static bool firmware = true, paused = false;
+static bool paused = false;
 static int adds, updates, removes;
 static pad_state_t received;
-extern "C" int xbox_test_access(const char *path, int) {
-    if (!strcmp(path, "test-firmware")) return firmware ? 0 : -1;
-    assert(strstr(path, "/pause")); return paused ? 0 : -1;
-}
 extern "C" void log_line(const char *, ...) {}
 extern "C" int vpad_add(int slot, pad_conn_type_t type, const char *name) {
     assert(slot == 0 && type == CONN_USB_DONGLE_24G && name);
@@ -26,13 +22,11 @@ extern "C" void controller_update(void *, const pad_state_t *state) { vpad_updat
 extern "C" void controller_detach(void *owner) { if (owner) vpad_remove(0); }
 int main() {
     int controller, other;
-    firmware = false;
-    assert(!librepad_xbox_start());
+    assert(librepad_xbox_start()); // no disk firmware or adapter is required to wait
     assert(!librepad_xbox_is_connected() && adds == 0);
     librepad_xbox_stop();
-    firmware = true;
     librepad_xbox_reload();
-    librepad_xbox_poll(0); // installation recovers without restarting the app
+    librepad_xbox_poll(0); // override reload recovers without restarting the app
     assert(!xbox_transport_stopping());
     assert(librepad_xbox_start());
     assert(librepad_xbox_start()); // repeated init must not replace a joinable thread
@@ -68,5 +62,5 @@ int main() {
     assert(adds == 2 && received.buttons == PAD_BTN_CROSS);
     librepad_xbox_stop();
     assert(!librepad_xbox_is_connected() && xbox_transport_stopping());
-    puts("Xbox backend: missing firmware / single controller / release / disconnect / reconnect / shutdown tests passed");
+    puts("Xbox backend: startup without disk firmware / single controller / release / disconnect / reconnect / shutdown tests passed");
 }

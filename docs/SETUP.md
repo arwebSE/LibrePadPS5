@@ -10,7 +10,7 @@ Requires a jailbroken PS5 and an ELF loader or Payload Manager.
 1. Confirm your DualSense works and stop other controller payloads, including any older LibrePadPS5 instance.
 2. Load `LibrePadPS5.elf` and open **`http://<PS5_IP>:8096/`** on your phone or computer.
 3. In **Advanced > Input & native controllers**, reserve the signed-in profiles used by your native DualSense controllers.
-4. Connect your gamepad. Microsoft Xbox Wireless adapters need the [Xbox setup helper or firmware upload](XBOX.md#firmware) before pairing.
+4. Connect your gamepad. For a Microsoft Xbox Wireless adapter, just plug it in and [pair the controller](XBOX.md#setup); adapter firmware is included.
 5. Select the gamepad under **Control gamepad**, click **Reconnect** if released, and assign a separate signed-in PS5 profile.
 6. Press **Home / PS** if needed and choose that gamepad's profile. Check sticks and buttons in the dashboard, then try the controller on the PS5.
 

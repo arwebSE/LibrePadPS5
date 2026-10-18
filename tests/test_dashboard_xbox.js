@@ -13,6 +13,10 @@ const context = vm.createContext({el:id => nodes[id],fetch:async (url,options) =
 vm.runInContext(script.slice(script.indexOf("async function refreshXbox()"),script.indexOf("async function act(")),context);
 (async () => {
   await context.refreshXbox(); assert(!nodes["xbox-install"].hidden);
+  status.firmware="bundled"; await context.refreshXbox(); assert(nodes["xbox-install"].hidden);
+  assert.match(nodes["xbox-status"].textContent,/Firmware included/);
+  context.showXboxInstall(); await context.refreshXbox(); assert(!nodes["xbox-install"].hidden);
+  nodes["xbox-install"].dataset.opened="";
   status.firmware="installed"; await context.refreshXbox(); assert(nodes["xbox-install"].hidden);
   context.showXboxInstall(); await context.refreshXbox(); assert(!nodes["xbox-install"].hidden);
   await context.installXboxFirmware(); assert.equal(calls.filter(c=>c.url.endsWith("/firmware")).length,0);

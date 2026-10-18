@@ -50,7 +50,7 @@ includes. `make help` lists the entry points.
 On Windows, `python tests/test_xbox_setup_windows.py` exercises the setup helper
 with a real Microsoft download, native CAB extraction, hash verification and a
 disposable localhost HTTP server. It never contacts a console. Python is only
-needed for this integration test; the shipped setup helper uses Windows alone.
+needed for this integration test; the optional repository setup helper uses Windows alone.
 
 The portable LLVM builder is [tools/xbox/build.py](../tools/xbox/build.py).
 It supports combined, standalone and module-only builds. See [Xbox setup and
@@ -122,3 +122,11 @@ Add runtime code under `src/`, tests under `tests/`, and tools under `tools/`.
 Keep third-party code and notices under `vendor/`. Edit `web/` rather than its
 generated C assets. Historical source tags remain available; retired diagnostic
 release pages point to the stable download and no longer host test binaries.
+
+## Stable release assets
+
+After building with the matching stable version and updating `config/payload/`,
+run `python tools/package_release.py`. Use an empty `--output` directory when
+restaging. Upload only the resulting ELF, JSON metadata and SHA-256 checksum.
+Xbox adapter firmware is built into the ELF; manual setup scripts stay in
+`tools/xbox/` and are not packaged as a release ZIP.

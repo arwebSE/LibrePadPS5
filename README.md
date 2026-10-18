@@ -30,7 +30,7 @@ You'll need a jailbroken PS5 and an ELF loader or Payload Manager.
 
 Use a different profile for each player, with up to four players total including DualSense users. The game must support the number of players you want to use.
 
-For wireless setup, follow the [Xbox Wireless guide](docs/XBOX.md#quick-install-on-windows), [Bluetooth guide](docs/SETUP.md#bluetooth) or [8BitDo Adapter 2 guide](docs/SETUP.md#8bitdo-usb-wireless-adapter-2). Xbox Wireless supports one controller; its setup helper installs the required firmware for you.
+For wireless setup, follow the [Xbox Wireless guide](docs/XBOX.md#setup), [Bluetooth guide](docs/SETUP.md#bluetooth) or [8BitDo Adapter 2 guide](docs/SETUP.md#8bitdo-usb-wireless-adapter-2). Xbox Wireless supports one controller; the required adapter firmware is included and loads automatically when the adapter is detected.
 
 ## Help and customization
 

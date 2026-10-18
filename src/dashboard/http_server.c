@@ -76,7 +76,7 @@ static void reply(int fd, int status, const char *type, const char *body)
 static void xbox_reply(int fd)
 {
 #if XBOX_ENABLED
-    const char *status = "missing";
+    const char *status = "bundled";
     FILE *file = fopen(LIBREPAD_XBOX_FIRMWARE_PATH, "rb");
     if (file) {
         uint8_t header[32];

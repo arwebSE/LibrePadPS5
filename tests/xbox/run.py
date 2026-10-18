@@ -20,7 +20,9 @@ def main():
         parser.error("C++ compiler not found")
     build = ROOT / "build/xbox/tests"
     build.mkdir(parents=True, exist_ok=True)
+    subprocess.run([sys.executable, str(ROOT / "tools/embed_xbox_firmware.py")], check=True)
     flags = ["-std=c++11", "-Wall", "-Wextra", "-Werror", "-I", str(ROOT / "src"), "-I", str(ROOT / "vendor"), "-I", str(ROOT / "tests")]
+    flags += ["-I", str(ROOT / "build/generated")]
     if sys.platform == "win32":
         flags += ["-mno-ms-bitfields"]
         if not args.sanitize:
@@ -34,9 +36,10 @@ def main():
     cases = [
         ("controller", ["tests/xbox/test_controller.cpp", "src/xbox/controller.cpp", "src/xbox/log.cpp", "vendor/xow/controller/gip.cpp"], []),
         ("usb", ["tests/xbox/test_usb.cpp", "src/xbox/usb.cpp"], ["-DXBOX_USB_TEST"]),
-        ("firmware", ["tests/xbox/test_firmware.cpp"], []),
+        ("discovery", ["tests/xbox/test_discovery.cpp", "src/xbox/usb.cpp"], ["-DXBOX_USB_TEST"]),
+        ("firmware", ["tests/xbox/test_firmware.cpp", "src/xbox/firmware.cpp"], ['-DFIRMWARE="build/xbox/tests/override.bin"']),
         ("backend", ["tests/xbox/test_backend.cpp", "src/xbox/backend.cpp"], ["-DXBOX_BACKEND_TEST", '-DFIRMWARE="test-firmware"']),
-        ("radio", ["tests/xbox/test_radio.cpp", "vendor/xow/dongle/mt76.cpp", "vendor/xow/dongle/dongle.cpp",
+        ("radio", ["tests/xbox/test_radio.cpp", "src/xbox/firmware.cpp", "vendor/xow/dongle/mt76.cpp", "vendor/xow/dongle/dongle.cpp",
                    "src/xbox/controller.cpp", "vendor/xow/controller/gip.cpp", "src/xbox/log.cpp"],
          ["-DXBOX_USB_TEST", "-DXBOX_RADIO_TEST", '-DFIRMWARE="build/xbox/tests/radio-firmware.bin"']),
     ]
