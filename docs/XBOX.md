@@ -53,10 +53,12 @@ Firmware transfers start only after detecting adapter `045e:02e6` or
 on a warm adapter can be restarted without uploading it again; unplugging the
 adapter clears that state.
 
-Current source builds remember the last successfully connected controller in
+Current source builds remember the last successfully connected controller and its identity in
 `/data/LibrePadPS5/xbox-controller` and advertise for it after a service restart
 or disconnect. Leave the adapter plugged in and turn the controller on. The
 adapter's pairing button still allows replacing it with a different controller.
+Its saved identity also restores input if a controller stays powered on through
+the restart and resumes input without repeating its identity announcement.
 
 The dashboard shows **Firmware included** when using the bundle, or **Firmware
 installed** when a saved console copy takes priority. Both are ready states;

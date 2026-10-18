@@ -16,7 +16,11 @@ static void *owner;
 static bool uploading;
 static Bytes remembered;
 Bytes xbox_last_controller() { return remembered; }
-void xbox_remember_controller(const Bytes &address) { remembered = address; }
+void xbox_remember_controller(const Bytes &address, uint16_t, uint16_t) { remembered = address; }
+bool xbox_controller_identity(const Bytes &address, uint16_t &vendor, uint16_t &product) {
+    if (address != remembered || !remembered.size()) return false;
+    vendor = 0x045e; product = 0x02dd; return true;
+}
 extern "C" int xbox_sink_connect(void *controller, uint16_t vid, uint16_t pid) {
     assert(vid == 0x045e && pid == 0x02dd); ++connects; owner = controller; return 1;
 }
@@ -154,13 +158,13 @@ int main() {
         output.clear(); dongle.handleBulkData(unknown);
         assert(output.empty() && connects == 1 && dongle.reconnecting());
         dongle.handleBulkData(request);
-        assert(!dongle.reconnecting());
-        assert(output.size() == 7 && output[2][24] == (3 << 4));
+        assert(dongle.reconnecting()); // association is not a completed GIP handshake
+        assert(output.size() == 4 && output[2][24] == (3 << 4));
         Bytes announce(32); announce[0] = 2; announce[1] = 0x20; announce[2] = 1; announce[3] = 28;
         announce[12] = 0x5e; announce[13] = 4; announce[14] = 0xdd; announce[15] = 2;
         Bytes qos(4); qos.append(announce);
         dongle.handleBulkData(wlan(0x88, qos));
-        assert(connects == 2 && remembered == client);
+        assert(connects == 2 && remembered == client && !dongle.reconnecting());
         uint32_t lostHeader = 0x4ae00004;
         Bytes lost; lost.append(lostHeader); lost.append(uint32_t(1)); lost.append(lostHeader);
         dongle.handleBulkData(lost);
@@ -179,5 +183,18 @@ int main() {
         assert(output.size() == 4); // explicit button allows a replacement pad
         assert(remembered == client); // association alone does not replace the saved pad
     }
+    {
+        RadioHarness dongle;
+        dongle.handleBulkData(wlan(0x00, Bytes(16)));
+        assert(dongle.reconnecting() && connects == 2);
+        // Captured warm reconnect: controller resumes input without ANNOUNCE.
+        Bytes input = {0x20, 0, 0x65, 14, 0, 0, 0, 0, 0, 0, 0x38, 0, 0x4b, 3, 0x4c, 0xff, 0xc8, 0};
+        Bytes qos(4); qos.append(input);
+        dongle.handleBulkData(wlan(0x88, qos));
+        assert(connects == 3 && inputs == 2 && !dongle.reconnecting());
+        dongle.handleBulkData(wlan(0x88, qos));
+        assert(connects == 3 && inputs == 3); // one virtual owner
+    }
+    assert(disconnects == 3);
     puts("Xbox radio: pairing / reassociation / warm restart / cold upload / saved-controller reconnect passed");
 }

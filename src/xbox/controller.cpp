@@ -19,7 +19,7 @@ void Controller::deviceAnnounced(uint8_t id, const AnnounceData *data) {
     state.conn_type = CONN_USB_DONGLE_24G;
     snprintf(state.controller_name, sizeof(state.controller_name), "Xbox One Wireless / LibrePadPS5");
     connected = xbox_sink_connect(this, state.vid, state.pid) != 0;
-    if (connected && onConnect) onConnect();
+    if (connected && onConnect) onConnect(state.vid, state.pid);
 }
 
 void Controller::statusReceived(uint8_t, const StatusData *data) {
@@ -35,6 +35,14 @@ void Controller::guideButtonPressed(const GuideButtonData *data) {
 }
 
 void Controller::inputReceived(const InputData *data) {
+    // A powered-on pad can resume GIP input after radio restart without
+    // repeating ANNOUNCE. Only its previously confirmed MAC/identity is reused.
+    if (!connected && cachedVendor) {
+        AnnounceData identity = {};
+        identity.vendorId = cachedVendor;
+        identity.productId = cachedProduct;
+        deviceAnnounced(0, &identity);
+    }
     static_assert(sizeof(InputData) == 14, "GIP wire layout must use packed GCC bitfields");
     state.buttons &= PAD_BTN_PS; // Guide arrives in separate command 0x07.
     if (data->buttons.start) state.buttons |= PAD_BTN_OPTIONS;

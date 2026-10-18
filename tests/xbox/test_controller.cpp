@@ -21,6 +21,12 @@ extern "C" void log_line(const char *, ...) {}
 int main() {
     std::vector<Bytes> sent;
     {
+        Controller unknown([&](const Bytes &bytes) { sent.push_back(bytes); return true; });
+        Bytes input(18); input[0] = 0x20; input[3] = 14;
+        unknown.handlePacket(input);
+        assert(connects == 0 && reports == 0 && sent.empty());
+    }
+    {
         Controller controller([&](const Bytes &bytes) { sent.push_back(bytes); return true; });
         Bytes announce(32);
         announce[0] = 0x02; announce[1] = 0x20; announce[2] = 1; announce[3] = 28;

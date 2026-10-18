@@ -87,13 +87,20 @@ void Dongle::handleControllerConnect(Bytes address, bool reassociation)
     );
 
     if (!controllers[wcid - 1]) {
-        controllers[wcid - 1].reset(new Controller(sendPacket, [address] { xbox_remember_controller(address); }));
+        uint16_t vendor = 0, product = 0;
+        xbox_controller_identity(address, vendor, product);
+        controllers[wcid - 1].reset(new Controller(sendPacket, [this, address](uint16_t vid, uint16_t pid) {
+            xbox_remember_controller(address, vid, pid);
+            // Association precedes GIP startup. Changing the beacon here,
+            // rather than immediately after association, keeps the radio
+            // available until the controller has completed that handshake.
+            if (automaticReconnect && address == reconnectAddress) {
+                automaticReconnect = false;
+                setPairingStatus(false);
+                Log::info("Saved Xbox controller reconnected without the adapter button");
+            }
+        }, vendor, product));
         Log::info("Controller '%d' connected", wcid);
-    }
-    if (automaticReconnect) {
-        automaticReconnect = false;
-        setPairingStatus(false);
-        Log::info("Saved Xbox controller reconnected without the adapter button");
     }
 }
 
