@@ -15,7 +15,6 @@ Git configuration alongside the project directories.
 | `config/payload/` | Payload Manager metadata |
 | `config/maps/` | Example generic HID mapping files |
 | `docs/` | Setup, controller coverage, Xbox guide, development guide and release notes |
-| `docs/reference/omnipad/` | Archived source, tests and TCP tool; excluded from current builds/checks |
 | `build/`, `dist/` | Ignored generated files and compiled outputs |
 
 ## Build and test

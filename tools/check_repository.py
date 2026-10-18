@@ -22,8 +22,7 @@ for folder in ("src", "tests", "vendor"):
                 failures.append(f"{path.relative_to(root)}:{number}: missing include {name}")
 
 documents = [root / "README.md", root / "src/README.md", root / "vendor/anypad/README.md", root / "vendor/xow/README.md"]
-documents += [path for path in (root / "docs").rglob("*.md")
-              if not path.is_relative_to(root / "docs/reference")]
+documents += list((root / "docs").rglob("*.md"))
 for path in documents:
     for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         for match in re.finditer(r'\[[^\]]*\]\(([^)]+)\)', line):

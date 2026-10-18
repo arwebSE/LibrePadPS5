@@ -26,6 +26,5 @@ Use plain punctuation throughout the project, never em dashes.
 The punctuation check in `make test` enforces this.
 
 Build recipes live in `config/build/`, examples and payload metadata in `config/`,
-host tests in `tests/`, and developer tools in `tools/`. Reference-only OmniPad
-snapshots are kept outside the active source tree in `docs/reference/omnipad/`.
+host tests in `tests/`, and developer tools in `tools/`.
 See [development and layout](../docs/DEVELOPMENT.md).

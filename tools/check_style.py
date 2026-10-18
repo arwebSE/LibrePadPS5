@@ -8,7 +8,7 @@ files = [root / name for name in ("README.md", "Makefile")]
 for folder in ("src", "web", "docs", "tests", "tools", "config", "vendor", ".github"):
     files.extend(path for path in (root / folder).rglob("*")
                  if path.is_file() and (path.suffix in extensions or path.name == "Dockerfile")
-                 and "reference" not in path.parts and "__pycache__" not in path.parts)
+                 and "__pycache__" not in path.parts)
 failures = []
 for path in files:
     if not path.exists():
