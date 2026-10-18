@@ -26,9 +26,10 @@ These drivers are implemented; the table does not establish hardware verificatio
 
 - DualShock 3, Wii Remote, Wii U Pro and standalone Joy-Con are unsupported over Bluetooth.
 - Bluetooth hardware remains unverified; external Bluetooth dongles are unsupported.
-- Xbox Wireless handles one controller per adapter. Microsoft adapter `045e:02fe` is implemented but unverified.
+- Xbox Wireless handles one adapter and one controller at a time. Adding another adapter does not add another supported Xbox Wireless player. Microsoft adapter `045e:02fe` is implemented but unverified.
 - Native DualSense/Edge USB controllers stay with the PS5 and are ignored by LibrePadPS5.
 - Four-player game behavior remains unverified. Each virtual controller needs a separate PS5 user.
 - Game-driven rumble, motion forwarding, controller audio and touchpad movement are not implemented.
+- Xbox Wireless uses a fixed button mapping; dashboard remapping covers USB and built-in Bluetooth connections.
 
 [Connection and remapping instructions](SETUP.md) · [Xbox Wireless setup](XBOX.md)

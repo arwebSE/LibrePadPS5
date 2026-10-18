@@ -3,12 +3,24 @@
 For dashboard steps, see [controller profiles and remapping](SETUP.md#controller-profiles--remapping).
 Known controllers do not need a custom profile.
 
+These settings select drivers and map buttons for USB or LibrePadPS5's built-in
+Bluetooth connection. They do not select a PS5 user, change native DualSense
+input or remap Xbox Wireless through Microsoft's adapter. That backend has a
+[fixed mapping](XBOX.md#button-mapping). An Xbox controller connected through
+an 8BitDo USB adapter uses the USB path instead.
+
 ## Saved profiles
 
 Import/export uses the editor contents. Up to eight profiles are saved in
 `/data/LibrePadPS5/controllers.conf`. Each row applies to its exact hexadecimal
 VID/PID and overrides that device's defaults. Invalid settings are rejected;
 an invalid saved file prevents startup.
+
+Each non-comment row is `VID:PID layout mapping`, with one row per device ID.
+Two controllers exposing the same VID/PID share that mapping. The editor is a
+draft: **Add / update in editor**, import and export do not save it to the
+console. Use **Release all virtual pads**, wait for removal, then **Save & apply**
+and reconnect each gamepad. **Reload saved** discards unsaved editor changes.
 
 ### Driver mappings
 

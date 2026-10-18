@@ -1,41 +1,93 @@
 # Xbox Wireless
 
+Microsoft's USB receiver handles Xbox Wireless pairing for the controller.
+Leave LibrePadPS5's built-in Bluetooth disabled for this connection. For an
+8BitDo receiver, use [Adapter 2 setup](SETUP.md#8bitdo-usb-wireless-adapter-2).
+
+Bundled firmware is available in current source builds and awaits a published
+release. For an older ELF requesting one-time setup, use the [manual install](#advanced).
+See [source versus release availability](README.md#source-builds-and-published-downloads).
+
 ## Setup
 
 1. Load the [latest LibrePadPS5 ELF](https://github.com/arwebSE/LibrePadPS5/releases/latest/download/LibrePadPS5.elf).
-2. Plug the Xbox Wireless Adapter into the PS5. The required firmware is included;
-   LibrePadPS5 loads it only after detecting a supported adapter.
-3. Press the pairing buttons on the adapter and controller.
+2. Plug the Xbox Wireless Adapter into the PS5. In bundled-firmware builds,
+   LibrePadPS5 detects the supported adapter and initializes it automatically.
+3. Turn on the controller, press the adapter's pairing button and hold the controller's pairing button until its Xbox light flashes rapidly. Wait for pairing to finish and the light to become steady.
 4. Press Xbox/Guide and select a separate PS5 profile, or assign one in the
    dashboard at `http://<PS5_IP>:8096/`. Reserve profiles used by native DualSense controllers.
 
 Xbox One model **1697** with adapter **045e:02e6** is tested. The slim
 **045e:02fe** adapter is supported by detection but remains untested here.
-One Xbox controller can run alongside other USB gamepads using separate profiles.
-Multiple Xbox controllers on one adapter, rumble, audio, motion and touchpad
-are not implemented.
+One adapter and one Xbox Wireless controller are handled at a time. A second
+adapter does not add another supported wireless player. The Xbox can run
+alongside PDP and other USB gamepads on separate PS5 profiles; see the
+[multiplayer example](SETUP.md#multiple-controllers). Bluetooth mode is a separate
+path and requires other controller sources to be disconnected before pairing.
+
+## Button mapping
+
+| Xbox input | PS5 input |
+|---|---|
+| A / B / X / Y | Cross / Circle / Square / Triangle |
+| LB / RB, LT / RT | L1 / R1, L2 / R2 (analog triggers) |
+| View / Menu | Create / Options |
+| Left / right stick click | L3 / R3 |
+| Xbox / Guide | PS |
+
+Sticks and D-pad retain their usual roles. This wireless mapping is fixed;
+the dashboard's USB/XInput driver selection does not change it. Touchpad,
+motion, rumble, audio and Series-specific extra controls are not implemented.
 
 ## Firmware
 
 The bundled [FW_ACC_00U.bin](../vendor/xbox/FW_ACC_00U.bin) runs on the adapter's
 radio. It is shared by compatible Xbox Wireless controllers, rather than tied
 to model 1697. Normal setup needs no download, script, firmware upload or setup ZIP.
-No firmware file is created on the console when using the bundled image.
+No firmware file is created on the console when using the bundled image, and
+no internet connection is needed for that path. Wired Xbox controllers,
+8BitDo USB adapters and built-in Bluetooth connections do not use this image.
+
+Firmware transfers start only after detecting adapter `045e:02e6` or
+`045e:02fe`. Other controllers do not trigger a firmware load. A resident image
+on a warm adapter can be restarted without uploading it again; unplugging the
+adapter clears that state.
+
+The dashboard shows **Firmware included** when using the bundle, or **Firmware
+installed** when a saved console copy takes priority. Both are ready states;
+firmware readiness alone does not mean a controller is paired or assigned to
+a PS5 user.
+
+## Troubleshooting
+
+- **One-time firmware setup needed:** this is an older ELF without the bundle. Use the manual install below, or build the current source.
+- **Invalid/unreadable firmware:** a saved override blocks initialization. Replace it with the verified image or follow the steps below to return to the bundle.
+- **Xbox light keeps flashing:** turn the controller on and repeat pairing. After changing firmware, unplug/replug the adapter before trying again.
+- **Controller connected but no console input:** select the Xbox in the dashboard, reconnect if paused, assign its own signed-in PS5 user and press Xbox/Guide. Check whether the displayed sticks/buttons change.
+- **Adapter initialization keeps failing:** download a diagnostic report under **Advanced > Logs & support**. Include the adapter VID/PID and controller model; a missing paired controller and a USB transport failure need different fixes.
 
 ## Advanced
 
 ### Manual firmware override
 
 An existing `/data/LibrePadPS5/xbox/firmware.bin` takes priority over the bundled
-image. To return to the bundled image, remove that override through FTP and
-restart LibrePadPS5. Unplug and replug the adapter after changing firmware;
-restarting the payload can reuse firmware already running on the radio.
+image. To return to the bundled image, stop LibrePadPS5, back up and remove only
+that override through FTP, then reload a bundled-firmware build. Unplug and
+replug the adapter after changing firmware; restarting the payload can reuse
+firmware already running on the radio.
 
 To install an override, open **Controller > Xbox Wireless setup > Advanced
 firmware override** in the dashboard, select `FW_ACC_00U.bin` and choose
 **Install firmware**. Uploads are checked for size and memory layout, then saved
 atomically. An invalid or unreadable override stops radio initialization and is
 reported in the dashboard and log.
+Older dashboards may show the upload picker directly or under **Replace adapter
+firmware** instead.
+
+You can use the [provided firmware file](../vendor/xbox/FW_ACC_00U.bin) as the
+override too. Manual uploads validate size and memory layout; they do not
+compare the known hash. Verify the file as below, or let the Windows helper
+perform that check.
 
 ### Download and verify
 
@@ -66,30 +118,17 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/xbox/setup.ps1 -PS5Add
 Replace the example IP with your console's address. The helper downloads from
 Microsoft, verifies the hash and uploads an override through the running dashboard.
 Use `-FirmwarePath ./FW_ACC_00U.bin` to supply a local image instead.
+The helper needs the running dashboard. Supplying a local image skips the
+Microsoft download.
 
 For FTP, copy the verified image to `/data/LibrePadPS5/xbox/firmware.bin`.
 [Storage paths](STORAGE.md) describes migration from older installations.
 
-### Builds and module integration
+### Build or customize
 
-The standard build includes Xbox Wireless. `WITH_XBOX=0` omits the backend and
-its firmware. On Windows or Unix with LLVM and PS5 Payload SDK v0.43+:
-
-```sh
-python tools/xbox/build.py --combined --sdk /path/to/ps5-payload-sdk --clang /path/to/clang
-```
-
-Omit `--combined` for the standalone diagnostic payload, or use `--module-only`
-for `dist/liblibrepad_xbox.a`. All three builds include the verified firmware.
-The module's [C interface](../src/xbox/librepad_xbox.h) uses the shared controller
-router and requires the SDK C++ runtime. Start it after virtual-pad initialization,
-poll it in the controller loop and stop it before virtual-pad cleanup.
-
-Host regression tests:
-
-```sh
-python tests/xbox/run.py --clang /path/to/clang++ --firmware vendor/xbox/FW_ACC_00U.bin --sanitize
-```
+See [development](DEVELOPMENT.md) for combined, standalone and module-only
+builds, firmware embedding, tests and packaging. `WITH_XBOX=0` omits both the
+backend and its firmware.
 
 ## Source provenance
 

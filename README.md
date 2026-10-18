@@ -2,11 +2,11 @@
 
 Use your favorite gamepad on a jailbroken PS5.
 
-[Download v1.1.4](https://github.com/arwebSE/LibrePadPS5/releases/download/v1.1.4/LibrePadPS5.elf) · [Releases](https://github.com/arwebSE/LibrePadPS5/releases) · [Issues](https://github.com/arwebSE/LibrePadPS5/issues)
+[Download latest ELF](https://github.com/arwebSE/LibrePadPS5/releases/latest/download/LibrePadPS5.elf) · [Releases](https://github.com/arwebSE/LibrePadPS5/releases) · [Issues](https://github.com/arwebSE/LibrePadPS5/issues)
 
 ## Features
 
-- Supports 1-4 gamepads.
+- Up to four players, counting native DualSense users and virtual gamepads together.
 - Wired USB, Xbox Wireless and Bluetooth connections.
 - Support for PlayStation, Xbox, Switch and 8BitDo gamepads.
 - A dashboard to connect controllers, change button mappings and download logs.
@@ -30,7 +30,7 @@ You'll need a jailbroken PS5 and an ELF loader or Payload Manager.
 
 Use a different profile for each player, with up to four players total including DualSense users. The game must support the number of players you want to use.
 
-For wireless setup, follow the [Xbox Wireless guide](docs/XBOX.md#setup), [Bluetooth guide](docs/SETUP.md#bluetooth) or [8BitDo Adapter 2 guide](docs/SETUP.md#8bitdo-usb-wireless-adapter-2). Xbox Wireless supports one controller; the required adapter firmware is included and loads automatically when the adapter is detected.
+For wireless setup, follow the [Xbox Wireless guide](docs/XBOX.md#setup), [Bluetooth guide](docs/SETUP.md#bluetooth) or [8BitDo Adapter 2 guide](docs/SETUP.md#8bitdo-usb-wireless-adapter-2). Xbox Wireless handles one adapter/controller at a time. Current source builds include its firmware; published downloads may still need a manual install. See [source and release differences](docs/README.md#source-builds-and-published-downloads).
 
 ## Help and customization
 
@@ -38,6 +38,7 @@ For wireless setup, follow the [Xbox Wireless guide](docs/XBOX.md#setup), [Bluet
 - [Controller compatibility and limitations](docs/CONTROLLERS.md)
 - [Change button mappings](docs/SETUP.md#controller-profiles--remapping)
 - [Build and development](docs/DEVELOPMENT.md)
+- [All documentation](docs/README.md)
 
 Having trouble? In the dashboard, open **Advanced > Logs & support** to download a report. You can [attach it to a GitHub issue](docs/SETUP.md#share-a-diagnostic-report-on-github) if you'd like to help us troubleshoot. Review it before sharing; logs are optional.
 

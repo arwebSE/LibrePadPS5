@@ -1,51 +1,64 @@
 # Console storage
 
-**v1.1.3 and newer** use **`/data/LibrePadPS5`**. v1.1.1-preview and earlier use
-`/data/pdp-pad`. Stop the previous payload before upgrading; do not delete your
-settings or manually move folders to work around a startup failure.
-
-**v1.1.2 regression:** its migration requires symbolic links, which the tested
-PS5 `/data` filesystem rejects. Startup can therefore fail before the dashboard
-or log file opens. v1.1.3 copies files and holds both instance locks;
-it does not create symbolic links.
+LibrePadPS5 keeps settings and logs in `/data/LibrePadPS5/`. Updating the ELF
+replaces the app and its bundled Xbox firmware, while saved settings and manual
+firmware overrides stay on the console. Normal setup needs no folder edits.
 
 | File or folder | Purpose |
 |---|---|
-| `LibrePadPS5.log` | Payload log; also downloadable from the dashboard |
-| `native-user`, `native-users` | Reserved DualSense profiles |
-| `controller-user` | Optional preferred profile for the first gamepad |
-| `controllers.conf`, `maps/` | Saved controller layouts and button mappings |
-| `bluetooth.db` | Bluetooth bonds |
-| `xbox/firmware.bin` | Optional Xbox adapter firmware override; otherwise the ELF supplies it |
-| `pause`, `pause-N` | Saved gamepad release state |
-| `stop` | Request a clean shutdown |
-| `instance.lock` | Prevent simultaneous payload instances |
+| `LibrePadPS5.log` | Payload log; diagnostic downloads include its recent contents |
+| `native-user`, `native-users` | PS5 users reserved for native DualSense controllers |
+| `controller-user` | Optional preferred PS5 user for the first virtual slot |
+| `controllers.conf`, `maps/` | Driver/button profiles and generic HID mappings |
+| `bluetooth.db` | Saved built-in Bluetooth bonds |
+| `xbox/firmware.bin` | Optional Xbox adapter firmware override, taking priority over the ELF's copy |
+| `pause`, `pause-N` | Legacy global release state and per-slot release state |
+| `stop` | Empty file requesting a clean shutdown |
+| `instance.lock` | Instance lock used to prevent simultaneous payloads |
 | `.storage-migration` | Internal migration/recovery journal |
 
-## Automatic migration
+## Xbox firmware and saved overrides
 
-On the first startup after upgrading, the payload locks the legacy directory,
-then the current directory. Existing firmware, mappings, profile reservations,
-Bluetooth bonds, pause files and other settings are copied to the new location.
-`pdp-user` becomes `controller-user`, and `pdp-pad.log` becomes `LibrePadPS5.log`.
-Original files remain in the legacy directory for rollback. A running older
-payload prevents migration, and the new payload keeps both locks until shutdown.
+Bundled firmware is part of the ELF; there is no separate bundled file to copy
+or back up on the PS5. An older manual install at `xbox/firmware.bin` remains an
+explicit override after upgrading. An invalid or unreadable override blocks
+Xbox radio initialization rather than silently using the bundle. It does not
+change the other controller drivers.
 
-Copies use a temporary file and are renamed into place only after a complete
-write. The journal allows an interrupted migration to resume. Existing files
-must match the source; different settings are never silently overwritten. If
-v1.1.2 already moved the old directory before failing, the fix preserves a
-rollback copy and finishes renaming the current files without creating links.
+To return to bundled firmware, stop the payload, back up and remove only
+`/data/LibrePadPS5/xbox/firmware.bin`, then reload the payload and unplug/replug
+the adapter. Leave the legacy rollback directory alone. This requires a build
+that includes firmware; see [Xbox setup and advanced installation](XBOX.md).
 
-After migration, new changes use the current directory. The legacy files are a
-rollback snapshot; changes are not mirrored between versions. An empty legacy
-directory may be kept solely to lock out older payloads. Existing valid directory
-aliases from filesystems that support them remain compatible.
+## Backups and recovery
 
-Unrelated settings in both directories, conflicting filenames or a damaged
-journal stop startup with the operation, path and error number. Back up both
-copies before resolving a conflict. Do not discard native-profile reservations.
+Stop the payload before copying its settings through FTP. Keep native-user
+reservations, mappings and Bluetooth bonds in the backup. Release state belongs
+to virtual slots, not controller serial numbers: a released slot stays paused
+across restarts until explicitly reconnected in the dashboard.
 
-Runtime paths are defined in [paths.h](../src/core/paths.h); migration and the
-legacy lock are confined to [storage.c](../src/core/storage.c). The Xbox build
-uses that same firmware path. Controller support and the dashboard are unchanged.
+A storage startup failure reports the operation, path and error number in the
+notification or loader output, even when file logging cannot start. Stop any
+older payload, use a current build and preserve both storage directories before
+resolving a reported conflict. Deleting a lock file does not stop its process.
+Do not remove the migration journal or move folders to bypass the error.
+
+## Automatic migration from older installations
+
+Older payloads used `/data/pdp-pad/`. Startup locks that directory and the
+current directory, then copies existing settings, manual firmware, bonds,
+profiles and pause files. `pdp-user` becomes `controller-user`, and
+`pdp-pad.log` becomes `LibrePadPS5.log`. Stop the older payload first.
+
+Copies use a temporary file and rename after a complete write. The journal
+allows interrupted migration to resume; conflicting files are never silently
+overwritten. The migration also recovers the directory move left by the
+[older startup regression](releases/v1.1.3.md), without creating symbolic links.
+
+The original files remain a rollback snapshot. Later changes use only the
+current directory and are not mirrored to that snapshot. An empty legacy
+directory can remain solely to lock out older payloads; it is not a second
+active settings location. Existing working directory aliases remain compatible.
+
+Runtime paths are in [paths.h](../src/core/paths.h), with migration and legacy
+locking in [storage.c](../src/core/storage.c).

@@ -1,132 +1,154 @@
-# Development and repository layout
+# Development
 
-Run commands from the repository root. `Makefile` is the entry point; build
-recipes are in `config/build/`. The root keeps the README, license, Makefile and
-Git configuration alongside the project directories.
+Run commands from the repository root. Build recipes live in `config/build/`;
+`Makefile` is the entry point.
+
+## Repository layout
 
 | Path | Contents |
 |---|---|
-| `src/` | Active payload code; Xbox Wireless is in `src/xbox/` |
-| `vendor/anypad/`, `vendor/xow/` | Pinned third-party cores with licenses and attribution |
-| `web/` | Editable dashboard HTML, CSS, JavaScript and icons |
-| `tests/` | Host regression suites; Bluetooth and Xbox have their own subdirectories |
-| `tools/` | Dashboard embedding and repository checks; Xbox builders/probes are in `tools/xbox/` |
-| `config/build/` | Payload, Xbox and test make recipes, plus the Dockerfile |
-| `config/payload/` | Payload Manager metadata |
-| `config/maps/` | Example generic HID mapping files |
-| `docs/` | Setup, controller coverage, Xbox guide, development guide and release notes |
-| `build/`, `dist/` | Ignored generated files and compiled outputs |
+| `src/` | Payload, controller routing, USB, Bluetooth, Xbox and dashboard server |
+| `vendor/anypad/`, `vendor/xow/` | Pinned protocol cores with their licenses and notices |
+| `vendor/xbox/FW_ACC_00U.bin` | Verified Microsoft adapter firmware embedded at build time |
+| `web/` | Editable dashboard HTML, CSS, JavaScript and favicon |
+| `tests/` | Host regression suites; Bluetooth and Xbox have subdirectories |
+| `tools/` | Asset generators, checks and release packaging |
+| `tools/xbox/` | Portable builder, probes and optional manual firmware helpers |
+| `config/payload/`, `config/maps/` | Payload Manager metadata and example generic HID maps |
+| `docs/` | User guides, references and historical release notes |
+| `build/`, `dist/` | Ignored generated headers, objects and compiled outputs |
 
-## Build and test
+## Build the payload
 
 With PS5 Payload SDK v0.43 installed and `PS5_PAYLOAD_SDK` set:
 
-```sh
-make
-make WITH_XBOX=0
-make xbox
-make xbox-module
-```
+| Command | Output |
+|---|---|
+| `make` | Combined USB, Xbox Wireless and opt-in Bluetooth ELF in `dist/LibrePadPS5.elf` |
+| `make WITH_XBOX=0` | Same filename, USB/Bluetooth only; no Xbox backend or firmware blob |
+| `make xbox` | Standalone radio diagnostic ELF in `dist/LibrePadPS5-Xbox.elf` |
+| `make xbox-module` | Static Xbox module in `dist/liblibrepad_xbox.a` |
 
-For a disposable Linux builder:
+A disposable Linux builder includes the SDK and compiler:
 
 ```sh
 docker build -t librepadps5-builder config/build
 docker run --rm -v "$PWD:/work" -w /work librepadps5-builder
+```
+
+In PowerShell use `"${PWD}:/work"` for the volume. On Windows or Unix with LLVM
+and a local SDK, the portable builder also produces the combined payload:
+
+```sh
+python tools/xbox/build.py --combined --sdk /path/to/ps5-payload-sdk --clang /path/to/clang
+```
+
+Omit `--combined` for standalone diagnostics, or pass `--module-only` for the
+archive. `--radio-debug` adds radio packet diagnostics. Use the combined ELF
+for everyday controller use.
+
+### Generated assets and firmware
+
+Both build paths generate dashboard assets from `web/` and embed
+`vendor/xbox/FW_ACC_00U.bin`. The firmware generator checks the pinned SHA-256,
+size and memory lengths before emitting `build/generated/xbox/firmware_blob.h`.
+Edit sources, not generated headers. No firmware download is needed during a
+build from the repository.
+
+Embedding does not initialize the radio at app startup. The backend waits for
+adapter `045e:02e6` or `045e:02fe`, then loads either a console override or the
+bundled bytes. Only that adapter receives firmware transfers. The override
+rules and resident-firmware reset behavior are in [Xbox firmware](XBOX.md#firmware).
+
+### Integrate the Xbox module
+
+The [C interface](../src/xbox/librepad_xbox.h) exposes start, poll, status, reload
+and stop. Link the archive with the shared controller router, virtual-pad layer,
+logging and SDK C++ runtime. Start after virtual-pad initialization, poll on the
+controller loop and stop before virtual-pad cleanup. Reload queues a restart
+for poll to execute; it must not join the radio worker from the HTTP thread.
+The archive includes firmware and excludes the standalone USB/Bluetooth glue.
+
+## Run checks
+
+```sh
+make check
+make test
+make dashboard-test
+```
+
+`make check` checks punctuation, local documentation links and active includes.
+`make test` runs the C/C++ payload, Bluetooth and Xbox suites with ASan/UBSan.
+These tests mock hardware; they do not establish PS5 compatibility. Some write
+under the console-style state directory, so run them in the disposable builder:
+
+```sh
 docker run --rm -v "$PWD:/work" -w /work librepadps5-builder make test
 ```
 
-In PowerShell, use `"${PWD}:/work"` for the volume. The main output is
-`dist/LibrePadPS5.elf`. Install it with the metadata from
-[config/payload](../config/payload/LibrePadPS5.elf.json).
+`make dashboard-test` needs Node.js on the host; it checks dashboard JavaScript
+behavior. The supplied Docker image does not include Node.js.
 
-`make test` runs all 21 C/C++ host suites with sanitizers, including storage migration and the PS5 USB
-reader's initialization ordering and interleaved input/output completions. Tests create files under
-the state directory, so use the disposable builder, not a console.
-`make dashboard-test` runs the JavaScript checks and requires Node.js.
-`make check` validates punctuation, local documentation links and active C/C++
-includes. `make help` lists the entry points.
-
-On Windows, `python tests/test_xbox_setup_windows.py` exercises the setup helper
-with a real Microsoft download, native CAB extraction, hash verification and a
-disposable localhost HTTP server. It never contacts a console. Python is only
-needed for this integration test; the optional repository setup helper uses Windows alone.
-
-The portable LLVM builder is [tools/xbox/build.py](../tools/xbox/build.py).
-It supports combined, standalone and module-only builds. See [Xbox setup and
-verification](XBOX.md) for arguments and firmware staging.
-
-For a separately identified test payload, pass `--version` to the portable
-builder. This overrides the startup and diagnostic version without changing the
-default version in `src/core/version.h`:
+For the Xbox suites alone:
 
 ```sh
-python tools/xbox/build.py --combined --sdk /path/to/ps5-payload-sdk --version 1.1.4-ds3-test.1
+python tests/xbox/run.py --clang /path/to/clang++ --firmware vendor/xbox/FW_ACC_00U.bin --sanitize
 ```
 
-Use matching test-version metadata when distributing that ELF through Payload
-Manager. Keep stable release metadata in `config/payload/` unchanged.
+Coverage includes adapter filtering, exact bundled bytes, override validation,
+cold upload, warm restart, USB transfers, controller input and lifecycle.
+`python tests/test_xbox_setup_windows.py` separately tests the optional helper
+with a real Microsoft download and a disposable localhost HTTP server. It never
+contacts a console. The helper itself needs Windows, not Python.
 
 ## Share diagnostic builds in issues
 
-Diagnostic builds belong in the relevant GitHub issue, not in GitHub Releases.
-Do not create releases or release tags for controller experiments, retries or
-individual tester builds. Keep the normal download pointing to the
-[latest stable ELF](https://github.com/arwebSE/LibrePadPS5/releases/latest/download/LibrePadPS5.elf).
+Build with a distinct `--version`, for example `--version local-test`.
+This changes startup/dashboard identification without editing the default in
+`src/core/version.h`. Do not label modified test binaries as a stable release.
 
-Build with a distinct `--version`, then package a ZIP containing:
+Diagnostic builds belong in the relevant issue, not GitHub Releases. Share a
+ZIP with the ELF, matching test-version JSON, SHA-256 checksum and a short note
+stating the source commit, purpose, steps and behavior needing console confirmation.
+Copy metadata into an ignored staging directory before editing it. Remove its
+stable-release `url` unless you have a matching test download URL, so it cannot
+fetch a different binary. Attach the ZIP through the issue comment editor;
+keep diagnostic binaries out of `main`.
 
-- `LibrePadPS5.elf` from that build.
-- `LibrePadPS5.elf.json` with the same test version. Copy the stable metadata
-  into the ignored build directory before editing it; do not change the stable
-  metadata. Remove its stable-release `url` until an actual test attachment URL
-  exists, so the test metadata cannot download a different ELF.
-- `LibrePadPS5.elf.sha256`, calculated from the packaged ELF.
-- A short note with the source commit, relevant issue, purpose, instructions
-  and checks performed. State which behavior still needs console confirmation.
-
-Use an identifiable filename such as `LibrePadPS5-issue-4-ds3-test-6.zip`.
-Attach the ZIP in the issue's comment editor and post the test instructions
-with it. GitHub accepts ZIP attachments; an ELF should be placed inside the ZIP.
-An ordinary source commit is sufficient; distributing a test does not require
-a release or tag. See [GitHub attachment instructions](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/attaching-files).
-
-For distribution using GitHub CLI only, GitHub's attachment endpoint currently
-rejects ZIP files. Store the ZIP on a separate `codex/issue-<number>-test-builds`
-branch and post an immutable raw download link in the issue. This is an
-issue-linked download, not a native attachment. Keep binary test bundles out
-of `main`; do not create a release as a workaround.
-
-DS3 tests 1 through 5 have been retired from release downloads. The test 1 page
-still points to the stable build because GitHub's recent page-traffic report
-includes it; the other four test release pages were deleted. Source tags and
-diagnostic history remain available. Following those tests,
-[the reporter confirmed working DS3 USB input on PS5 11.40](https://github.com/arwebSE/LibrePadPS5/issues/4#issuecomment-6228485447).
-The confirmed fix is included in stable v1.1.4.
-
-## Compatibility and naming
-
-New code uses LibrePad names. Active console paths are defined in
-[paths.h](../src/core/paths.h). [Storage migration](STORAGE.md) copies settings
-to `/data/LibrePadPS5`, retains a legacy rollback snapshot and locks both namespaces.
-The tested PS5 filesystem rejects symbolic links. SDK v0.43's raw libc stubs also
-leave misleading errno values on failure; see the [libc stubs](https://github.com/ps5-payload-dev/sdk/blob/v0.43/libc/syscalls.c)
-and [CRT gateway](https://github.com/ps5-payload-dev/sdk/blob/v0.43/crt/syscall.c).
-Do not require symbolic links or `realpath` for startup. Storage tests prohibit
-those calls and cover copy recovery, both locks, rollback and conflicting files.
-Startup failures report the exact operation/path and errno before file logging.
-The dashboard sends `X-LibrePad-Control`; the server also accepts the released
-`X-FreePad-Control` and `X-PDP-Control` headers with the same strict value checks.
-
-Add runtime code under `src/`, tests under `tests/`, and tools under `tools/`.
-Keep third-party code and notices under `vendor/`. Edit `web/` rather than its
-generated C assets. Historical source tags remain available; retired diagnostic
-release pages point to the stable download and no longer host test binaries.
+The retired DS3 build notes are [historical records](releases/README.md), not
+instructions to run those builds again.
 
 ## Stable release assets
 
-After building with the matching stable version and updating `config/payload/`,
-run `python tools/package_release.py`. Use an empty `--output` directory when
-restaging. Upload only the resulting ELF, JSON metadata and SHA-256 checksum.
-Xbox adapter firmware is built into the ELF; manual setup scripts stay in
-`tools/xbox/` and are not packaged as a release ZIP.
+Update `src/core/version.h` and `config/payload/LibrePadPS5.elf.json` to the same
+stable version, including the metadata download URL, then build the combined
+ELF. Stage assets with:
+
+```sh
+python tools/package_release.py
+```
+
+The packager checks the ELF's version, embedded firmware and metadata, then
+writes `dist/releases/v<VERSION>/`. The directory must be empty; use
+`--output /path/to/empty-directory` when restaging. It does not publish, tag or
+upload anything.
+
+Publish exactly `LibrePadPS5.elf`, `LibrePadPS5.elf.json` and
+`LibrePadPS5.elf.sha256`. Do not package an Xbox setup ZIP or the manual scripts.
+Keep those scripts in `tools/xbox/`. Update the release notes and any
+[source-versus-release notice](README.md#source-builds-and-published-downloads)
+when a source-only feature reaches a published release. Check the published
+assets against the staged checksums.
+
+## Storage and compatibility
+
+Active console paths are in [paths.h](../src/core/paths.h); legacy migration and
+both instance locks are confined to [storage.c](../src/core/storage.c).
+Migration preserves a rollback snapshot and does not require symbolic links or
+`realpath`. See [storage and recovery](STORAGE.md) before changing that logic.
+The dashboard uses `X-LibrePad-Control`; old `X-FreePad-Control` and
+`X-PDP-Control` headers retain the same strict value checks.
+
+Add runtime code under `src/`, tests under `tests/`, tools under `tools/` and
+third-party notices under `vendor/`. Keep controller coverage claims in
+[CONTROLLERS.md](CONTROLLERS.md) tied to actual hardware results.
