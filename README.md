@@ -32,8 +32,6 @@ Use a different profile for each player, with up to four players total including
 
 For wireless setup, follow the [Xbox Wireless guide](docs/XBOX.md#quick-install-on-windows), [Bluetooth guide](docs/SETUP.md#bluetooth) or [8BitDo Adapter 2 guide](docs/SETUP.md#8bitdo-usb-wireless-adapter-2). Xbox Wireless supports one controller; its setup helper installs the required firmware for you.
 
-Upgrading? Stop the old version before loading the new one. v1.1.4 adds the confirmed DS3 USB fixes and keeps your saved settings, including the startup recovery introduced in v1.1.3.
-
 ## Help and customization
 
 - [Setup and troubleshooting](docs/SETUP.md)
