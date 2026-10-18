@@ -23,6 +23,7 @@ bluetooth-test:
 
 payload-test: check
 	python3 tools/embed_dashboard.py
+	python3 tests/test_dashboard_assets.py
 	@mkdir -p $(TEST_BUILD)
 	clang++ -std=c++11 -Wall -Wextra -Werror -pthread -fsanitize=address,undefined -g -Isrc tests/test_controller_router.cpp -o $(TEST_BUILD)/test_controller_router
 	./$(TEST_BUILD)/test_controller_router
@@ -47,7 +48,5 @@ xbox-test:
 	python3 tests/xbox/run.py --sanitize
 
 dashboard-test:
-	node --check web/dashboard.js
-	node tests/test_dashboard_tabs.js
-	node tests/test_dashboard_support.js
-	node tests/test_dashboard_xbox.js
+	npm --prefix web test
+	python3 tools/embed_dashboard.py

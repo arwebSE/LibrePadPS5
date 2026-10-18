@@ -1,6 +1,8 @@
 # Generated build outputs
 /build/
 /dist/
+/web/node_modules/
+/web/.vite/
 *.elf
 *.o
 *.obj

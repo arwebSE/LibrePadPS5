@@ -41,7 +41,7 @@ help:
 	@echo "make xbox            Build the standalone Xbox diagnostic payload"
 	@echo "make xbox-module     Build the Xbox static archive"
 	@echo "make test            Run all C/C++ host regression suites"
-	@echo "make dashboard-test  Run dashboard JavaScript checks (requires Node.js)"
+	@echo "make dashboard-test  Run Vue dashboard checks (run npm --prefix web ci first)"
 	@echo "make send PS5_HOST=...  Build and send to your console"
 
 include config/build/tests.mk

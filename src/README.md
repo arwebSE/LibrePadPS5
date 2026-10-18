@@ -11,7 +11,7 @@ xbox/       Xbox Wireless backend, USB transport and standalone diagnostic glue
 ```
 
 Start at `app/main.c`. Add report formats in `input/controller_profiles.c`;
-Edit HTML, CSS and JavaScript in the repository's `web/` directory.
+Edit Vue components and Tailwind styles in `web/src/`, then rebuild `web/dist/`.
 USB transport lives in `input/usb_device.c`, not in a decoder. Console-user
 protection and owned-device cleanup live in `ps5/virtual_controller.c`.
 

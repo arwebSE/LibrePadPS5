@@ -14,7 +14,7 @@ still request a manual install. See [source and release differences](README.md#s
 2. Load `LibrePadPS5.elf` and open **`http://<PS5_IP>:8096/`** on your phone or computer.
 3. In **Advanced > Input & native controllers**, reserve the signed-in profiles used by your native DualSense controllers.
 4. Connect your gamepad. For a Microsoft Xbox Wireless adapter, [pair through the adapter](XBOX.md#setup). Bundled-firmware builds handle its firmware automatically; older builds may request an install.
-5. Select the gamepad under **Control gamepad**, click **Reconnect** if released, and assign a separate signed-in PS5 profile.
+5. Select the gamepad card under **Your controllers** (the **Control gamepad** menu in older dashboards), click **Reconnect** if released, and assign a separate signed-in PS5 profile.
 6. Press **Home / PS** if needed and choose that gamepad's profile. Check sticks and buttons in the dashboard, then try the controller on the PS5.
 
 **Each gamepad needs its own PS5 user.** Keep your DualSense on its reserved profile.

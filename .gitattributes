@@ -4,3 +4,4 @@
 *.bin binary
 *.png binary
 *.jpg binary
+web/dist/* linguist-generated=true

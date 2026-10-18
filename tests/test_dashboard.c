@@ -156,18 +156,16 @@ int main(void)
     mock_pad.user_id = 0x1234;
     mock_pad.buttons = PAD_BTN_CROSS;
     mock_pad.lx = 128;
-    request("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n", 200, "Release virtual pad", 1);
+    request("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n", 200, "id=\"app\"", 1);
     assert(strstr(PAGE, "<title>LibrePadPS5</title>"));
-    assert(strstr(PAGE, "role=\"tablist\""));
-    assert(strstr(PAGE, "aria-controls=\"panel-controller\""));
-    assert(strstr(PAGE, "aria-labelledby=\"tab-advanced\" hidden"));
-    assert(strstr(PAGE, "id=\"panel-advanced\"") < strstr(PAGE, "id=\"vid\""));
-    assert(strstr(PAGE, "id=\"bt-address\"") < strstr(PAGE, "id=\"panel-advanced\""));
-    assert(!strstr(PAGE, "PDP"));
-    assert(!strstr(PAGE, "Switch controller"));
+    assert(strstr(PAGE, "src=\"/dashboard.js\""));
+    assert(strstr(PAGE, "href=\"/dashboard.css\""));
+    assert(strstr(PAGE, "<noscript>"));
+    assert(!strstr(PAGE, "https://")); /* Runtime assets are entirely local. */
+    assert(strstr(DASHBOARD_CSS, "backdrop-filter"));
     request("GET /favicon.svg HTTP/1.1\r\nHost: localhost\r\n\r\n", 200, "image/svg+xml", 0);
     request("GET /dashboard.css HTTP/1.1\r\nHost: localhost\r\n\r\n", 200, "text/css", 0);
-    request("GET /dashboard.js HTTP/1.1\r\nHost: localhost\r\n\r\n", 200, "customLayout", 0);
+    request("GET /dashboard.js HTTP/1.1\r\nHost: localhost\r\n\r\n", 200, "Release virtual pad", 0);
     assert(control_header("POST /api/home HTTP/1.1\r\nX-LibrePad-Control: 1\r\n\r\n"));
     assert(control_header("POST /api/home HTTP/1.1\r\nX-FreePad-Control: 1\r\n\r\n")); /* Released clients. */
     assert(!control_header("POST /api/home HTTP/1.1\r\nX-FreePad-Control: 10\r\n\r\n"));

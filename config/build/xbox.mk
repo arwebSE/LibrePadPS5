@@ -8,7 +8,7 @@ CSRC := src/core/time_utils.c src/core/storage.c src/core/logging.c src/input/pr
 MODULESRC := src/xbox/backend.cpp src/xbox/usb.cpp src/xbox/controller.cpp src/xbox/firmware.cpp src/xbox/log.cpp vendor/xow/dongle/mt76.cpp vendor/xow/dongle/dongle.cpp vendor/xow/controller/gip.cpp
 CXXSRC := $(MODULESRC) src/xbox/standalone.cpp
 OBJS := $(addprefix $(BUILD)/,$(CSRC:.c=.o) $(CXXSRC:.cpp=.o))
-build/generated/dashboard/assets.h: web/index.html web/dashboard.css web/dashboard.js web/favicon.svg tools/embed_dashboard.py
+build/generated/dashboard/assets.h: web/dist/index.html web/dist/dashboard.css web/dist/dashboard.js web/dist/favicon.svg web/dist/source-manifest.json $(shell find web/src web/public web/scripts -type f) web/index.html web/package.json web/package-lock.json web/vite.config.js tools/embed_dashboard.py
 	python3 tools/embed_dashboard.py
 $(BUILD)/src/dashboard/http_server.o: build/generated/dashboard/assets.h
 build/generated/xbox/firmware_blob.h: vendor/xbox/FW_ACC_00U.bin tools/embed_xbox_firmware.py

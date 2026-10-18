@@ -26,7 +26,7 @@ You'll need a jailbroken PS5 and an ELF loader or Payload Manager.
 1. Stop any other controller payloads and leave your extra gamepads unplugged.
 2. Download and load `LibrePadPS5.elf`, then open `http://<PS5_IP>:8096/` on your phone or computer. Replace `<PS5_IP>` with your console's IP address.
 3. In **Advanced > Input & native controllers**, reserve the profiles used by your DualSense controllers.
-4. Connect your gamepad. Select it under **Control gamepad**, click **Reconnect** if needed, and assign it to a separate signed-in PS5 profile.
+4. Connect your gamepad. Select its card under **Your controllers** (the **Control gamepad** menu in older dashboards), click **Reconnect** if needed, and assign it to a separate signed-in PS5 profile.
 
 Use a different profile for each player, with up to four players total including DualSense users. The game must support the number of players you want to use.
 

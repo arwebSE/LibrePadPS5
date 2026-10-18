@@ -2,13 +2,13 @@
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
-extensions = {".c", ".h", ".md", ".py", ".js", ".html", ".css", ".json",
+extensions = {".c", ".h", ".md", ".py", ".js", ".vue", ".mjs", ".html", ".css", ".json",
               ".mk", ".sh", ".bat", ".yml", ".yaml", ".toml", ".txt", ".map"}
 files = [root / name for name in ("README.md", "Makefile")]
 for folder in ("src", "web", "docs", "tests", "tools", "config", "vendor", ".github"):
     files.extend(path for path in (root / folder).rglob("*")
                  if path.is_file() and (path.suffix in extensions or path.name == "Dockerfile")
-                 and "__pycache__" not in path.parts)
+                 and not {"__pycache__", "node_modules", "dist"}.intersection(path.parts))
 failures = []
 for path in files:
     if not path.exists():

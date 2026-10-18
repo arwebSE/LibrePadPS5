@@ -10,7 +10,9 @@ Run commands from the repository root. Build recipes live in `config/build/`;
 | `src/` | Payload, controller routing, USB, Bluetooth, Xbox and dashboard server |
 | `vendor/anypad/`, `vendor/xow/` | Pinned protocol cores with their licenses and notices |
 | `vendor/xbox/FW_ACC_00U.bin` | Verified Microsoft adapter firmware embedded at build time |
-| `web/` | Editable dashboard HTML, CSS, JavaScript and favicon |
+| `web/src/` | Vue components, composable state, API helpers and Tailwind styles |
+| `web/public/`, `web/tests/` | Favicon and Vue interaction tests |
+| `web/dist/` | Committed offline dashboard bundle with a source manifest |
 | `tests/` | Host regression suites; Bluetooth and Xbox have subdirectories |
 | `tools/` | Asset generators, checks and release packaging |
 | `tools/xbox/` | Portable builder, probes and optional manual firmware helpers |
@@ -49,11 +51,13 @@ for everyday controller use.
 
 ### Generated assets and firmware
 
-Both build paths generate dashboard assets from `web/` and embed
+Both build paths embed the committed dashboard bundle from `web/dist/` and
 `vendor/xbox/FW_ACC_00U.bin`. The firmware generator checks the pinned SHA-256,
 size and memory lengths before emitting `build/generated/xbox/firmware_blob.h`.
-Edit sources, not generated headers. No firmware download is needed during a
-build from the repository.
+The Python embedder checks the dashboard source manifest before generating C
+assets; stale bundles stop the build with an npm rebuild instruction. Edit
+sources, not generated headers. Building the payload from a current checkout
+needs no npm install or firmware download.
 
 Embedding does not initialize the radio at app startup. The backend waits for
 adapter `045e:02e6` or `045e:02fe`, then loads either a console override or the
@@ -86,8 +90,9 @@ under the console-style state directory, so run them in the disposable builder:
 docker run --rm -v "$PWD:/work" -w /work librepadps5-builder make test
 ```
 
-`make dashboard-test` needs Node.js on the host; it checks dashboard JavaScript
-behavior. The supplied Docker image does not include Node.js.
+`make dashboard-test` runs the Vue interaction suite and verifies the embedded
+bundle. Install frontend dependencies as described below. The supplied Docker
+image does not need Node.js for payload builds or C/C++ tests.
 
 For the Xbox suites alone:
 
@@ -100,6 +105,39 @@ cold upload, warm restart, USB transfers, controller input and lifecycle.
 `python tests/test_xbox_setup_windows.py` separately tests the optional helper
 with a real Microsoft download and a disposable localhost HTTP server. It never
 contacts a console. The helper itself needs Windows, not Python.
+
+## Dashboard development
+
+The dashboard uses Vue 3, Tailwind CSS and Vite. Its scripts, styles and favicon
+are compiled locally and served by the payload; browsers need no CDN or
+internet access. Use Node.js 24 for frontend development:
+
+```sh
+npm --prefix web ci
+npm --prefix web run dev
+npm --prefix web test
+npm --prefix web run build
+```
+
+The dev server prints its localhost URL. Add `?preview` for a local fixture with
+two controllers; all preview commands stay in the browser and never control a
+console. Without that parameter, `/api` requests proxy to `http://127.0.0.1:8096`.
+Set `LIBREPAD_PS5_URL=http://<PS5_IP>:8096` before starting Vite to use a real PS5.
+For PowerShell, use `$env:LIBREPAD_PS5_URL = "http://<PS5_IP>:8096"`.
+Actions in that live mode affect the console.
+
+Components are in `web/src/components/`, polling and command state in
+`composables/useDashboard.js`, and protocol helpers in `lib/`. The API routes,
+control header and per-slot behavior remain compatible with the C server.
+Interaction tests in `web/tests/` mock the API and cover native-profile
+reservations, slot actions, offline recovery, uploads, mappings and stop behavior.
+The C asset test also checks the compiled bytes, including UTF-8 and JavaScript
+question marks that could otherwise be interpreted as C trigraphs.
+
+After changing frontend sources, rebuild and commit `web/dist/` together with
+the source and lockfile. The build manifest catches stale or missing assets;
+line endings are normalized for Windows/Linux checkouts. Do not edit `dist/`
+by hand. See [third-party notices](../web/THIRD_PARTY_NOTICES.md) for Vue and Tailwind.
 
 ## Share diagnostic builds in issues
 
