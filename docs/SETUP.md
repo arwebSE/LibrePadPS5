@@ -141,7 +141,9 @@ Driver formats: `driver:ds4`, `driver:ds3`, `driver:xinput`, `driver:switchpro`,
 
 **View latest raw report** shows bytes from recognized/configured USB devices, even while paused. For initial investigation, capture on a PC using `python tools/usb_report_probe.py --vid 1234 --pid 5678` (requires `hidapi`). Do not guess layouts on the console. Sony USB access is restricted to the known DualShock 3/4 IDs; native DualSense IDs remain blocked. Explicit configuration is not proof that a third-party device cannot interfere with native input.
 
-The original protected-user settings and native-device ownership checks still apply. Unknown USB IDs require a saved profile. Generic USB uses a real HID gamepad descriptor, not guessed report bytes. Generic Bluetooth reads the controller's descriptor. [Coverage and generic map files](CONTROLLERS.md).
+For unusual generic HID axis/button usages, place `VVVV_PPPP.map` in `/data/LibrePadPS5/maps/` using hexadecimal IDs. [Example](../config/maps/EXAMPLE.map). Replug USB or disable/re-enable Bluetooth after editing a map.
+
+The original protected-user settings and native-device ownership checks still apply. Unknown USB IDs require a saved profile. Generic USB uses a real HID gamepad descriptor, not guessed report bytes. Generic Bluetooth reads the controller's descriptor. [Controller compatibility](CONTROLLERS.md).
 
 ## 8BitDo USB Wireless Adapter 2
 
