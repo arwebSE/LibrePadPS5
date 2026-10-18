@@ -106,16 +106,16 @@ payload with C++ statically linked and the usual console service imports.
 
 The adapter requires Microsoft's firmware. It is downloaded directly from
 Microsoft and saved once on the console, outside the ELF, so payload upgrades
-keep it. **v1.1.0 adds direct installation; v1.0.0 needs the manual FTP
-method below.** The hardware test used the 2017 firmware image
+keep it. Install it through the Windows helper or dashboard, or use the manual
+FTP method below. The hardware test used the 2017 firmware image
 expected by xow: build `201703281033____`, 70,620 bytes, ILM 61,456 bytes and
 DLM 9,132 bytes. SHA-256:
 `48084d9fa53b9bb04358f3bb127b7495dc8f7bb0b3ca1437bd24ef2b6eabdf66`.
 
 ### Quick install on Windows
 
-1. Load the [v1.1.4 main ELF](https://github.com/arwebSE/LibrePadPS5/releases/tag/v1.1.4) and confirm `http://<PS5_IP>:8096/` opens.
-2. Download [LibrePadPS5-Xbox-Setup.zip](https://github.com/arwebSE/LibrePadPS5/releases/download/v1.1.4/LibrePadPS5-Xbox-Setup.zip), extract it, and double-click `setup.cmd`.
+1. Load the [latest main ELF](https://github.com/arwebSE/LibrePadPS5/releases/latest/download/LibrePadPS5.elf) and confirm `http://<PS5_IP>:8096/` opens.
+2. Download [LibrePadPS5-Xbox-Setup.zip](https://github.com/arwebSE/LibrePadPS5/releases/latest/download/LibrePadPS5-Xbox-Setup.zip), extract it, and double-click `setup.cmd`.
 3. Enter the PS5 IP address. The helper downloads Microsoft's driver package,
    extracts the tested image using Windows' built-in extractor, verifies the
    SHA-256 above and uploads it directly to the dashboard. Python, FTP and a
@@ -132,7 +132,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/xbox/setup.ps1 -PS5Add
 
 Replace the example IP with your console's address. Optional `-FirmwarePath`
 installs a local copy instead of downloading; it must match the tested hash.
-The helper requires v1.1.0's `/api/xbox` and `/api/xbox/firmware` endpoints.
+The helper uses the dashboard's `/api/xbox` and `/api/xbox/firmware` endpoints.
 Its traffic goes to Microsoft for the driver download and to the dashboard for
 installation. Firmware remains separate from the release download.
 
@@ -149,7 +149,7 @@ Malformed, oversized and incomplete uploads leave the installed file unchanged.
 The dashboard validates memory lengths; use the Windows helper for verification
 against the known SHA-256. Builds with `WITH_XBOX=0` disable firmware installation.
 
-### Manual installation for v1.0.0 and older builds
+### Manual installation through FTP
 
 Use a local driver copy with the tested version, or obtain the corresponding
 driver package from [Microsoft's driver distribution](http://download.windowsupdate.com/c/msdownload/update/driver/drvs/2017/07/1cd6a87c-623f-4407-a52d-c31be49e925c_e19f60808bdcbfbd3c3df6be3e71ffc52e43261e.cab)
@@ -167,7 +167,7 @@ Upload the staged file through the console's existing FTP service to:
 /data/LibrePadPS5/xbox/firmware.bin
 ```
 
-v1.1.3 automatically migrates existing firmware and settings to the destination
+The payload automatically migrates existing firmware and settings to the destination
 above. See [storage paths and migration](STORAGE.md) for older release destinations.
 
 The installed Windows copy here was a 2015 image (70,008 bytes); it initialized
