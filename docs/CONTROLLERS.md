@@ -4,12 +4,14 @@ The PDP `0e6f:0184` wired gamepad and Xbox One model 1697 through `045e:02e6` ar
 
 **Logout recovery:** the preview required reconnecting the controller after every account logged out; the tester [confirmed that this allowed selection of the main account from the login screen](https://github.com/arwebSE/LibrePadPS5/issues/1#issuecomment-6115078167). v1.1.3 automatically renews active virtual controller registrations after the last user logs out. This new recovery is host-tested and still needs console confirmation. Released pads remain released, and physical USB/radio connections remain intact.
 
+**DualShock 3 USB:** [h1z1z1h16584 confirms working input on PS5 11.40](https://github.com/arwebSE/LibrePadPS5/issues/4#issuecomment-6228485447), tested with the PS5 controller overlay. The test 5 diagnostic records three sessions at about 100 physical reports per second, with more than 81,000 reports, button transitions and successful user binding. No input timeouts or USB transport failures occur during those sessions. v1.1.4 includes the confirmed fix. Bluetooth DS3 support and specific game coverage are not established by this USB test. [Setup](SETUP.md#dualshock-3-usb).
+
 The tester reports both DInput and XInput selections working and [plug, pair and play without changing modes](https://github.com/arwebSE/LibrePadPS5/issues/1#issuecomment-6115150398). Both logs expose the same `2dc8:3106` XInput interface. Notifications name the detected USB protocol; they cannot identify a requested adapter mode or the controller paired behind an identical USB interface.
 
 | Family | USB | Bluetooth |
 |---|---|---|
 | DualShock 4 | Dedicated driver; Sony IDs `05c4`, `09cc`, `0ba0` | Dedicated Classic driver; DS4, Hori Onyx, Raiju, SCUF Vantage profiles |
-| DualShock 3 | Dedicated driver, `054c:0268` | Unsupported by the bundled AnyPad core |
+| DualShock 3 | `054c:0268`; USB input tester-confirmed on PS5 11.40, fixed in v1.1.4 | Unsupported by the bundled AnyPad core |
 | Xbox | 360/XInput and One/Series GIP input, wake-up and Guide ACK | Classic One S/Elite/Adaptive; LE Series/current firmware; Secure Connections |
 | Switch Pro / NSO | Full-report driver and USB wake-up | Classic driver and report-mode initialization |
 | 8BitDo | Adapter 2 USB fixes included in v1.1.3; Xbox Series and PS4 controllers reported working on PS5 13.60. [Setup](SETUP.md#8bitdo-usb-wireless-adapter-2); other HID modes can use Generic USB HID | Descriptor-based generic HID, including upstream mappings |

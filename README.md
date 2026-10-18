@@ -2,7 +2,7 @@
 
 Use your favorite gamepad on a jailbroken PS5.
 
-[Download v1.1.3](https://github.com/arwebSE/LibrePadPS5/releases/download/v1.1.3/LibrePadPS5.elf) · [Releases](https://github.com/arwebSE/LibrePadPS5/releases) · [Issues](https://github.com/arwebSE/LibrePadPS5/issues)
+[Download v1.1.4](https://github.com/arwebSE/LibrePadPS5/releases/download/v1.1.4/LibrePadPS5.elf) · [Releases](https://github.com/arwebSE/LibrePadPS5/releases) · [Issues](https://github.com/arwebSE/LibrePadPS5/issues)
 
 ## Features
 
@@ -17,6 +17,8 @@ This project is still in early development. Bluetooth starts disabled. USB adapt
 
 **8BitDo USB Wireless Adapter 2** input is reported working on PS5 13.60 with Xbox Series and PS4 controllers, including games, emulators and homebrew. v1.1.3 includes the working preview's USB fixes and adds automatic controller recovery after logging out of every account. See [setup](docs/SETUP.md#8bitdo-usb-wireless-adapter-2).
 
+**DualShock 3 over USB** is tester-confirmed on PS5 11.40. v1.1.4 includes the initialization and reporting fixes verified across three sessions with more than 81,000 physical input reports. [Tester confirmation](https://github.com/arwebSE/LibrePadPS5/issues/4#issuecomment-6228485447) · [Setup](docs/SETUP.md#dualshock-3-usb).
+
 ## Get started
 
 You'll need a jailbroken PS5 and an ELF loader or Payload Manager.
@@ -30,7 +32,7 @@ Use a different profile for each player, with up to four players total including
 
 For wireless setup, follow the [Xbox Wireless guide](docs/XBOX.md#quick-install-on-windows), [Bluetooth guide](docs/SETUP.md#bluetooth) or [8BitDo Adapter 2 guide](docs/SETUP.md#8bitdo-usb-wireless-adapter-2). Xbox Wireless supports one controller; its setup helper installs the required firmware for you.
 
-Upgrading? Stop the old version before loading the new one. v1.1.3 fixes the startup failure in v1.1.2 and keeps your saved settings.
+Upgrading? Stop the old version before loading the new one. v1.1.4 adds the confirmed DS3 USB fixes and keeps your saved settings, including the startup recovery introduced in v1.1.3.
 
 ## Help and customization
 
@@ -43,7 +45,7 @@ Having trouble? In the dashboard, open **Advanced > Logs & support** to download
 
 ## Credits
 
-Shoutout to [thaikhoa](https://github.com/thaikhoa) for testing the 8BitDo USB Wireless Adapter 2 with Xbox Series and PS4 controllers, sharing logs and helping catch bugs.
+Thanks to [thaikhoa](https://github.com/thaikhoa) for 8BitDo USB Wireless Adapter 2 testing and [h1z1z1h16584](https://github.com/h1z1z1h16584) for DualShock 3 USB testing.
 
 Shoutout to [MODDED WARFARE](https://www.youtube.com/@MODDEDWARFARE) for covering similar tools and sharing setup instructions with the PlayStation homebrew community.
 

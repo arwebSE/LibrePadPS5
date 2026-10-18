@@ -15,7 +15,7 @@ body:
     attributes:
       label: LibrePadPS5 version
       description: Shown beside the firmware in the dashboard or in the downloaded report.
-      placeholder: "1.1.3, or unknown if it never starts"
+      placeholder: "1.1.4, or unknown if it never starts"
     validations:
       required: true
   - type: input

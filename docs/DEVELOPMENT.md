@@ -101,8 +101,9 @@ of `main`; do not create a release as a workaround.
 DS3 tests 1 through 5 have been retired from release downloads. The test 1 page
 still points to the stable build because GitHub's recent page-traffic report
 includes it; the other four test release pages were deleted. Source tags and
-diagnostic history remain available. This retirement does not establish that
-DS3 input is fixed.
+diagnostic history remain available. Following those tests,
+[the reporter confirmed working DS3 USB input on PS5 11.40](https://github.com/arwebSE/LibrePadPS5/issues/4#issuecomment-6228485447).
+The confirmed fix is included in stable v1.1.4.
 
 ## Compatibility and naming
 

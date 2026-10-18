@@ -2,7 +2,7 @@
 
 Use a wired USB, Xbox Wireless or Bluetooth gamepad on a jailbroken PS5. See [tested hardware and controller coverage](CONTROLLERS.md).
 
-**[Download v1.1.3 ELF](https://github.com/arwebSE/LibrePadPS5/releases/download/v1.1.3/LibrePadPS5.elf)** · [Releases](https://github.com/arwebSE/LibrePadPS5/releases) · [Issues](https://github.com/arwebSE/LibrePadPS5/issues)
+**[Download v1.1.4 ELF](https://github.com/arwebSE/LibrePadPS5/releases/download/v1.1.4/LibrePadPS5.elf)** · [Releases](https://github.com/arwebSE/LibrePadPS5/releases) · [Issues](https://github.com/arwebSE/LibrePadPS5/issues)
 
 ## Supported hardware
 
@@ -28,6 +28,17 @@ See [storage paths and migration](STORAGE.md) before doing manual FTP configurat
 5. Select the gamepad, click **Reconnect** if released, and assign a separate signed-in profile. If needed, press **Home / PS** and choose **`Gamepad`** in the console's user picker. Check both controllers. v1.1.3 automatically renews active virtual controllers after every account logs out; wait for registration to finish, then press Home.
 
 Optional: save the gamepad user's ID in `controller-user` (`pdp-user` on older releases) in the same directory for automatic assignment. Settings are read on startup; restart after editing. Never copy IDs from another console. Invalid or identical protected/preferred IDs prevent startup. Protection does not override the console's own user picker.
+
+### DualShock 3 USB
+
+Use v1.1.4 or newer with a USB data cable. Connect the DS3 and press its physical
+PS button. Select it in the dashboard, click **Reconnect** if released, and assign
+a separate signed-in profile. Its sticks and buttons should update the input
+display. Reserve the profile used by your native DualSense first.
+
+[h1z1z1h16584 tested the fix on firmware 11.40](https://github.com/arwebSE/LibrePadPS5/issues/4#issuecomment-6228485447)
+using the PS5 controller overlay. USB support does not require a Bluetooth adapter
+or Xbox firmware. This confirmation applies to DS3 USB, not DS3 Bluetooth.
 
 ### Multiple controllers
 
@@ -244,6 +255,8 @@ Host tests (run inside a disposable builder container; they create the legacy st
 Run all 21 sanitizer-enabled C/C++ suites with `make test`: USB protocols and transport, configuration, HTTP, lifecycle, Classic/LE simulations, crypto, descriptors, fuzzing, adapter ownership/queues and Xbox transport/radio tests. This also generates dashboard assets. Run `make dashboard-test` separately with Node.js installed for tab, keyboard and GitHub reporting checks. Use the disposable container, not the live console. [Repository layout and contribution checks](DEVELOPMENT.md).
 
 ## Credits
+
+Thanks to [thaikhoa](https://github.com/thaikhoa) for 8BitDo USB Wireless Adapter 2 testing and [h1z1z1h16584](https://github.com/h1z1z1h16584) for DualShock 3 USB testing.
 
 Derived from [OmniPad PS5](https://github.com/diegobarbosaa/OmniPad-PS5) by diegobarbosaa. Bluetooth and generic HID use the pinned [AnyPad core](../vendor/anypad/README.md). Thanks to [PoorDS4/Ghostcontrol](https://github.com/a-ddr/PoorDS4), [YetAnotherControllerEnabler](https://github.com/MegaCadeDev/YetAnotherControllerEnabler) and [PS5 Payload SDK](https://github.com/ps5-payload-dev/sdk) contributors. Original source attribution retained; Git history contains this project's commits only.
 
