@@ -1,9 +1,11 @@
 <script setup>
+import { useI18n } from '../composables/useI18n';
+const { t } = useI18n();
 defineProps({ axes: { default: () => [128,128,128,128] }, buttons: { default: 0 } });
 const offset = v => Math.max(-9, Math.min(9, ((v ?? 128) - 128) / 14));
 </script>
 <template>
-  <svg class="gamepad-art" viewBox="0 0 460 260" role="img" aria-label="Controller with live stick and button input">
+  <svg class="gamepad-art" viewBox="0 0 460 260" role="img" :aria-label="t('Controller with live stick and button input')">
     <ellipse cx="230" cy="226" rx="136" ry="10" fill="#000" opacity=".12" />
     <path d="M121 56c-25 0-40 17-47 43L51 183c-8 33 12 51 36 32l43-35h200l43 35c24 19 44 1 36-32l-23-84c-7-26-22-43-47-43Z" fill="#303238" stroke="#595d65" stroke-width="2" />
     <path d="m127 55 14-15h45l8 16m72 0 8-16h45l14 15" fill="#45484f" stroke="#70757f" stroke-width="2" />

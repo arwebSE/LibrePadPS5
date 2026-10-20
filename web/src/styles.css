@@ -115,6 +115,8 @@
   .app-nav { position: sticky; top: 0; z-index: 40; border-bottom: 1px solid var(--nav-line); background: var(--nav); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); }
   .nav-inner { max-width: 1600px; min-height: 86px; padding: 16px clamp(20px, 4vw, 64px); margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
   .nav-actions { display: flex; align-items: center; gap: 16px; }
+  .language-picker { min-width: 0; }
+  .language-picker select { width: 128px; max-width: 100%; min-height: 38px; font-size: 12px; padding: 8px 24px 8px 10px; }
   .theme-toggle { display: grid; place-items: center; width: 38px; height: 38px; flex-shrink: 0; border: 1px solid var(--line); border-radius: 10px; color: var(--green); background: var(--surface-soft); }
   .theme-toggle:hover { background: var(--hover); }
   .text-muted { color: var(--muted); }
@@ -232,6 +234,9 @@
 .toast-enter-active, .toast-leave-active { transition: opacity .18s, bottom .18s; }
 .toast-enter-from, .toast-leave-to { opacity: 0; bottom: 14px; }
 @media (max-width: 1150px) {
+  .nav-inner { flex-wrap: wrap; }
+  .nav-tabs { order: 3; width: 100%; }
+  .nav-tabs button { flex: 1; justify-content: center; }
   .workspace-grid { grid-template-columns: 1.25fr 1fr; }
   .workspace-grid > .input-monitor { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1.5fr 1.7fr; gap: 24px; align-items: center; }
   .workspace-grid > .input-monitor .stick-grid, .workspace-grid > .input-monitor .button-monitor { margin-top: 0; }
@@ -269,5 +274,16 @@
   .nav-actions { gap: 10px; }
   .theme-toggle { width: 32px; height: 32px; }
   .brand { gap: 7px; font-size: 16px; }
+}
+@media (max-width: 480px) {
+  .nav-inner { gap: 12px; }
+  .nav-actions { flex-wrap: wrap; flex: 1 0 100%; justify-content: flex-end; }
+  .connection-label { margin-right: auto; }
+  .language-picker select { width: 120px; }
+  .nav-tabs button { padding-inline: 10px; overflow-wrap: anywhere; }
+  .stage-head { flex-wrap: wrap; }
+  .stage-bottom { flex-wrap: wrap; }
+  .badge { white-space: normal; text-align: center; }
+  .footer-actions { flex-wrap: wrap; gap: 16px; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; scroll-behavior: auto !important; } }

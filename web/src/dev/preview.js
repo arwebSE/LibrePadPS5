@@ -23,7 +23,7 @@ export function enablePreview() {
     const action = url.pathname.slice(5), slot = state.slots[Number(url.searchParams.get('slot') || 0)];
     let result, code = 200;
     if (options.method === 'POST') {
-      result = { message: 'Preview: command completed locally.' };
+      result = { message: 'Action completed' };
       if (action === 'release') for (const pad of Number(url.searchParams.get('slot')) === -1 ? state.slots : [slot]) { pad.live = false; pad.status = 0; pad.paused = true; }
       else if (action === 'reconnect') { slot.live = true; slot.status = 3; slot.paused = false; }
       else if (action === 'rebind') slot.user = url.searchParams.get('user');
@@ -31,7 +31,7 @@ export function enablePreview() {
       else if (action === 'profiles') profiles = url.searchParams.get('data');
     } else if (action === 'state') { state.slots.filter(p => p.live).forEach(p => p.frames += 60); result = state; }
     else if (action === 'xbox') result = { enabled: true, firmware: 'bundled', connected: true };
-    else if (action === 'bluetooth') result = { enabled: false, connected: false, message: 'Bluetooth is disabled. Your USB and Xbox connections are ready.' };
+    else if (action === 'bluetooth') result = { enabled: false, connected: false, message: 'Bluetooth disabled' };
     else if (action === 'profiles') result = profiles;
     else if (action === 'report') result = '0e6f:0184 · 8 bytes\n00 00 0f 80 80 80 80 00';
     else if (action === 'log') result = '[Preview] Dashboard ready. All actions remain local to this preview.';

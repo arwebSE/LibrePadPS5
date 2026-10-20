@@ -129,6 +129,10 @@ Actions in that live mode affect the console.
 Components are in `web/src/components/`, polling and command state in
 `composables/useDashboard.js`, and protocol helpers in `lib/`. The API routes,
 control header and per-slot behavior remain compatible with the C server.
+Dashboard translations are in `locales/messages.js`; each row contains the English
+source and all six translations. Keep interpolation placeholders identical in every
+language. Language detection, persistence and English fallback are managed by
+`composables/useI18n.js`.
 Interaction tests in `web/tests/` mock the API and cover native-profile
 reservations, slot actions, offline recovery, uploads, mappings and stop behavior.
 The C asset test also checks the compiled bytes, including UTF-8 and JavaScript

@@ -3,11 +3,14 @@ import { flushPromises, mount } from '@vue/test-utils';
 import App from '../src/App.vue';
 import { eligibleUsers, request, supportIssueUrl } from '../src/lib/api';
 import { defaultMap, stageRow } from '../src/lib/mappings';
+import { languages } from '../src/composables/useI18n';
+import { messages } from '../src/locales/messages';
 
 let wrapper, state, xbox, calls, offline, failure;
 const row = '0e6f:0184 switch8 ' + defaultMap.join(',') + '\n';
 beforeEach(() => {
   localStorage.clear(); delete document.documentElement.dataset.theme;
+  vi.spyOn(navigator, 'languages', 'get').mockReturnValue(['en-US']);
   vi.useFakeTimers(); calls = []; offline = false; failure = '';
   state = { version: 'local-test', firmware: '12.60', users: [
     { id: '00000001', name: 'Native player', protected: true, primary_protected: true },
@@ -26,7 +29,7 @@ beforeEach(() => {
     let result, status = 200;
     if (options.method === 'POST') {
       if (failure) return new Response(JSON.stringify({ message: failure }), { status: 409 });
-      result = { message: 'Command completed' };
+      result = { message: 'Action completed' };
       if (url.pathname === '/api/release') for (const pad of Number(url.searchParams.get('slot')) === -1 ? state.slots : [state.slots[Number(url.searchParams.get('slot'))]]) { pad.paused = true; pad.live = false; pad.status = 0; }
       if (url.pathname === '/api/reconnect') { const pad = state.slots[Number(url.searchParams.get('slot'))]; pad.paused = false; pad.live = true; pad.status = 3; }
       if (url.pathname === '/api/xbox/firmware') xbox.firmware = 'installed';
@@ -45,6 +48,63 @@ async function open() { wrapper = mount(App, { attachTo: document.body }); await
 function button(text) { return wrapper.findAll('button').find(b => b.text() === text); }
 const posts = () => calls.filter(call => call.options.method === 'POST');
 async function poll() { await vi.advanceTimersByTimeAsync(1000); await flushPromises(); }
+
+describe('dashboard translations', () => {
+  it.each(languages)('switches the full dashboard to $name and remembers it after reload', async ({ code }) => {
+    await open();
+    await wrapper.get('#ui-language').setValue(code);
+    expect(document.documentElement.lang).toBe(code);
+    expect(localStorage.getItem('librepad-language')).toBe(code);
+    expect(wrapper.get('h1').text()).toBe(messages[code].Controllers);
+    expect(wrapper.get('#mapping-heading').text()).toBe(messages[code]['Controller profiles']);
+    expect(wrapper.get('#support-heading').text()).toBe(messages[code]['Logs & support']);
+    expect(wrapper.get('#bluetooth-heading + p').text()).toBe(messages[code]['Bluetooth disabled']);
+    expect(wrapper.get('.gamepad-art').attributes('aria-label')).toBe(messages[code]['Controller with live stick and button input']);
+    await wrapper.get('#tab-advanced').trigger('click');
+    await button(messages[code]['Add / update in editor']).trigger('click');
+    expect(wrapper.get('.toast-message').text()).toContain(messages[code]['Added to editor. Release all virtual pads, then Save & apply.']);
+    wrapper.unmount(); await open();
+    expect(wrapper.get('#ui-language').element.value).toBe(code);
+    expect(wrapper.get('h1').text()).toBe(messages[code].Controllers);
+  });
+
+  it('detects the browser language on first visit and keeps switching usable without storage', async () => {
+    vi.spyOn(navigator, 'languages', 'get').mockReturnValue(['sv-SE']);
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('Blocked'); });
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('Blocked'); });
+    await open();
+    expect(wrapper.get('h1').text()).toBe('Handkontroller');
+    await wrapper.get('#ui-language').setValue('ja');
+    expect(document.documentElement.lang).toBe('ja');
+    expect(wrapper.get('h1').text()).toBe('コントローラー');
+  });
+
+  it('keeps controller selection and unsaved drafts, and updates already visible notices', async () => {
+    await open();
+    await wrapper.get('[aria-label="Select pad 2: PDP"]').trigger('click');
+    await wrapper.get('#tab-advanced').trigger('click');
+    await wrapper.get('#profile-text').setValue('# unsaved draft\n');
+    await button('Release all virtual pads').trigger('click'); await flushPromises();
+    expect(wrapper.get('.toast-message').text()).toContain('Action completed');
+    await wrapper.get('#ui-language').setValue('de');
+    expect(wrapper.get('.toast-message').text()).toContain('Aktion abgeschlossen');
+    expect(wrapper.get('#selected-controller').text()).toBe('PDP');
+    expect(wrapper.get('#profile-text').element.value).toBe('# unsaved draft\n');
+    expect(wrapper.get('#panel-advanced').isVisible()).toBe(true);
+    offline = true; await poll();
+    expect(wrapper.get('.offline-banner').text()).toBe(messages.de['Connection lost. Reconnecting automatically; controls are paused until the console responds.']);
+  });
+
+  it('translates server rejections while preserving unknown errors verbatim', async () => {
+    await open(); await wrapper.get('#ui-language').setValue('es');
+    failure = 'Profile unavailable, reserved, or already used by another gamepad';
+    await button(messages.es['Assign user']).trigger('click'); await flushPromises();
+    expect(wrapper.get('[role="alert"]').text()).toContain(messages.es[failure]);
+    failure = 'Unrecognized future server error';
+    await button(messages.es['Assign user']).trigger('click'); await flushPromises();
+    expect(wrapper.get('[role="alert"]').text()).toContain(failure);
+  });
+});
 
 describe('dashboard controls', () => {
   it('defaults to dark, toggles in the navbar and remembers the choice after reload', async () => {

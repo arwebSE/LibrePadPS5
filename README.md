@@ -9,7 +9,7 @@ Use your favorite gamepad on a jailbroken PS5.
 - Up to four players, counting native DualSense users and virtual gamepads together.
 - Wired USB, Xbox Wireless and Bluetooth connections.
 - Support for PlayStation, Xbox, Switch and 8BitDo gamepads.
-- A dashboard to connect controllers, change button mappings and download logs.
+- A dashboard to connect controllers, change button mappings and download logs. Available in English, Japanese, Spanish, German, French, Swedish and Simplified Chinese; it detects your browser language and remembers your choice from the language menu.
 
 This project is still in early development. Bluetooth starts disabled. USB adapters such as 8BitDo handle their own pairing.
 
